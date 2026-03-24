@@ -28,6 +28,7 @@ exclude_patterns:
   - "**/__init__.py"
 EOF
 
+rm -rf "$OUTPUT_BASE"
 mkdir -p "$OUTPUT_BASE"
 
 # Ensure index is fresh
@@ -35,27 +36,15 @@ echo -e "${BLUE}Building fresh index for context-packer...${NC}"
 python3 -m context_packer.cli index "$SOURCE_DIR" --config "$CONFIG"
 echo -e "${GREEN}✓ Index built${NC}"
 
-# List of 10 test cases (ID, Query)
-declare -A test_cases=(
-    ["1_chunking_flow"]="Show me the chunking logic flow from entry point to output in the chunker module"
-    ["2_python_resolver"]="Show me how PythonResolver extracts function and class definitions"
-    ["3_js_resolver"]="Show me how JavaScriptResolver handles JSX elements and exports"
-    ["4_ts_resolver"]="Show me how TypeScriptResolver handles interfaces and type aliases"
-    ["5_rust_resolver"]="Show me how RustResolver handles impl blocks and macro definitions"
-    ["6_symbol_extraction"]="Show me how symbols_defined and symbols_referenced are collected"
-    ["7_file_filtering"]="Show me how _should_include_file works with include/exclude patterns"
-    ["8_fallback_regex"]="Show me when RegexChunker is used as fallback and how it parses"
-    ["9_markdown_chunker"]="Show me how MarkdownChunker splits content by headings"
-    ["10_tree_sitter_parse"]="Show me how TreeSitterChunker parses files and extracts definitions"
-)
+# Test case 1
+run_test() {
+    local id="$1"
+    local query="$2"
+    local test_output_dir="$OUTPUT_BASE/$id"
 
-# Run each test
-for id in "1_chunking_flow" "2_python_resolver" "3_js_resolver" "4_ts_resolver" "5_rust_resolver" "6_symbol_extraction" "7_file_filtering" "8_fallback_regex" "9_markdown_chunker" "10_tree_sitter_parse"; do
-    query="${test_cases[$id]}"
     echo -e "\n${BLUE}Running Test Case: $id${NC}"
     echo -e "${YELLOW}Query: '$query'${NC}"
 
-    test_output_dir="$OUTPUT_BASE/$id"
     mkdir -p "$test_output_dir"
 
     # Run query
@@ -65,17 +54,29 @@ for id in "1_chunking_flow" "2_python_resolver" "3_js_resolver" "4_ts_resolver" 
     if [ -f output/context-pack.zip ]; then
         mv output/context-pack.zip "$test_output_dir/context-pack.zip"
         unzip -q "$test_output_dir/context-pack.zip" -d "$test_output_dir/extracted"
-        echo -e "${GREEN}✓ Output saved and extracted to $test_output_dir${NC}"
+        echo -e "${GREEN}✓ Output saved to $test_output_dir${NC}"
 
-        # Log summary of files included
+        # Log summary
         if [ -f "$test_output_dir/extracted/REVIEW_CONTEXT.md" ]; then
-            echo -e "${GREEN}=== TOP FILES INCLUDED ===${NC}"
-            grep -E "^\| \`" "$test_output_dir/extracted/REVIEW_CONTEXT.md" | head -n 5
+            echo -e "${GREEN}=== FILES INCLUDED ===${NC}"
+            grep -E "^\|" "$test_output_dir/extracted/REVIEW_CONTEXT.md" | head -n 10
         fi
     else
         echo -e "${YELLOW}⚠ No output generated for $id${NC}"
     fi
-done
+}
+
+# Run all 10 test cases
+run_test "1_chunking_flow" "Show me the chunking logic flow from entry point to output in the chunker module"
+run_test "2_python_resolver" "Show me how PythonResolver extracts function and class definitions"
+run_test "3_js_resolver" "Show me how JavaScriptResolver handles JSX elements and exports"
+run_test "4_ts_resolver" "Show me how TypeScriptResolver handles interfaces and type aliases"
+run_test "5_rust_resolver" "Show me how RustResolver handles impl blocks and macro definitions"
+run_test "6_symbol_extraction" "Show me how symbols_defined and symbols_referenced are collected"
+run_test "7_file_filtering" "Show me how _should_include_file works with include/exclude patterns"
+run_test "8_fallback_regex" "Show me when RegexChunker is used as fallback and how it parses"
+run_test "9_markdown_chunker" "Show me how MarkdownChunker splits content by headings"
+run_test "10_tree_sitter_parse" "Show me how TreeSitterChunker parses files and extracts definitions"
 
 echo -e "\n${GREEN}================================================================================${NC}"
 echo -e "${GREEN}✓ All 10 test cases completed!${NC}"
