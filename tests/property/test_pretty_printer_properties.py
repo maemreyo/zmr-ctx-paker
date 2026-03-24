@@ -11,7 +11,7 @@ import pytest
 from hypothesis import given, strategies as st, assume, settings
 
 from context_packer.chunker import TreeSitterChunker, parse_with_fallback
-from context_packer.pretty_printer import PrettyPrinter
+from context_packer.formatters import PrettyPrinter
 from context_packer.models import CodeChunk
 
 

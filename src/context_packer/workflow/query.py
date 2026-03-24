@@ -9,13 +9,13 @@ import time
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from .budget import BudgetManager
-from .config import Config
+from ..budget import BudgetManager
+from ..config import Config
 from .indexer import load_indexes
-from .logger import get_logger
-from .performance import PerformanceTracker
-from .retrieval import RetrievalEngine
-from .packer import XMLPacker, ZIPPacker
+from ..logger import get_logger
+from ..monitoring import PerformanceTracker
+from ..retrieval import RetrievalEngine
+from ..packer import XMLPacker, ZIPPacker
 
 logger = get_logger()
 

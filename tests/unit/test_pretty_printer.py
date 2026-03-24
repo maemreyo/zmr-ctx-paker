@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from context_packer.chunker import TreeSitterChunker
-from context_packer.pretty_printer import PrettyPrinter
+from context_packer.formatters import PrettyPrinter
 from context_packer.models import CodeChunk
 
 
