@@ -8,6 +8,7 @@ Additional signals applied on top of the base hybrid score:
   - Symbol-based exact matching: boosts files whose defined symbols match
     identifier tokens extracted from the query.
   - File path scoring: boosts files whose path contains query keywords.
+  - Domain scoring: boosts files in directories matching discovered domain keywords.
   - Test file penalty: reduces scores for files that look like test files.
 """
 
@@ -19,6 +20,37 @@ from context_packer.graph import RepoMapGraph
 from context_packer.vector_index import VectorIndex
 
 logger = logging.getLogger(__name__)
+
+
+class DomainKeywordMap:
+    """Lightweight domain keyword to directory mapping for query classification."""
+    def __init__(self):
+        self._keyword_to_dirs: Dict[str, Set[str]] = {}
+
+    def load(self, path: str) -> None:
+        import pickle
+        from pathlib import Path
+        if Path(path).exists():
+            with open(path, 'rb') as f:
+                data = pickle.load(f)
+                self._keyword_to_dirs = {k: set(v) for k, v in data.items()}
+
+    @property
+    def keywords(self) -> Set[str]:
+        return set(self._keyword_to_dirs.keys())
+
+    def directories_for(self, keyword: str) -> List[str]:
+        return list(self._keyword_to_dirs.get(keyword.lower(), set()))
+
+    def keyword_matches(self, token: str) -> bool:
+        token_lower = token.lower()
+        if token_lower in self._keyword_to_dirs:
+            return True
+        for kw in self._keyword_to_dirs:
+            prefix_len = min(5, len(token_lower), len(kw))
+            if prefix_len >= 4 and token_lower[:prefix_len] == kw[:prefix_len]:
+                return True
+        return False
 
 # Words that carry no semantic signal when matching against file paths or symbols.
 _STOP_WORDS: frozenset = frozenset({
@@ -99,7 +131,9 @@ class RetrievalEngine:
         pagerank_weight: float = 0.4,
         symbol_boost: float = 0.3,
         path_boost: float = 0.2,
+        domain_boost: float = 0.4,
         test_penalty: float = 0.5,
+        domain_map: Optional["DomainKeywordMap"] = None,
     ):
         """
         Initialize RetrievalEngine with indexes and weights.
@@ -133,13 +167,15 @@ class RetrievalEngine:
         self.pagerank_weight = pagerank_weight
         self.symbol_boost = symbol_boost
         self.path_boost = path_boost
+        self.domain_boost = domain_boost
+        self.domain_map = domain_map if domain_map is not None else DomainKeywordMap()
         self.test_penalty = test_penalty
 
         logger.info(
             f"RetrievalEngine initialized with weights: "
             f"semantic={semantic_weight}, pagerank={pagerank_weight}, "
             f"symbol_boost={symbol_boost}, path_boost={path_boost}, "
-            f"test_penalty={test_penalty}"
+            f"domain_boost={domain_boost}, test_penalty={test_penalty}"
         )
 
     # ------------------------------------------------------------------
@@ -213,18 +249,34 @@ class RetrievalEngine:
         if query:
             tokens = self._extract_query_tokens(query)
 
-            # Symbol boost: reward files that define symbols named in the query
-            if tokens:
+            # Classify query type for adaptive boosting
+            query_type = self._classify_query(query, tokens)
+
+            # Effective boost weights per query type
+            eff_symbol, eff_path, eff_domain = self._effective_weights(query_type)
+
+            # Symbol boost
+            if tokens and eff_symbol > 0:
                 file_symbols = self.vector_index.get_file_symbols()
                 symbol_scores = self._compute_symbol_scores(tokens, file_symbols)
                 for file_path, score in symbol_scores.items():
-                    merged[file_path] = merged.get(file_path, 0.0) + self.symbol_boost * score
+                    merged[file_path] = merged.get(file_path, 0.0) + eff_symbol * score
 
-                # Path boost: reward files whose path contains query keywords
+            # Path boost
+            if tokens and eff_path > 0:
                 all_files: Set[str] = set(merged.keys())
                 path_scores = self._compute_path_scores(tokens, all_files)
                 for file_path, score in path_scores.items():
-                    merged[file_path] = merged.get(file_path, 0.0) + self.path_boost * score
+                    merged[file_path] = merged.get(file_path, 0.0) + eff_path * score
+
+            # Domain boost
+            if tokens and eff_domain > 0:
+                all_files: Set[str] = set(merged.keys())
+                domain_scores = self._compute_domain_scores(tokens, all_files)
+                for file_path, score in domain_scores.items():
+                    merged[file_path] = merged.get(file_path, 0.0) + eff_domain * score
+
+            logger.info(f"Query type: {query_type}, effective weights: symbol={eff_symbol:.2f}, path={eff_path:.2f}, domain={eff_domain:.2f}")
 
         # 5. Test file penalty
         if self.test_penalty > 0:
@@ -335,6 +387,95 @@ class RetrievalEngine:
                 scores[file_path] = min(1.0, matches / len(tokens))
 
         return scores
+
+    def _classify_query(self, query: str, tokens: Set[str]) -> str:
+        """
+        Classify query into one of three types for adaptive boosting.
+
+        Args:
+            query: Original query string
+            tokens: Extracted lowercase tokens
+
+        Returns:
+            "symbol" | "path-dominant" | "semantic-dominant"
+        """
+        import re
+
+        # 1. Path-dominant FIRST: check if any token matches domain keywords
+        # This takes priority over symbol detection to avoid "Show" or "Chunking"
+        # from being classified as symbol when domain terms are present
+        for token in tokens:
+            if self.domain_map.keyword_matches(token):
+                return "path-dominant"
+
+        # 2. Symbol: PascalCase or snake_case identifier
+        # Only check if no domain keywords matched
+        if re.search(r'\b[A-Z][a-z]+[A-Z]', query):
+            return "symbol"
+        if any('_' in t and len(t) > 4 for t in tokens):
+            return "symbol"
+
+        # 3. Default
+        return "semantic-dominant"
+
+    def _effective_weights(self, query_type: str) -> Tuple[float, float, float]:
+        """
+        Return effective (symbol, path, domain) boost weights for query type.
+
+        Per the design spec:
+        | Query type       | symbol | path | domain |
+        |------------------|--------|------|--------|
+        | symbol           | 1.5    | 0.5  | 0.3    |
+        | path-dominant    | 0.5    | 1.5  | 1.0    |
+        | semantic-dominant| 0.2    | 0.2  | 0.2    |
+        """
+        multipliers = {
+            "symbol": (1.5, 0.5, 0.3),
+            "path-dominant": (0.5, 1.5, 1.0),
+            "semantic-dominant": (0.2, 0.2, 0.2),
+        }
+        sym_mul, path_mul, dom_mul = multipliers.get(query_type, (0.2, 0.2, 0.2))
+        return (
+            self.symbol_boost * sym_mul,
+            self.path_boost * path_mul,
+            self.domain_boost * dom_mul,
+        )
+
+    def _compute_domain_scores(
+        self,
+        tokens: Set[str],
+        all_files: Set[str],
+    ) -> Dict[str, float]:
+        """
+        Score files by whether they are in directories matching domain keywords.
+
+        Files under a matched directory get score 1.0, others get 0.0.
+
+        Args:
+            tokens: Lowercase token set extracted from the query
+            all_files: All file paths to score
+
+        Returns:
+            Dict of file_path -> score in {0.0, 1.0}
+        """
+        if not tokens or not self.domain_map.keywords:
+            return {}
+
+        matched_dirs = set()
+        for token in tokens:
+            for kw in self.domain_map.keywords:
+                prefix_len = min(5, len(token), len(kw))
+                if token == kw or (prefix_len >= 4 and token[:prefix_len] == kw[:prefix_len]):
+                    matched_dirs.update(self.domain_map.directories_for(kw))
+
+        if not matched_dirs:
+            return {}
+
+        return {
+            fp: 1.0
+            for fp in all_files
+            if any(fp.startswith(d) for d in matched_dirs)
+        }
 
     def _is_test_file(self, file_path: str) -> bool:
         """Return True if *file_path* looks like a test/spec file."""
