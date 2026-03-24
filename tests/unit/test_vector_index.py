@@ -330,6 +330,77 @@ class TestFAISSIndex:
                 assert loaded_index._embedding_dim == index._embedding_dim
 
 
+class TestGetFileSymbols:
+    """Tests for get_file_symbols() on both index implementations."""
+
+    @patch.object(EmbeddingGenerator, 'encode')
+    def test_leann_get_file_symbols_after_build(self, mock_encode, sample_chunks, mock_embeddings):
+        """LEANNIndex.get_file_symbols() returns correct symbol mapping after build."""
+        mock_encode.return_value = mock_embeddings[:2]
+
+        index = LEANNIndex()
+        index.build(sample_chunks)
+
+        file_symbols = index.get_file_symbols()
+
+        assert "src/auth.py" in file_symbols
+        assert "src/utils.py" in file_symbols
+        # auth.py defines authenticate and check_credentials
+        assert "authenticate" in file_symbols["src/auth.py"]
+        assert "check_credentials" in file_symbols["src/auth.py"]
+        # utils.py defines format_output
+        assert "format_output" in file_symbols["src/utils.py"]
+
+    def test_leann_get_file_symbols_before_build(self):
+        """LEANNIndex.get_file_symbols() returns empty dict before build."""
+        index = LEANNIndex()
+        assert index.get_file_symbols() == {}
+
+    @patch.object(EmbeddingGenerator, 'encode')
+    def test_leann_symbols_persisted_through_save_load(self, mock_encode, sample_chunks, mock_embeddings):
+        """Symbols survive a save/load round-trip."""
+        mock_encode.return_value = mock_embeddings[:2]
+
+        import tempfile, os
+        index = LEANNIndex(model_name="test-model")
+        index.build(sample_chunks)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "index.pkl")
+            index.save(path)
+            loaded = LEANNIndex.load(path)
+
+        assert loaded.get_file_symbols() == index.get_file_symbols()
+
+    @patch.object(EmbeddingGenerator, 'encode')
+    def test_faiss_get_file_symbols_after_build(self, mock_encode, sample_chunks, mock_embeddings):
+        """FAISSIndex.get_file_symbols() returns correct symbol mapping after build."""
+        mock_encode.return_value = mock_embeddings[:2]
+
+        mock_faiss = __import__('unittest.mock', fromlist=['Mock']).Mock()
+        mock_index = __import__('unittest.mock', fromlist=['MagicMock']).MagicMock()
+        mock_faiss.IndexHNSWFlat.return_value = mock_index
+
+        import sys
+        with __import__('unittest.mock', fromlist=['patch']).patch.dict(
+            sys.modules, {'faiss': mock_faiss}
+        ):
+            index = FAISSIndex()
+            index.build(sample_chunks)
+
+        file_symbols = index.get_file_symbols()
+        assert "src/auth.py" in file_symbols
+        assert "authenticate" in file_symbols["src/auth.py"]
+        assert "format_output" in file_symbols["src/utils.py"]
+
+    def test_vector_index_base_default_returns_empty(self):
+        """VectorIndex base class get_file_symbols() returns empty dict by default."""
+        # MockVectorIndex inherits the base implementation
+        from tests.unit.test_retrieval import MockVectorIndex
+        idx = MockVectorIndex()
+        assert idx.get_file_symbols() == {}
+
+
 class TestBackendSelection:
     """Test backend selection and fallback logic."""
     

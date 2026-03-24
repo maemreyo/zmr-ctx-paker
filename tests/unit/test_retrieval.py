@@ -414,3 +414,255 @@ class TestRetrievalEngine:
         assert isinstance(score, float)
         assert file_path == "a.py"
         assert 0.0 <= score <= 1.0
+
+
+class TestExtractQueryTokens:
+    """Tests for _extract_query_tokens helper."""
+
+    def _engine(self):
+        return RetrievalEngine(MockVectorIndex(), MockRepoMapGraph())
+
+    def test_extracts_identifiers(self):
+        engine = self._engine()
+        tokens = engine._extract_query_tokens("PythonResolver extracts symbols")
+        assert "pythonresolver" in tokens
+        assert "extracts" in tokens
+        assert "symbols" in tokens
+
+    def test_removes_stop_words(self):
+        engine = self._engine()
+        tokens = engine._extract_query_tokens("how does the chunker work")
+        assert "how" not in tokens
+        assert "does" not in tokens
+        assert "the" not in tokens
+        assert "chunker" in tokens
+
+    def test_removes_short_tokens(self):
+        engine = self._engine()
+        tokens = engine._extract_query_tokens("do it")
+        assert not tokens  # all tokens too short or stop words
+
+    def test_underscore_identifiers(self):
+        engine = self._engine()
+        tokens = engine._extract_query_tokens("_should_include_file logic")
+        assert "_should_include_file" in tokens or "should_include_file" in tokens
+        assert "logic" in tokens
+
+    def test_empty_query(self):
+        engine = self._engine()
+        assert engine._extract_query_tokens("") == set()
+
+
+class TestComputeSymbolScores:
+    """Tests for _compute_symbol_scores."""
+
+    def _engine(self):
+        return RetrievalEngine(MockVectorIndex(), MockRepoMapGraph())
+
+    def test_exact_symbol_match(self):
+        engine = self._engine()
+        file_symbols = {
+            "chunker/python.py": ["PythonResolver", "extract_symbol_name"],
+            "models/models.py": ["CodeChunk", "symbols_defined"],
+        }
+        scores = engine._compute_symbol_scores({"pythonresolver"}, file_symbols)
+        assert "chunker/python.py" in scores
+        assert "models/models.py" not in scores
+
+    def test_no_match_returns_empty(self):
+        engine = self._engine()
+        file_symbols = {"src/utils.py": ["format_output"]}
+        scores = engine._compute_symbol_scores({"chunker"}, file_symbols)
+        assert scores == {}
+
+    def test_multiple_matches_scores_higher(self):
+        engine = self._engine()
+        file_symbols = {
+            "a.py": ["foo", "bar"],
+            "b.py": ["foo"],
+        }
+        scores = engine._compute_symbol_scores({"foo", "bar"}, file_symbols)
+        assert scores["a.py"] > scores["b.py"]
+
+    def test_empty_inputs(self):
+        engine = self._engine()
+        assert engine._compute_symbol_scores(set(), {"a.py": ["foo"]}) == {}
+        assert engine._compute_symbol_scores({"foo"}, {}) == {}
+
+
+class TestComputePathScores:
+    """Tests for _compute_path_scores."""
+
+    def _engine(self):
+        return RetrievalEngine(MockVectorIndex(), MockRepoMapGraph())
+
+    def test_filename_keyword_match(self):
+        engine = self._engine()
+        files = {"chunker/python.py", "models/models.py", "graph/graph.py"}
+        scores = engine._compute_path_scores({"python"}, files)
+        assert "chunker/python.py" in scores
+        assert "models/models.py" not in scores
+        assert "graph/graph.py" not in scores
+
+    def test_directory_keyword_match(self):
+        engine = self._engine()
+        files = {"chunker/base.py", "models/models.py"}
+        scores = engine._compute_path_scores({"chunker"}, files)
+        assert "chunker/base.py" in scores
+        assert "models/models.py" not in scores
+
+    def test_no_match_returns_empty(self):
+        engine = self._engine()
+        scores = engine._compute_path_scores({"authentication"}, {"src/utils.py"})
+        assert scores == {}
+
+    def test_scores_capped_at_one(self):
+        engine = self._engine()
+        files = {"resolvers/python.py"}
+        # many tokens but only one matches
+        scores = engine._compute_path_scores({"python", "resolver", "foo", "bar"}, files)
+        for s in scores.values():
+            assert 0.0 <= s <= 1.0
+
+
+class TestIsTestFile:
+    """Tests for _is_test_file."""
+
+    def _engine(self):
+        return RetrievalEngine(MockVectorIndex(), MockRepoMapGraph())
+
+    def test_test_directory(self):
+        engine = self._engine()
+        assert engine._is_test_file("tests/unit/test_chunker.py")
+        assert engine._is_test_file("test/helpers.py")
+
+    def test_test_prefix(self):
+        engine = self._engine()
+        assert engine._is_test_file("src/test_utils.py")
+
+    def test_test_suffix(self):
+        engine = self._engine()
+        assert engine._is_test_file("src/auth_test.py")
+
+    def test_spec_suffix(self):
+        engine = self._engine()
+        assert engine._is_test_file("src/auth.spec.ts")
+
+    def test_implementation_file(self):
+        engine = self._engine()
+        assert not engine._is_test_file("src/chunker/base.py")
+        assert not engine._is_test_file("models/models.py")
+
+
+class TestSymbolBoostIntegration:
+    """Integration tests: symbol boost changes ranking in retrieve()."""
+
+    def test_symbol_match_boosts_ranking(self):
+        """File defining a queried symbol should rank higher."""
+
+        class SymbolAwareIndex(MockVectorIndex):
+            def get_file_symbols(self):
+                return {
+                    "resolvers/python.py": ["PythonResolver", "extract_symbol_name"],
+                    "models/models.py": ["CodeChunk", "IndexMetadata"],
+                }
+
+        vector_index = SymbolAwareIndex()
+        graph = MockRepoMapGraph()
+
+        # Both files have equal semantic score
+        vector_index.set_search_results({
+            "resolvers/python.py": 0.6,
+            "models/models.py": 0.6,
+        })
+        graph.set_pagerank_scores({
+            "resolvers/python.py": 0.5,
+            "models/models.py": 0.5,
+        })
+
+        engine = RetrievalEngine(
+            vector_index, graph,
+            semantic_weight=0.6, pagerank_weight=0.4,
+            symbol_boost=0.5, path_boost=0.0, test_penalty=0.0,
+        )
+
+        results = engine.retrieve(query="PythonResolver extracts symbols", top_k=10)
+        ranked_files = [f for f, _ in results]
+
+        assert ranked_files[0] == "resolvers/python.py"
+
+    def test_test_file_penalty_lowers_ranking(self):
+        """Test files should rank lower than implementation files."""
+        vector_index = MockVectorIndex()
+        graph = MockRepoMapGraph()
+
+        vector_index.set_search_results({
+            "tests/unit/test_chunker.py": 0.9,
+            "chunker/base.py": 0.7,
+        })
+        graph.set_pagerank_scores({
+            "tests/unit/test_chunker.py": 0.5,
+            "chunker/base.py": 0.5,
+        })
+
+        engine = RetrievalEngine(
+            vector_index, graph,
+            semantic_weight=0.6, pagerank_weight=0.4,
+            symbol_boost=0.0, path_boost=0.0, test_penalty=0.8,
+        )
+
+        results = engine.retrieve(query="chunker base logic", top_k=10)
+        ranked_files = [f for f, _ in results]
+
+        assert ranked_files[0] == "chunker/base.py"
+
+    def test_path_boost_helps_implementation_file(self):
+        """File with matching path keyword should rank higher."""
+        vector_index = MockVectorIndex()
+        graph = MockRepoMapGraph()
+
+        # Same scores for both
+        vector_index.set_search_results({
+            "chunker/base.py": 0.6,
+            "vector_index/vector_index.py": 0.6,
+        })
+        graph.set_pagerank_scores({
+            "chunker/base.py": 0.5,
+            "vector_index/vector_index.py": 0.5,
+        })
+
+        engine = RetrievalEngine(
+            vector_index, graph,
+            semantic_weight=0.6, pagerank_weight=0.4,
+            symbol_boost=0.0, path_boost=0.5, test_penalty=0.0,
+        )
+
+        results = engine.retrieve(query="chunking logic flow", top_k=10)
+        ranked_files = [f for f, _ in results]
+
+        assert ranked_files[0] == "chunker/base.py"
+
+    def test_final_scores_in_zero_one_range(self):
+        """All returned scores must be in [0, 1] even with boosts applied."""
+
+        class SymbolAwareIndex(MockVectorIndex):
+            def get_file_symbols(self):
+                return {
+                    "a.py": ["foo", "bar"],
+                    "b.py": ["baz"],
+                }
+
+        vector_index = SymbolAwareIndex()
+        graph = MockRepoMapGraph()
+
+        vector_index.set_search_results({"a.py": 0.9, "b.py": 0.3})
+        graph.set_pagerank_scores({"a.py": 0.4, "b.py": 0.8})
+
+        engine = RetrievalEngine(
+            vector_index, graph,
+            symbol_boost=0.5, path_boost=0.3, test_penalty=0.4,
+        )
+
+        results = engine.retrieve(query="foo bar search", top_k=10)
+        for _, score in results:
+            assert 0.0 <= score <= 1.0
