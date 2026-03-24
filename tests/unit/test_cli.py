@@ -531,5 +531,141 @@ class TestCLIErrorHandling:
             [sys.executable, "-m", "context_packer.cli", "index", "/nonexistent"],
             capture_output=True,
         )
-        
+
         assert result.returncode != 0
+
+
+class TestCLIStatusCommand:
+    """Test cases for 'context-pack status' command."""
+
+    def test_status_shows_index_info(self):
+        """Test that status command shows index information."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo_path = Path(tmpdir)
+            create_test_repo(repo_path)
+
+            result = run_cli_command(
+                [sys.executable, "-m", "context_packer.cli", "index", str(repo_path)],
+                capture_output=True,
+            )
+            assert result.returncode == 0
+
+            result = run_cli_command(
+                [sys.executable, "-m", "context_packer.cli", "status", str(repo_path)],
+                capture_output=True,
+                text=True,
+            )
+            assert result.returncode == 0
+            assert "index" in result.stdout.lower()
+            assert "files" in result.stdout.lower() or "file" in result.stdout.lower()
+
+    def test_status_fails_without_index(self):
+        """Test that status command fails gracefully when no index exists."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo_path = Path(tmpdir)
+            create_test_repo(repo_path)
+
+            result = run_cli_command(
+                [sys.executable, "-m", "context_packer.cli", "status", str(repo_path)],
+                capture_output=True,
+                text=True,
+            )
+            assert result.returncode != 0
+
+    def test_status_shows_vector_and_graph_info(self):
+        """Test that status command shows vector and graph index info."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo_path = Path(tmpdir)
+            create_test_repo(repo_path)
+
+            result = run_cli_command(
+                [sys.executable, "-m", "context_packer.cli", "index", str(repo_path)],
+                capture_output=True,
+            )
+            assert result.returncode == 0
+
+            result = run_cli_command(
+                [sys.executable, "-m", "context_packer.cli", "status", str(repo_path)],
+                capture_output=True,
+                text=True,
+            )
+            assert result.returncode == 0
+            assert "vector" in result.stdout.lower() or "graph" in result.stdout.lower()
+
+
+class TestCLIVacuumCommand:
+    """Test cases for 'context-pack vacuum' command."""
+
+    def test_vacuum_optimizes_database(self):
+        """Test that vacuum command optimizes SQLite database."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo_path = Path(tmpdir)
+            create_test_repo(repo_path)
+
+            result = run_cli_command(
+                [sys.executable, "-m", "context_packer.cli", "index", str(repo_path)],
+                capture_output=True,
+            )
+            assert result.returncode == 0
+
+            result = run_cli_command(
+                [sys.executable, "-m", "context_packer.cli", "vacuum", str(repo_path)],
+                capture_output=True,
+                text=True,
+            )
+            assert result.returncode == 0
+            assert "vacuum" in result.stdout.lower() or "optimize" in result.stdout.lower()
+
+    def test_vacuum_fails_without_index(self):
+        """Test that vacuum command fails gracefully when no index exists."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo_path = Path(tmpdir)
+            create_test_repo(repo_path)
+
+            result = run_cli_command(
+                [sys.executable, "-m", "context_packer.cli", "vacuum", str(repo_path)],
+                capture_output=True,
+                text=True,
+            )
+            assert result.returncode != 0
+
+
+class TestCLIReindexDomainCommand:
+    """Test cases for 'context-pack reindex-domain' command."""
+
+    def test_reindex_domain_rebuilds_domain_map(self):
+        """Test that reindex-domain command rebuilds domain_map.db."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo_path = Path(tmpdir)
+            create_test_repo(repo_path)
+
+            result = run_cli_command(
+                [sys.executable, "-m", "context_packer.cli", "index", str(repo_path)],
+                capture_output=True,
+            )
+            assert result.returncode == 0
+
+            index_path = repo_path / ".context-pack"
+            db_path = index_path / "domain_map.db"
+            assert db_path.exists()
+
+            result = run_cli_command(
+                [sys.executable, "-m", "context_packer.cli", "reindex-domain", str(repo_path)],
+                capture_output=True,
+                text=True,
+            )
+            assert result.returncode == 0
+            assert "domain" in result.stdout.lower() or "rebuild" in result.stdout.lower()
+
+    def test_reindex_domain_fails_without_index(self):
+        """Test that reindex-domain fails when no index exists."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo_path = Path(tmpdir)
+            create_test_repo(repo_path)
+
+            result = run_cli_command(
+                [sys.executable, "-m", "context_packer.cli", "reindex-domain", str(repo_path)],
+                capture_output=True,
+                text=True,
+            )
+            assert result.returncode != 0

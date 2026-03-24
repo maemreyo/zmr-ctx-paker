@@ -28,7 +28,8 @@ logger = get_logger()
 def index_repository(
     repo_path: str,
     config: Optional[Config] = None,
-    index_dir: str = ".context-pack"
+    index_dir: str = ".context-pack",
+    domain_only: bool = False
 ) -> PerformanceTracker:
     """
     Build and persist indexes for later queries.
@@ -44,6 +45,7 @@ def index_repository(
         repo_path: Path to the repository root directory
         config: Configuration instance (uses defaults if None)
         index_dir: Directory to save indexes (default: .context-pack)
+        domain_only: If True, only rebuild domain_map.db (skip vector/graph)
 
     Returns:
         PerformanceTracker with indexing metrics
@@ -107,59 +109,69 @@ def index_repository(
         raise RuntimeError(f"Failed to parse repository: {e}") from e
 
     # Phase 2: Build Vector Index (with fallback)
-    logger.info("Phase 2: Building Vector Index")
-    tracker.start_phase("vector_indexing")
-    vector_start = time.time()
-
-    try:
-        vector_index = backend_selector.select_vector_index(
-            model_name=config.embeddings["model"],
-            device=config.embeddings["device"],
-            batch_size=config.embeddings["batch_size"]
-        )
-
-        vector_index.build(chunks)
-        vector_duration = time.time() - vector_start
+    if domain_only:
+        logger.info("Skipping Phase 2: Vector indexing (domain_only mode)")
+        tracker.start_phase("vector_indexing")
         tracker.end_phase("vector_indexing")
-        tracker.track_memory()
+        vector_index = None
+    else:
+        logger.info("Phase 2: Building Vector Index")
+        tracker.start_phase("vector_indexing")
+        vector_start = time.time()
 
-        # Save vector index
-        vector_index_path = str(index_path / "vector.idx")
-        vector_index.save(vector_index_path)
+        try:
+            vector_index = backend_selector.select_vector_index(
+                model_name=config.embeddings["model"],
+                device=config.embeddings["device"],
+                batch_size=config.embeddings["batch_size"]
+            )
 
-        logger.log_phase(
-            phase="vector_indexing",
-            duration=vector_duration,
-            backend=vector_index.__class__.__name__
-        )
-    except Exception as e:
-        logger.log_error(e, {"phase": "vector_indexing", "repo_path": repo_path})
-        raise RuntimeError(f"Failed to build vector index: {e}") from e
+            vector_index.build(chunks)
+            vector_duration = time.time() - vector_start
+            tracker.end_phase("vector_indexing")
+            tracker.track_memory()
+
+            vector_index_path = str(index_path / "vector.idx")
+            vector_index.save(vector_index_path)
+
+            logger.log_phase(
+                phase="vector_indexing",
+                duration=vector_duration,
+                backend=vector_index.__class__.__name__
+            )
+        except Exception as e:
+            logger.log_error(e, {"phase": "vector_indexing", "repo_path": repo_path})
+            raise RuntimeError(f"Failed to build vector index: {e}") from e
 
     # Phase 3: Build RepoMap Graph (with fallback)
-    logger.info("Phase 3: Building RepoMap Graph")
-    tracker.start_phase("graph_building")
-    graph_start = time.time()
-
-    try:
-        graph = backend_selector.select_graph()
-        graph.build(chunks)
-        graph_duration = time.time() - graph_start
+    if domain_only:
+        logger.info("Skipping Phase 3: Graph building (domain_only mode)")
+        tracker.start_phase("graph_building")
         tracker.end_phase("graph_building")
-        tracker.track_memory()
+        graph = None
+    else:
+        logger.info("Phase 3: Building RepoMap Graph")
+        tracker.start_phase("graph_building")
+        graph_start = time.time()
 
-        # Save graph
-        graph_path = str(index_path / "graph.pkl")
-        graph.save(graph_path)
+        try:
+            graph = backend_selector.select_graph()
+            graph.build(chunks)
+            graph_duration = time.time() - graph_start
+            tracker.end_phase("graph_building")
+            tracker.track_memory()
 
-        logger.log_phase(
-            phase="graph_building",
-            duration=graph_duration,
-            backend=graph.__class__.__name__
-        )
-    except Exception as e:
-        logger.log_error(e, {"phase": "graph_building", "repo_path": repo_path})
-        raise RuntimeError(f"Failed to build graph: {e}") from e
+            graph_path = str(index_path / "graph.pkl")
+            graph.save(graph_path)
+
+            logger.log_phase(
+                phase="graph_building",
+                duration=graph_duration,
+                backend=graph.__class__.__name__
+            )
+        except Exception as e:
+            logger.log_error(e, {"phase": "graph_building", "repo_path": repo_path})
+            raise RuntimeError(f"Failed to build graph: {e}") from e
 
     # Phase 4: Save metadata for staleness detection
     logger.info("Phase 4: Saving metadata for staleness detection")
@@ -171,11 +183,15 @@ def index_repository(
         file_hashes = _compute_file_hashes(chunks, repo_path)
 
         # Create metadata
+        backend_str = "N/A"
+        if vector_index is not None and graph is not None:
+            backend_str = f"{vector_index.__class__.__name__}+{graph.__class__.__name__}"
+
         metadata = IndexMetadata(
             created_at=datetime.now(),
             repo_path=os.path.abspath(repo_path),
             file_count=len(set(chunk.path for chunk in chunks)),
-            backend=f"{vector_index.__class__.__name__}+{graph.__class__.__name__}",
+            backend=backend_str,
             file_hashes=file_hashes
         )
 
