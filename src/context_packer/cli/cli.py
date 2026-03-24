@@ -12,10 +12,9 @@ import typer
 from rich.console import Console
 from rich.panel import Panel
 
-from .config import Config
-from .indexer import index_repository
-from .logger import get_logger
-from .query import query_and_pack
+from ..config import Config
+from ..workflow import index_repository, query_and_pack
+from ..logger import get_logger
 
 # Initialize CLI app
 app = typer.Typer(

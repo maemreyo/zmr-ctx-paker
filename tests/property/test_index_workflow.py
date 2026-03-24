@@ -17,7 +17,7 @@ from hypothesis import given, settings, HealthCheck
 from hypothesis import strategies as st
 
 from context_packer.config import Config
-from context_packer.indexer import index_repository, load_indexes
+from context_packer.workflow import index_repository, load_indexes
 from context_packer.models import IndexMetadata
 
 

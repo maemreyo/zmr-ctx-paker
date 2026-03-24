@@ -14,8 +14,7 @@ import pytest
 from lxml import etree
 
 from context_packer.config import Config
-from context_packer.indexer import index_repository
-from context_packer.query import query_and_pack
+from context_packer.workflow import index_repository, query_and_pack
 
 # Check if required dependencies are available
 try:

@@ -6,8 +6,8 @@ for round-trip testing. It supports Python, JavaScript, and TypeScript.
 
 from typing import List
 
-from .logger import get_logger
-from .models import CodeChunk
+from ..logger import get_logger
+from ..models import CodeChunk
 
 logger = get_logger()
 

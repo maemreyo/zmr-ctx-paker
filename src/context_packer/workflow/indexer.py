@@ -12,14 +12,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
-from .backend_selector import BackendSelector
-from .chunker import parse_with_fallback
-from .config import Config
-from .graph import RepoMapGraph
-from .logger import get_logger
-from .models import CodeChunk, IndexMetadata
-from .performance import PerformanceTracker
-from .vector_index import VectorIndex
+from ..backend_selector import BackendSelector
+from ..chunker import parse_with_fallback
+from ..config import Config
+from ..graph import RepoMapGraph
+from ..logger import get_logger
+from ..models import CodeChunk, IndexMetadata
+from ..monitoring import PerformanceTracker
+from ..vector_index import VectorIndex
 
 logger = get_logger()
 
@@ -317,12 +317,12 @@ def load_indexes(
 
     # Load vector index with auto-detection
     logger.info(f"Loading vector index from {vector_index_path}")
-    from .vector_index import load_vector_index
+    from ..vector_index import load_vector_index
     vector_index = load_vector_index(str(vector_index_path))
 
     # Load graph with auto-detection
     logger.info(f"Loading graph from {graph_path}")
-    from .graph import load_graph
+    from ..graph import load_graph
     graph = load_graph(str(graph_path))
 
     logger.info(
