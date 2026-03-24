@@ -319,17 +319,225 @@ def pack(
         raise typer.Exit(code=1)
 
 
+@app.command()
+def status(
+    repo_path: str = typer.Argument(
+        ...,
+        help="Path to the repository root directory",
+    ),
+    config: Optional[str] = typer.Option(
+        None,
+        "--config",
+        "-c",
+        help="Path to custom configuration file",
+    ),
+) -> None:
+    """
+    Show index status and statistics.
+
+    Displays information about the current index including:
+    - Index directory location and total size
+    - Number of indexed files
+    - Vector index and graph statistics
+    - Domain map database statistics
+
+    Requirements: 11.9
+    """
+    try:
+        repo_path_obj = Path(repo_path)
+        if not repo_path_obj.exists():
+            console.print(f"[red]Error:[/red] Repository path does not exist: {repo_path}")
+            raise typer.Exit(code=1)
+
+        index_path = repo_path_obj / ".context-pack"
+        if not index_path.exists():
+            console.print(f"[red]Error:[/red] No index found at {index_path}")
+            console.print("\n[yellow]Suggestion:[/yellow] Run 'context-pack index' first to build indexes")
+            raise typer.Exit(code=1)
+
+        if not (index_path / "metadata.json").exists():
+            console.print(f"[red]Error:[/red] Incomplete index - metadata.json is missing")
+            console.print("\n[yellow]Suggestion:[/yellow] Run 'context-pack index' to rebuild indexes")
+            raise typer.Exit(code=1)
+
+        import json
+        with open(index_path / "metadata.json", "r") as f:
+            metadata = json.load(f)
+
+        console.print(f"\n[bold]Index Status for:[/bold] {repo_path}")
+        console.print(f"[bold]Index directory:[/bold] {index_path}")
+
+        total_size = sum(f.stat().st_size for f in index_path.rglob("*") if f.is_file())
+        console.print(f"[bold]Total size:[/bold] {total_size / 1024:.1f} KB")
+
+        console.print(f"\n[bold]Indexed Files:[/bold] {metadata.get('file_count', 'unknown')}")
+        console.print(f"[bold]Backend:[/bold] {metadata.get('backend', 'unknown')}")
+
+        if (index_path / "vector.idx").exists():
+            vec_size = (index_path / "vector.idx").stat().st_size
+            console.print(f"[bold]Vector index size:[/bold] {vec_size / 1024:.1f} KB")
+
+        if (index_path / "graph.pkl").exists():
+            graph_size = (index_path / "graph.pkl").stat().st_size
+            console.print(f"[bold]Graph index size:[/bold] {graph_size / 1024:.1f} KB")
+
+        if (index_path / "domain_map.db").exists():
+            db_size = (index_path / "domain_map.db").stat().st_size
+            console.print(f"[bold]Domain map DB size:[/bold] {db_size / 1024:.1f} KB")
+
+            from ..domain_map import DomainMapDB
+            db = DomainMapDB(str(index_path / "domain_map.db"))
+            stats = db.stats()
+            console.print(f"[bold]Domain keywords:[/bold] {stats['keywords']}")
+            console.print(f"[bold]Domain directories:[/bold] {stats['directories']}")
+            db.close()
+
+        console.print(f"\n[bold]Last indexed:[/bold] {metadata.get('indexed_at', 'unknown')}")
+
+        raise typer.Exit(code=0)
+
+    except typer.Exit:
+        raise
+    except Exception as e:
+        console.print(f"[red]Error showing status:[/red] {e}")
+        logger.log_error(e, {"command": "status", "repo_path": repo_path})
+        raise typer.Exit(code=1)
+
+
+@app.command()
+def vacuum(
+    repo_path: str = typer.Argument(
+        ...,
+        help="Path to the repository root directory",
+    ),
+    config: Optional[str] = typer.Option(
+        None,
+        "--config",
+        "-c",
+        help="Path to custom configuration file",
+    ),
+) -> None:
+    """
+    Optimize SQLite database by running VACUUM.
+
+    This command reclaims disk space and optimizes the SQLite database
+    for better performance. The domain_map.db file will be rebuilt.
+
+    Requirements: 11.10
+    """
+    try:
+        repo_path_obj = Path(repo_path)
+        if not repo_path_obj.exists():
+            console.print(f"[red]Error:[/red] Repository path does not exist: {repo_path}")
+            raise typer.Exit(code=1)
+
+        index_path = repo_path_obj / ".context-pack"
+        if not index_path.exists():
+            console.print(f"[red]Error:[/red] No index found at {index_path}")
+            console.print("\n[yellow]Suggestion:[/yellow] Run 'context-pack index' first to build indexes")
+            raise typer.Exit(code=1)
+
+        db_path = index_path / "domain_map.db"
+        if not db_path.exists():
+            console.print(f"[red]Error:[/red] Domain map database not found: {db_path}")
+            raise typer.Exit(code=1)
+
+        from ..domain_map import DomainMapDB
+        db = DomainMapDB(str(db_path))
+
+        console.print(f"[bold]Running VACUUM on:[/bold] {db_path}")
+
+        conn = db._get_conn()
+        conn.execute("VACUUM")
+        db.close()
+
+        new_size = db_path.stat().st_size
+        console.print(f"\n[bold green]✓[/bold green] VACUUM complete!")
+        console.print(f"Database size after optimization: {new_size / 1024:.1f} KB")
+
+        raise typer.Exit(code=0)
+
+    except typer.Exit:
+        raise
+    except Exception as e:
+        console.print(f"[red]Error during VACUUM:[/red] {e}")
+        logger.log_error(e, {"command": "vacuum", "repo_path": repo_path})
+        raise typer.Exit(code=1)
+
+
+@app.command()
+def reindex_domain(
+    repo_path: str = typer.Argument(
+        ...,
+        help="Path to the repository root directory",
+    ),
+    config: Optional[str] = typer.Option(
+        None,
+        "--config",
+        "-c",
+        help="Path to custom configuration file",
+    ),
+) -> None:
+    """
+    Rebuild only the domain map database (SQLite).
+
+    This command re-extracts domain keywords from existing indexes
+    and rebuilds the domain_map.db file without rebuilding the
+    entire vector index or graph. This is much faster than a full
+    reindex and is useful when only the domain mapping needs updating.
+
+    Requirements: 11.11
+    """
+    try:
+        repo_path_obj = Path(repo_path)
+        if not repo_path_obj.exists():
+            console.print(f"[red]Error:[/red] Repository path does not exist: {repo_path}")
+            raise typer.Exit(code=1)
+
+        index_path = repo_path_obj / ".context-pack"
+        if not index_path.exists():
+            console.print(f"[red]Error:[/red] No index found at {index_path}")
+            console.print("\n[yellow]Suggestion:[/yellow] Run 'context-pack index' first to build indexes")
+            raise typer.Exit(code=1)
+
+        if not (index_path / "metadata.json").exists():
+            console.print(f"[red]Error:[/red] Incomplete index - metadata.json is missing")
+            raise typer.Exit(code=1)
+
+        console.print("[bold]Rebuilding domain map database...[/bold]")
+
+        from ..workflow.indexer import index_repository
+        tracker = index_repository(
+            repo_path=repo_path,
+            config=_load_config(config, repo_path=repo_path),
+            index_dir=".context-pack",
+            domain_only=True
+        )
+
+        console.print(f"\n[bold green]✓[/bold green] Domain map rebuilt!")
+        console.print(tracker.format_metrics("index"))
+
+        raise typer.Exit(code=0)
+
+    except typer.Exit:
+        raise
+    except Exception as e:
+        console.print(f"[red]Error rebuilding domain map:[/red] {e}")
+        logger.log_error(e, {"command": "reindex-domain", "repo_path": repo_path})
+        raise typer.Exit(code=1)
+
+
 def _load_config(config_path: Optional[str], repo_path: Optional[str] = None) -> Config:
     """
     Load configuration from file or use defaults.
-    
+
     Args:
         config_path: Optional path to custom configuration file
         repo_path: Optional repository path to look for .context-pack.yaml
-    
+
     Returns:
         Config instance
-    
+
     Raises:
         typer.Exit: If config file is specified but doesn't exist
     """
