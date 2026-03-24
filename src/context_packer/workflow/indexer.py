@@ -15,7 +15,7 @@ from typing import List, Optional
 from ..backend_selector import BackendSelector
 from ..chunker import parse_with_fallback
 from ..config import Config
-from ..domain_map import DomainKeywordMap
+from ..domain_map import DomainKeywordMap, DomainMapDB
 from ..graph import RepoMapGraph
 from ..logger import get_logger
 from ..models import CodeChunk, IndexMetadata
@@ -206,7 +206,7 @@ def index_repository(
         logger.log_error(e, {"phase": "metadata_saving", "repo_path": repo_path})
         raise RuntimeError(f"Failed to save metadata: {e}") from e
 
-    # Phase 5: Build Domain Keyword Map
+    # Phase 5: Build Domain Keyword Map (Phase 1: Parallel Write)
     logger.info("Phase 5: Building Domain Keyword Map")
     tracker.start_phase("domain_map_building")
     domain_map_start = time.time()
@@ -215,8 +215,11 @@ def index_repository(
         domain_map = DomainKeywordMap()
         domain_map.build(chunks)
 
-        domain_map_path = str(index_path / "domain_map.pkl")
-        domain_map.save(domain_map_path)
+        db_path = str(index_path / "domain_map.db")
+        db = DomainMapDB(db_path)
+        mapping = dict(domain_map._keyword_to_dirs)
+        db.bulk_insert(mapping)
+        db.close()
 
         domain_map_duration = time.time() - domain_map_start
         tracker.end_phase("domain_map_building")
@@ -224,7 +227,8 @@ def index_repository(
         logger.log_phase(
             phase="domain_map_building",
             duration=domain_map_duration,
-            keywords=len(domain_map.keywords)
+            keywords=len(domain_map.keywords),
+            db_keywords=len(mapping)
         )
     except Exception as e:
         logger.log_error(e, {"phase": "domain_map_building", "repo_path": repo_path})

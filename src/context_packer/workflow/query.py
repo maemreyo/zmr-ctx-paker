@@ -11,7 +11,7 @@ from typing import Dict, List, Optional
 
 from ..budget import BudgetManager
 from ..config import Config
-from ..domain_map import DomainKeywordMap
+from ..domain_map import DomainMapDB
 from .indexer import load_indexes
 from ..logger import get_logger
 from ..monitoring import PerformanceTracker
@@ -115,14 +115,15 @@ def query_and_pack(
     retrieval_start = time.time()
     
     try:
-        domain_map_path = Path(repo_path) / index_dir / "domain_map.pkl"
-        domain_map = DomainKeywordMap.load(str(domain_map_path))
-        logger.info(f"Domain map loaded: {len(domain_map.keywords)} keywords")
-    except Exception as e:
-        logger.warning(f"Could not load domain map: {e}. Using empty domain map.")
-        domain_map = DomainKeywordMap()
+        domain_map_db_path = Path(repo_path) / index_dir / "domain_map.db"
+        try:
+            domain_map = DomainMapDB(str(domain_map_db_path))
+            logger.info(f"Domain map DB loaded: {domain_map.stats()['keywords']} keywords")
+        except Exception as e:
+            logger.warning(f"Could not load domain map DB: {e}. Using empty domain map.")
+            from ..domain_map import DomainKeywordMap
+            domain_map = DomainKeywordMap()
 
-    try:
         retrieval_engine = RetrievalEngine(
             vector_index=vector_index,
             graph=graph,
@@ -130,7 +131,7 @@ def query_and_pack(
             pagerank_weight=config.pagerank_weight,
             domain_map=domain_map
         )
-        
+
         ranked_files = retrieval_engine.retrieve(
             query=query,
             changed_files=changed_files,
@@ -139,10 +140,10 @@ def query_and_pack(
         retrieval_duration = time.time() - retrieval_start
         tracker.end_phase("retrieval")
         tracker.track_memory()
-        
+
         if not ranked_files:
             raise RuntimeError("No files retrieved from indexes")
-        
+
         logger.log_phase(
             phase="retrieval",
             duration=retrieval_duration,
