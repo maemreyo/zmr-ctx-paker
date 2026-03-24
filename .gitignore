@@ -54,4 +54,4 @@ dmypy.json
 
 # Ruff
 .ruff_cache/
-tests/query_results
+tests/query_resultsexamples/zmr-koe/source
