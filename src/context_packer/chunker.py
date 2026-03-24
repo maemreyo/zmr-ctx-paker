@@ -14,72 +14,121 @@ logger = get_logger()
 
 
 def _should_include_file(file_path: Path, repo_root: Path, include_patterns: List[str], exclude_patterns: List[str]) -> bool:
-    """Check if a file should be included based on patterns.
-
-    Args:
-        file_path: Path to the file
-        repo_root: Repository root path
-        include_patterns: List of glob patterns to include
-        exclude_patterns: List of glob patterns to exclude
-
-    Returns:
-        True if file should be included, False otherwise
-    """
     relative_path = str(file_path.relative_to(repo_root))
-
-    # Check exclude patterns first
     for pattern in exclude_patterns:
-        # Handle both ** and * wildcards
         if fnmatch.fnmatch(relative_path, pattern) or \
            fnmatch.fnmatch(relative_path, pattern.replace("**/", "*/")) or \
            fnmatch.fnmatch(relative_path, pattern.replace("**", "*")):
             return False
-
-    # Check include patterns
     for pattern in include_patterns:
-        # Handle both ** and * wildcards
         if fnmatch.fnmatch(relative_path, pattern) or \
            fnmatch.fnmatch(relative_path, pattern.replace("**/", "*/")) or \
            fnmatch.fnmatch(relative_path, pattern.replace("**", "*")):
             return True
-
     return False
 
 
 class ASTChunker(ABC):
-    """Abstract base class for AST-based code parsing.
-
-    This class defines the interface for parsing source code into structured
-    chunks with metadata. Implementations should use AST parsing (tree-sitter)
-    or fallback to regex-based parsing when AST parsing fails.
-    """
-
     @abstractmethod
     def parse(self, repo_path: str, config=None) -> List[CodeChunk]:
-        """Parse all source files in repository into code chunks.
-
-        Args:
-            repo_path: Path to the repository root directory
-            config: Configuration instance with include/exclude patterns
-
-        Returns:
-            List of CodeChunk objects representing parsed code segments
-
-        Raises:
-            ValueError: If repo_path does not exist or is not a directory
-        """
         pass
 
+
+# =============================================================================
+# FIX 1 – MarkdownChunker
+# =============================================================================
+
+class MarkdownChunker:
+    """Splits Markdown files into chunks based on heading boundaries (# / ##).
+
+    Each ATX heading starts a new chunk.  A file with no headings is returned
+    as a single chunk so nothing is silently dropped.
+    """
+
+    EXTENSIONS: Set[str] = {'.md', '.markdown', '.mdx'}
+    _HEADING_RE = re.compile(r'^(#{1,6})\s+(.+)', re.MULTILINE)
+
+    def parse_file(self, file_path: Path, repo_root: Path) -> List[CodeChunk]:
+        try:
+            content = file_path.read_text(encoding='utf-8')
+        except Exception as e:
+            logger.warning(f"Failed to read {file_path}: {e}")
+            return []
+
+        relative_path = str(file_path.relative_to(repo_root))
+        lines = content.splitlines()
+
+        heading_starts = []
+        for match in self._HEADING_RE.finditer(content):
+            line_no = content[: match.start()].count('\n')
+            heading_text = match.group(2).strip()
+            heading_starts.append((line_no, heading_text))
+
+        if not heading_starts:
+            return [CodeChunk(
+                path=relative_path,
+                start_line=1,
+                end_line=len(lines),
+                content=content,
+                symbols_defined=[file_path.stem],
+                symbols_referenced=[],
+                language='markdown',
+            )]
+
+        chunks: List[CodeChunk] = []
+        for idx, (start_0, heading_text) in enumerate(heading_starts):
+            end_0 = heading_starts[idx + 1][0] - 1 if idx + 1 < len(heading_starts) else len(lines) - 1
+            if start_0 > end_0:
+                continue
+            chunk_lines = lines[start_0: end_0 + 1]
+            chunks.append(CodeChunk(
+                path=relative_path,
+                start_line=start_0 + 1,
+                end_line=end_0 + 1,
+                content='\n'.join(chunk_lines),
+                symbols_defined=[heading_text],
+                symbols_referenced=[],
+                language='markdown',
+            ))
+
+        return chunks
+
+    def parse(self, repo_path: str, config=None) -> List[CodeChunk]:
+        if not os.path.exists(repo_path) or not os.path.isdir(repo_path):
+            raise ValueError(f"Repository path does not exist or is not a directory: {repo_path}")
+        from .config import Config
+        if config is None:
+            config = Config()
+        repo_path_obj = Path(repo_path)
+        chunks: List[CodeChunk] = []
+        for ext in self.EXTENSIONS:
+            for file_path in repo_path_obj.rglob(f"*{ext}"):
+                if not file_path.is_file():
+                    continue
+                if not _should_include_file(file_path, repo_path_obj,
+                                            config.include_patterns,
+                                            config.exclude_patterns):
+                    continue
+                try:
+                    chunks.extend(self.parse_file(file_path, repo_path_obj))
+                except Exception as e:
+                    logger.warning(f"MarkdownChunker failed on {file_path}: {e}")
+        return chunks
+
+
+# =============================================================================
+# TreeSitterChunker
+# =============================================================================
 
 class TreeSitterChunker(ASTChunker):
     """Primary AST parser using py-tree-sitter.
 
-    Parses Python, JavaScript, and TypeScript files using tree-sitter
-    to extract function and class boundaries with symbol information.
+    FIX 1: delegates .md/.markdown/.mdx files to MarkdownChunker.
+    FIX 2: expanded AST target types (TS interfaces/types, Python constants,
+            Rust const/type/static/mod items).
     """
 
     def __init__(self):
-        """Initialize TreeSitterChunker with language parsers."""
         try:
             from tree_sitter import Language, Parser
             import tree_sitter_python
@@ -94,16 +143,12 @@ class TreeSitterChunker(ASTChunker):
             )
 
         self.Parser = Parser
-
-        # Initialize language parsers
         self.languages = {
             'python': Language(tree_sitter_python.language()),
             'javascript': Language(tree_sitter_javascript.language()),
             'typescript': Language(tree_sitter_typescript.language_typescript()),
             'rust': Language(tree_sitter_rust.language()),
         }
-
-        # File extension to language mapping
         self.ext_to_lang = {
             '.py': 'python',
             '.js': 'javascript',
@@ -112,30 +157,17 @@ class TreeSitterChunker(ASTChunker):
             '.tsx': 'typescript',
             '.rs': 'rust',
         }
+        self._md_chunker = MarkdownChunker()
 
     def parse(self, repo_path: str, config=None) -> List[CodeChunk]:
-        """Parse all source files in repository into code chunks.
-
-        Args:
-            repo_path: Path to the repository root directory
-            config: Configuration instance with include/exclude patterns
-
-        Returns:
-            List of CodeChunk objects representing parsed code segments
-
-        Raises:
-            ValueError: If repo_path does not exist or is not a directory
-        """
         if not os.path.exists(repo_path):
             raise ValueError(f"Repository path does not exist: {repo_path}")
-
         if not os.path.isdir(repo_path):
             raise ValueError(f"Repository path is not a directory: {repo_path}")
 
         chunks = []
         repo_path_obj = Path(repo_path)
 
-        # Get include/exclude patterns from config
         from .config import Config
         if config is None:
             config = Config()
@@ -143,259 +175,186 @@ class TreeSitterChunker(ASTChunker):
         include_patterns = config.include_patterns
         exclude_patterns = config.exclude_patterns
 
-        # Find all source files
+        # FIX 1 – parse Markdown files
+        chunks.extend(self._md_chunker.parse(repo_path, config=config))
+
         for ext in self.ext_to_lang.keys():
             for file_path in repo_path_obj.rglob(f"*{ext}"):
                 if not file_path.is_file():
                     continue
-
-                # Check if file should be included based on patterns
                 if not _should_include_file(file_path, repo_path_obj, include_patterns, exclude_patterns):
                     continue
-
                 try:
-                    file_chunks = self._parse_file(file_path, repo_path_obj)
-                    chunks.extend(file_chunks)
+                    chunks.extend(self._parse_file(file_path, repo_path_obj))
                 except Exception as e:
                     logger.warning(f"Failed to parse {file_path}: {e}")
-                    continue
-
         return chunks
 
     def _parse_file(self, file_path: Path, repo_root: Path) -> List[CodeChunk]:
-        """Parse a single file into code chunks.
-
-        Args:
-            file_path: Path to the file to parse
-            repo_root: Root directory of the repository
-
-        Returns:
-            List of CodeChunk objects from this file
-        """
-        # Determine language from extension
         ext = file_path.suffix
         language = self.ext_to_lang.get(ext)
-
         if not language:
             return []
-
-        # Read file content
         try:
             content = file_path.read_text(encoding='utf-8')
         except Exception as e:
             logger.warning(f"Failed to read {file_path}: {e}")
             return []
-
-        # Parse with tree-sitter
         parser = self.Parser(self.languages[language])
         tree = parser.parse(bytes(content, 'utf8'))
-
-        # Extract chunks from AST
-        chunks = []
-        relative_path = str(file_path.relative_to(repo_root))
-
-        # Extract functions and classes
-        chunks.extend(self._extract_definitions(tree.root_node, content, relative_path, language))
-
-        return chunks
+        return self._extract_definitions(tree.root_node, content,
+                                         str(file_path.relative_to(repo_root)),
+                                         language)
 
     def _extract_definitions(self, node, content: str, file_path: str, language: str) -> List[CodeChunk]:
-        """Extract function and class definitions from AST node.
-
-        Args:
-            node: Tree-sitter AST node
-            content: File content as string
-            file_path: Relative path to the file
-            language: Programming language
-
-        Returns:
-            List of CodeChunk objects
-        """
         chunks = []
 
-        # Node types to extract based on language
+        # FIX 2 – expanded target types
         if language == 'python':
-            target_types = {'function_definition', 'class_definition'}
+            target_types = {'function_definition', 'class_definition', 'expression_statement'}
         elif language in ('javascript', 'typescript'):
             target_types = {
-                'function_declaration',
-                'class_declaration',
-                'method_definition',
+                'function_declaration', 'class_declaration', 'method_definition',
+                'interface_declaration',    # TS: interface Foo { … }
+                'type_alias_declaration',   # TS: type Bar = …
+                'enum_declaration',         # TS: enum Direction { … }
+                'abstract_class_declaration',
             }
         elif language == 'rust':
             target_types = {
-                'function_item',
-                'struct_item',
-                'trait_item',
-                'impl_item',
-                'enum_item',
+                'function_item', 'struct_item', 'trait_item', 'impl_item', 'enum_item',
+                'const_item', 'type_item', 'static_item', 'mod_item',   # FIX 2
             }
         else:
             target_types = set()
 
-        # Recursively traverse AST
         if node.type in target_types:
-            chunk = self._node_to_chunk(node, content, file_path, language)
+            if language == 'python' and node.type == 'expression_statement':
+                chunk = self._extract_python_constant(node, content, file_path)
+            else:
+                chunk = self._node_to_chunk(node, content, file_path, language)
             if chunk:
                 chunks.append(chunk)
 
-        # Special handling for lexical declarations (const/let with arrow functions)
         if language in ('javascript', 'typescript') and node.type == 'lexical_declaration':
             chunk = self._extract_arrow_function(node, content, file_path, language)
             if chunk:
                 chunks.append(chunk)
 
-        # Recurse into children
         for child in node.children:
             chunks.extend(self._extract_definitions(child, content, file_path, language))
-
         return chunks
 
+    def _extract_python_constant(self, node, content: str, file_path: str) -> Optional[CodeChunk]:
+        """Capture module-level Python ALL_CAPS constants."""
+        if node.parent is None or node.parent.type != 'module':
+            return None
+        raw = content.encode('utf8')[node.start_byte:node.end_byte].decode('utf8')
+        match = re.match(r'^([A-Z][A-Z0-9_]+)\s*=', raw.strip())
+        if not match:
+            return None
+        return CodeChunk(
+            path=file_path,
+            start_line=node.start_point[0] + 1,
+            end_line=node.end_point[0] + 1,
+            content=raw,
+            symbols_defined=[match.group(1)],
+            symbols_referenced=[],
+            language='python',
+        )
+
     def _node_to_chunk(self, node, content: str, file_path: str, language: str) -> Optional[CodeChunk]:
-        """Convert AST node to CodeChunk.
-
-        Args:
-            node: Tree-sitter AST node
-            content: File content as string
-            file_path: Relative path to the file
-            language: Programming language
-
-        Returns:
-            CodeChunk object or None if extraction fails
-        """
-        start_line = node.start_point[0] + 1  # Convert to 1-indexed
+        start_line = node.start_point[0] + 1
         end_line = node.end_point[0] + 1
-
-        # Extract node content
-        # IMPORTANT: tree-sitter uses byte offsets, but Python strings are indexed by character
-        # We need to convert to bytes, slice, then decode back to string
         content_bytes = content.encode('utf8')
-        node_content_bytes = content_bytes[node.start_byte:node.end_byte]
-        node_content = node_content_bytes.decode('utf8')
-
-        # Extract symbol name
+        node_content = content_bytes[node.start_byte:node.end_byte].decode('utf8')
         symbol_name = self._extract_symbol_name(node, language)
-        symbols_defined = [symbol_name] if symbol_name else []
-
-        # Extract symbol references (simplified - just look for identifiers)
-        symbols_referenced = self._extract_references(node)
-
         return CodeChunk(
             path=file_path,
             start_line=start_line,
             end_line=end_line,
             content=node_content,
-            symbols_defined=symbols_defined,
-            symbols_referenced=symbols_referenced,
+            symbols_defined=[symbol_name] if symbol_name else [],
+            symbols_referenced=self._extract_references(node),
             language=language
         )
 
     def _extract_symbol_name(self, node, language: str) -> Optional[str]:
-        """Extract the name of a function or class from AST node.
-
-        Args:
-            node: Tree-sitter AST node
-            language: Programming language
-
-        Returns:
-            Symbol name or None
-        """
-        # Look for name node in children
         for child in node.children:
-            if child.type == 'identifier' or child.type == 'property_identifier':
+            if child.type in ('identifier', 'property_identifier'):
                 return child.text.decode('utf8')
-
         return None
 
     def _extract_arrow_function(self, node, content: str, file_path: str, language: str) -> Optional[CodeChunk]:
-        """Extract arrow function from lexical declaration.
-
-        Args:
-            node: Tree-sitter AST node (lexical_declaration)
-            content: File content as string
-            file_path: Relative path to the file
-            language: Programming language
-
-        Returns:
-            CodeChunk object or None if not an arrow function
-        """
-        # Look for variable_declarator with arrow_function
         for child in node.children:
             if child.type == 'variable_declarator':
-                # Get the identifier (function name)
                 identifier = None
                 has_arrow = False
-
                 for subchild in child.children:
                     if subchild.type == 'identifier':
                         identifier = subchild.text.decode('utf8')
                     elif subchild.type == 'arrow_function':
                         has_arrow = True
-
                 if identifier and has_arrow:
-                    start_line = node.start_point[0] + 1
-                    end_line = node.end_point[0] + 1
-                    # IMPORTANT: tree-sitter uses byte offsets, convert to bytes first
                     content_bytes = content.encode('utf8')
-                    node_content_bytes = content_bytes[node.start_byte:node.end_byte]
-                    node_content = node_content_bytes.decode('utf8')
-
+                    node_content = content_bytes[node.start_byte:node.end_byte].decode('utf8')
                     return CodeChunk(
                         path=file_path,
-                        start_line=start_line,
-                        end_line=end_line,
+                        start_line=node.start_point[0] + 1,
+                        end_line=node.end_point[0] + 1,
                         content=node_content,
                         symbols_defined=[identifier],
                         symbols_referenced=[],
                         language=language
                     )
-
         return None
 
     def _extract_references(self, node) -> List[str]:
-        """Extract symbol references from AST node.
-
-        Args:
-            node: Tree-sitter AST node
-
-        Returns:
-            List of referenced symbol names
-        """
-        references = set()
-
-        # Look for import statements and function calls
+        references: Set[str] = set()
         self._collect_references(node, references)
-
         return list(references)
 
     def _collect_references(self, node, references: Set[str]) -> None:
-        """Recursively collect symbol references.
-
-        Args:
-            node: Tree-sitter AST node
-            references: Set to collect references into
-        """
-        # Collect imports and calls
         if node.type in ('import_statement', 'import_from_statement', 'call_expression'):
             for child in node.children:
                 if child.type == 'identifier':
                     references.add(child.text.decode('utf8'))
-
-        # Recurse
         for child in node.children:
             self._collect_references(child, references)
 
 
+# =============================================================================
+# RegexChunker
+# =============================================================================
+
 class RegexChunker(ASTChunker):
     """Fallback parser using regex patterns.
 
-    Uses regex patterns to detect basic function and class definitions
-    when tree-sitter is unavailable or fails.
+    FIX 1: Delegates .md files to MarkdownChunker.
+    FIX 3: _find_block_end uses bracket-matching (no 20-line cap).
+    FIX 4: symbols_referenced populated with imports from the whole file.
     """
 
+    # FIX 4: import patterns per language
+    _IMPORT_PATTERNS = {
+        'python': [
+            re.compile(r'^import\s+([\w.]+)', re.MULTILINE),
+            re.compile(r'^from\s+([\w.]+)\s+import', re.MULTILINE),
+        ],
+        'javascript': [
+            re.compile(r"import\s+.*?\s+from\s+['\"]([^'\"]+)['\"]", re.MULTILINE),
+            re.compile(r"require\s*\(\s*['\"]([^'\"]+)['\"]\s*\)", re.MULTILINE),
+        ],
+        'typescript': [
+            re.compile(r"import\s+.*?\s+from\s+['\"]([^'\"]+)['\"]", re.MULTILINE),
+            re.compile(r"require\s*\(\s*['\"]([^'\"]+)['\"]\s*\)", re.MULTILINE),
+        ],
+        'rust': [
+            re.compile(r'^use\s+([\w:]+)', re.MULTILINE),
+        ],
+    }
+
     def __init__(self):
-        """Initialize RegexChunker with language patterns."""
-        # Regex patterns for different languages
         self.patterns = {
             'python': {
                 'function': re.compile(r'^def\s+(\w+)\s*\(', re.MULTILINE),
@@ -419,8 +378,6 @@ class RegexChunker(ASTChunker):
                 'enum': re.compile(r'^\s*(?:pub\s+)?enum\s+(\w+)\s*[{]', re.MULTILINE),
             },
         }
-
-        # File extension to language mapping
         self.ext_to_lang = {
             '.py': 'python',
             '.js': 'javascript',
@@ -429,30 +386,17 @@ class RegexChunker(ASTChunker):
             '.tsx': 'typescript',
             '.rs': 'rust',
         }
+        self._md_chunker = MarkdownChunker()  # FIX 1
 
     def parse(self, repo_path: str, config=None) -> List[CodeChunk]:
-        """Parse all source files in repository into code chunks.
-
-        Args:
-            repo_path: Path to the repository root directory
-            config: Configuration instance with include/exclude patterns
-
-        Returns:
-            List of CodeChunk objects representing parsed code segments
-
-        Raises:
-            ValueError: If repo_path does not exist or is not a directory
-        """
         if not os.path.exists(repo_path):
             raise ValueError(f"Repository path does not exist: {repo_path}")
-
         if not os.path.isdir(repo_path):
             raise ValueError(f"Repository path is not a directory: {repo_path}")
 
         chunks = []
         repo_path_obj = Path(repo_path)
 
-        # Get include/exclude patterns from config
         from .config import Config
         if config is None:
             config = Config()
@@ -460,43 +404,26 @@ class RegexChunker(ASTChunker):
         include_patterns = config.include_patterns
         exclude_patterns = config.exclude_patterns
 
-        # Find all source files
+        # FIX 1 – parse Markdown files
+        chunks.extend(self._md_chunker.parse(repo_path, config=config))
+
         for ext in self.ext_to_lang.keys():
             for file_path in repo_path_obj.rglob(f"*{ext}"):
                 if not file_path.is_file():
                     continue
-
-                # Check if file should be included based on patterns
                 if not _should_include_file(file_path, repo_path_obj, include_patterns, exclude_patterns):
                     continue
-
                 try:
-                    file_chunks = self._parse_file(file_path, repo_path_obj)
-                    chunks.extend(file_chunks)
+                    chunks.extend(self._parse_file(file_path, repo_path_obj))
                 except Exception as e:
                     logger.warning(f"Failed to parse {file_path}: {e}")
-                    continue
-
         return chunks
 
     def _parse_file(self, file_path: Path, repo_root: Path) -> List[CodeChunk]:
-        """Parse a single file into code chunks using regex.
-
-        Args:
-            file_path: Path to the file to parse
-            repo_root: Root directory of the repository
-
-        Returns:
-            List of CodeChunk objects from this file
-        """
-        # Determine language from extension
         ext = file_path.suffix
         language = self.ext_to_lang.get(ext)
-
         if not language or language not in self.patterns:
             return []
-
-        # Read file content
         try:
             content = file_path.read_text(encoding='utf-8')
         except Exception as e:
@@ -507,17 +434,18 @@ class RegexChunker(ASTChunker):
         relative_path = str(file_path.relative_to(repo_root))
         lines = content.split('\n')
 
-        # Find all matches for each pattern
+        # FIX 4: extract file-wide imports once
+        file_imports = self._extract_imports(content, language)
+
         for pattern_name, pattern in self.patterns[language].items():
             for match in pattern.finditer(content):
                 symbol_name = match.group(1)
                 start_line = content[:match.start()].count('\n') + 1
 
-                # Estimate end line (simple heuristic: find next definition or end of file)
-                end_line = self._estimate_end_line(content, match.end(), lines)
+                # FIX 3: accurate block-end detection
+                end_line = self._find_block_end(content, match.start(), lines, language)
 
-                # Extract content
-                chunk_content = '\n'.join(lines[start_line-1:end_line])
+                chunk_content = '\n'.join(lines[start_line - 1:end_line])
 
                 chunks.append(CodeChunk(
                     path=relative_path,
@@ -525,42 +453,119 @@ class RegexChunker(ASTChunker):
                     end_line=end_line,
                     content=chunk_content,
                     symbols_defined=[symbol_name],
-                    symbols_referenced=[],  # Simplified: no reference extraction
+                    symbols_referenced=file_imports,   # FIX 4
                     language=language
                 ))
 
         return chunks
 
+    # -------------------------------------------------------------------------
+    # FIX 3: block-end helpers
+    # -------------------------------------------------------------------------
+
+    def _find_block_end(self, content: str, definition_start: int,
+                        lines: List[str], language: str) -> int:
+        start_line_0 = content[:definition_start].count('\n')
+        if language == 'python':
+            return self._python_indent_end(lines, start_line_0)
+        return self._brace_matching_end(content, definition_start, lines, start_line_0)
+
+    def _brace_matching_end(self, content: str, definition_start: int,
+                             lines: List[str], start_line_0: int) -> int:
+        brace_pos = content.find('{', definition_start)
+        if brace_pos == -1:
+            return start_line_0 + 1
+
+        depth = 0
+        in_string: Optional[str] = None
+        i = brace_pos
+
+        while i < len(content):
+            ch = content[i]
+            if in_string:
+                if ch == '\\':
+                    i += 2
+                    continue
+                if ch == in_string:
+                    in_string = None
+            else:
+                if ch in ('"', "'"):
+                    in_string = ch
+                elif ch == '/' and i + 1 < len(content):
+                    if content[i + 1] == '/':
+                        nl = content.find('\n', i)
+                        i = nl if nl != -1 else len(content)
+                        continue
+                    elif content[i + 1] == '*':
+                        end = content.find('*/', i + 2)
+                        i = end + 2 if end != -1 else len(content)
+                        continue
+                elif ch == '{':
+                    depth += 1
+                elif ch == '}':
+                    depth -= 1
+                    if depth == 0:
+                        end_line_0 = content[:i + 1].count('\n')
+                        return end_line_0 + 1
+            i += 1
+
+        return len(lines)
+
+    def _python_indent_end(self, lines: List[str], start_line_0: int) -> int:
+        if start_line_0 >= len(lines):
+            return len(lines)
+        def_line = lines[start_line_0]
+        base_indent = len(def_line) - len(def_line.lstrip())
+        last_body_line = start_line_0
+        for i in range(start_line_0 + 1, len(lines)):
+            stripped = lines[i].strip()
+            if not stripped or stripped.startswith('#'):
+                continue
+            indent = len(lines[i]) - len(lines[i].lstrip())
+            if indent <= base_indent:
+                break
+            last_body_line = i
+        return last_body_line + 1  # 1-indexed
+
+    # -------------------------------------------------------------------------
+    # FIX 4: import extraction
+    # -------------------------------------------------------------------------
+
+    def _extract_imports(self, content: str, language: str) -> List[str]:
+        patterns = self._IMPORT_PATTERNS.get(language, [])
+        imports: Set[str] = set()
+        for pat in patterns:
+            for match in pat.finditer(content):
+                name = match.group(1).strip()
+                imports.add(name.split('.')[0])
+        return list(imports)
+
+    # -------------------------------------------------------------------------
+    # Kept for backward-compatibility – no longer used internally
+    # -------------------------------------------------------------------------
+
     def _estimate_end_line(self, content: str, start_pos: int, lines: List[str]) -> int:
-        """Estimate the end line of a definition.
-
-        Args:
-            content: Full file content
-            start_pos: Starting position in content
-            lines: List of lines in the file
-
-        Returns:
-            Estimated end line number
-        """
-        # Simple heuristic: look for next definition or end of file
+        """Deprecated: use _find_block_end instead."""
         start_line = content[:start_pos].count('\n')
-
-        # Look ahead for next definition (max 100 lines)
         for i in range(start_line + 1, min(start_line + 100, len(lines))):
-            line = lines[i]
-            # Check if line starts a new definition
-            if re.match(r'^(def|class|function|const\s+\w+\s*=)', line.strip()):
+            if re.match(r'^(def|class|function|const\s+\w+\s*=)', lines[i].strip()):
                 return i
-
-        # Default: next 20 lines or end of file
         return min(start_line + 20, len(lines))
 
+
+# =============================================================================
+# Public entry point
+# =============================================================================
 
 def parse_with_fallback(repo_path: str, config=None) -> List[CodeChunk]:
     """Parse repository with automatic fallback from TreeSitter to Regex.
 
-    Tries TreeSitterChunker first, falls back to RegexChunker on failure.
-    Logs a warning when fallback is triggered.
+    Both chunkers now support:
+      - Markdown files (FIX 1)
+      - Wider AST target types: TS interfaces/types, Python constants,
+        Rust const/type/static/mod items (FIX 2)
+      - Accurate block-end detection – no 20-line cap (FIX 3)
+      - Import-based symbols_referenced during regex fallback (FIX 4)
 
     Args:
         repo_path: Path to the repository root directory
@@ -576,14 +581,8 @@ def parse_with_fallback(repo_path: str, config=None) -> List[CodeChunk]:
         logger.info("Using TreeSitterChunker for AST parsing")
         return chunker.parse(repo_path, config=config)
     except ImportError as e:
-        logger.warning(
-            f"TreeSitter not available ({e}), falling back to RegexChunker"
-        )
-        chunker = RegexChunker()
-        return chunker.parse(repo_path, config=config)
+        logger.warning(f"TreeSitter not available ({e}), falling back to RegexChunker")
+        return RegexChunker().parse(repo_path, config=config)
     except Exception as e:
-        logger.warning(
-            f"TreeSitterChunker failed ({e}), falling back to RegexChunker"
-        )
-        chunker = RegexChunker()
-        return chunker.parse(repo_path, config=config)
+        logger.warning(f"TreeSitterChunker failed ({e}), falling back to RegexChunker")
+        return RegexChunker().parse(repo_path, config=config)
