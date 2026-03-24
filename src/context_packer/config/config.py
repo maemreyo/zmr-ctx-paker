@@ -11,7 +11,7 @@ from typing import Any, Dict, List
 
 import yaml
 
-from .logger import get_logger
+from ..logger import get_logger
 
 
 @dataclass

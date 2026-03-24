@@ -6,7 +6,7 @@ analysis (PageRank) to select the most relevant files within a token budget.
 """
 
 from context_packer.budget import BudgetManager
-from context_packer.chunker import ASTChunker
+from context_packer.chunker import ASTChunker, parse_with_fallback
 from context_packer.config import Config
 from context_packer.logger import ContextPackerLogger, get_logger
 from context_packer.models import CodeChunk
@@ -23,4 +23,5 @@ __all__ = [
     "ASTChunker",
     "RetrievalEngine",
     "BudgetManager",
+    "parse_with_fallback",
 ]

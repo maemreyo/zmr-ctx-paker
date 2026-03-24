@@ -15,8 +15,7 @@ from .indexer import load_indexes
 from .logger import get_logger
 from .performance import PerformanceTracker
 from .retrieval import RetrievalEngine
-from .xml_packer import XMLPacker
-from .zip_packer import ZIPPacker
+from .packer import XMLPacker, ZIPPacker
 
 logger = get_logger()
 

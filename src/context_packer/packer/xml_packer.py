@@ -10,7 +10,7 @@ from typing import Any, Dict, List
 import tiktoken
 from lxml import etree
 
-from .logger import get_logger
+from ..logger import get_logger
 
 
 class XMLPacker:

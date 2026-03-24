@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 from hypothesis import given, strategies as st
 
-from context_packer.zip_packer import ZIPPacker
+from context_packer.packer import ZIPPacker
 
 
 # Custom strategies for generating test data

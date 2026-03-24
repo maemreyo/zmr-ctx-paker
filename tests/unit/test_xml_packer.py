@@ -9,7 +9,7 @@ import tempfile
 import pytest
 from lxml import etree
 
-from context_packer.xml_packer import XMLPacker
+from context_packer.packer import XMLPacker
 
 
 class TestXMLPacker:
