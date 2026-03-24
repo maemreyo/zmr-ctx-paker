@@ -212,6 +212,20 @@ class DomainMapDB:
         """, (keyword.lower(),)).fetchall()
         return [r["path"] for r in rows]
 
+    def directories_for(self, keyword: str) -> List[str]:
+        """
+        Get directories for a keyword (alias for get()).
+
+        Used by RetrievalEngine for domain-based scoring.
+
+        Args:
+            keyword: Keyword to look up
+
+        Returns:
+            List of directory paths, empty list if not found
+        """
+        return self.get(keyword)
+
     def prefix_search(self, prefix: str) -> Dict[str, List[str]]:
         """
         Find all keywords starting with prefix.
