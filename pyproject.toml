@@ -82,6 +82,8 @@ all = [
     "py-tree-sitter>=0.20.0,<1.0.0", # Primary AST parser
     "tree-sitter-python>=0.20.0,<1.0.0", # Python grammar for tree-sitter
     "tree-sitter-javascript>=0.20.0,<1.0.0", # JavaScript grammar for tree-sitter
+    "tree-sitter-typescript>=0.20.0,<1.0.0", # TypeScript grammar for tree-sitter
+    "tree-sitter-rust>=0.20.0,<1.0.0", # Rust grammar for tree-sitter
 ]
 
 # Development dependencies
