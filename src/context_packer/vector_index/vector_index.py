@@ -10,7 +10,7 @@ import os
 import pickle
 import psutil
 from abc import ABC, abstractmethod
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -69,17 +69,26 @@ class VectorIndex(ABC):
     @abstractmethod
     def load(cls, path: str) -> 'VectorIndex':
         """Load index from disk.
-        
+
         Args:
             path: File path to load index from
-            
+
         Returns:
             Loaded VectorIndex instance
-            
+
         Raises:
             IOError: If load fails
         """
         pass
+
+    def get_file_symbols(self) -> Dict[str, List[str]]:
+        """Get mapping of file paths to symbols defined in those files.
+
+        Returns:
+            Dict mapping file_path -> list of symbol names defined in that file.
+            Returns empty dict if no symbol data is available.
+        """
+        return {}
 
 
 
@@ -311,6 +320,7 @@ class LEANNIndex(VectorIndex):
         self._embedding_generator = None
         self._file_paths: List[str] = []
         self._embeddings: Optional[np.ndarray] = None
+        self._file_symbols: Dict[str, List[str]] = {}
         self._graph = None  # Simplified: store all embeddings for now
     
     def build(self, chunks: List[CodeChunk]) -> None:
@@ -340,16 +350,22 @@ class LEANNIndex(VectorIndex):
             if chunk.path not in file_to_chunks:
                 file_to_chunks[chunk.path] = []
             file_to_chunks[chunk.path].append(chunk)
-        
+
         # Generate embeddings for each file (concatenate chunk contents)
         self._file_paths = list(file_to_chunks.keys())
         texts = []
+        self._file_symbols = {}
         for file_path in self._file_paths:
             file_chunks = file_to_chunks[file_path]
             # Combine all chunks from the same file
             combined_text = "\n".join(chunk.content for chunk in file_chunks)
             texts.append(combined_text)
-        
+            # Collect all symbols defined in this file
+            symbols: List[str] = []
+            for chunk in file_chunks:
+                symbols.extend(chunk.symbols_defined)
+            self._file_symbols[file_path] = symbols
+
         # Generate embeddings
         try:
             self._embeddings = self._embedding_generator.encode(texts)
@@ -424,35 +440,40 @@ class LEANNIndex(VectorIndex):
         
         return similarities
     
+    def get_file_symbols(self) -> Dict[str, List[str]]:
+        """Get mapping of file paths to symbols defined in those files."""
+        return self._file_symbols
+
     def save(self, path: str) -> None:
         """Persist LEANN index to disk.
-        
+
         Args:
             path: File path to save index
-            
+
         Raises:
             IOError: If save fails
         """
         if self._embeddings is None:
             raise RuntimeError("Index not built. Call build() first.")
-        
+
         try:
             os.makedirs(os.path.dirname(path), exist_ok=True)
-            
+
             data = {
                 'backend': 'LEANNIndex',
                 'model_name': self.model_name,
                 'device': self.device,
                 'batch_size': self.batch_size,
                 'file_paths': self._file_paths,
-                'embeddings': self._embeddings
+                'embeddings': self._embeddings,
+                'file_symbols': self._file_symbols,
             }
-            
+
             with open(path, 'wb') as f:
                 pickle.dump(data, f)
-            
+
             self.logger.info(f"LEANN index saved to {path}")
-            
+
         except Exception as e:
             self.logger.error(f"Failed to save LEANN index: {e}")
             raise IOError(f"Failed to save LEANN index: {e}")
@@ -489,15 +510,16 @@ class LEANNIndex(VectorIndex):
             # Restore state
             index._file_paths = data['file_paths']
             index._embeddings = data['embeddings']
+            index._file_symbols = data.get('file_symbols', {})
             index._embedding_generator = EmbeddingGenerator(
                 model_name=data['model_name'],
                 device=data['device'],
                 batch_size=data['batch_size']
             )
-            
+
             logger.info(f"LEANN index loaded from {path}")
             return index
-            
+
         except Exception as e:
             logger.error(f"Failed to load LEANN index: {e}")
             raise IOError(f"Failed to load LEANN index: {e}")
@@ -532,6 +554,7 @@ class FAISSIndex(VectorIndex):
         self._file_paths: List[str] = []
         self._index = None
         self._embedding_dim = None
+        self._file_symbols: Dict[str, List[str]] = {}
     
     def build(self, chunks: List[CodeChunk]) -> None:
         """Build FAISS index from code chunks.
@@ -567,14 +590,20 @@ class FAISSIndex(VectorIndex):
             if chunk.path not in file_to_chunks:
                 file_to_chunks[chunk.path] = []
             file_to_chunks[chunk.path].append(chunk)
-        
+
         # Generate embeddings for each file
         self._file_paths = list(file_to_chunks.keys())
         texts = []
+        self._file_symbols = {}
         for file_path in self._file_paths:
             file_chunks = file_to_chunks[file_path]
             combined_text = "\n".join(chunk.content for chunk in file_chunks)
             texts.append(combined_text)
+            # Collect all symbols defined in this file
+            symbols: List[str] = []
+            for chunk in file_chunks:
+                symbols.extend(chunk.symbols_defined)
+            self._file_symbols[file_path] = symbols
         
         # Generate embeddings
         try:
@@ -638,27 +667,31 @@ class FAISSIndex(VectorIndex):
             self.logger.error(f"FAISS search failed: {e}")
             raise RuntimeError(f"FAISS search failed: {e}")
     
+    def get_file_symbols(self) -> Dict[str, List[str]]:
+        """Get mapping of file paths to symbols defined in those files."""
+        return self._file_symbols
+
     def save(self, path: str) -> None:
         """Persist FAISS index to disk.
-        
+
         Args:
             path: File path to save index
-            
+
         Raises:
             IOError: If save fails
         """
         if self._index is None:
             raise RuntimeError("Index not built. Call build() first.")
-        
+
         try:
             import faiss
-            
+
             os.makedirs(os.path.dirname(path), exist_ok=True)
-            
+
             # Save FAISS index
             index_path = path + '.faiss'
             faiss.write_index(self._index, index_path)
-            
+
             # Save metadata
             metadata = {
                 'backend': 'FAISSIndex',
@@ -666,14 +699,15 @@ class FAISSIndex(VectorIndex):
                 'device': self.device,
                 'batch_size': self.batch_size,
                 'file_paths': self._file_paths,
-                'embedding_dim': self._embedding_dim
+                'embedding_dim': self._embedding_dim,
+                'file_symbols': self._file_symbols,
             }
-            
+
             with open(path, 'wb') as f:
                 pickle.dump(metadata, f)
-            
+
             self.logger.info(f"FAISS index saved to {path}")
-            
+
         except Exception as e:
             self.logger.error(f"Failed to save FAISS index: {e}")
             raise IOError(f"Failed to save FAISS index: {e}")
@@ -713,19 +747,20 @@ class FAISSIndex(VectorIndex):
             # Load FAISS index
             index_path = path + '.faiss'
             index._index = faiss.read_index(index_path)
-            
+
             # Restore state
             index._file_paths = metadata['file_paths']
             index._embedding_dim = metadata['embedding_dim']
+            index._file_symbols = metadata.get('file_symbols', {})
             index._embedding_generator = EmbeddingGenerator(
                 model_name=metadata['model_name'],
                 device=metadata['device'],
                 batch_size=metadata['batch_size']
             )
-            
+
             logger.info(f"FAISS index loaded from {path}")
             return index
-            
+
         except Exception as e:
             logger.error(f"Failed to load FAISS index: {e}")
             raise IOError(f"Failed to load FAISS index: {e}")
