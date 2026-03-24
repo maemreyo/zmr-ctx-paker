@@ -22,7 +22,7 @@ Context Packer offers three installation tiers based on your needs:
 Basic functionality with regex-based parsing and file size ranking:
 
 ```bash
-pip install context-packer
+pip install ctx-packer
 ```
 
 **Includes**: tiktoken, PyYAML, lxml, typer, rich
@@ -32,7 +32,7 @@ pip install context-packer
 Core + fallback backends for semantic search and graph analysis:
 
 ```bash
-pip install context-packer[fast]
+pip install ctx-packer[fast]
 ```
 
 **Adds**: faiss-cpu (vector search), networkx (graph analysis)
@@ -42,7 +42,7 @@ pip install context-packer[fast]
 All features including primary backends for optimal performance:
 
 ```bash
-pip install context-packer[all]
+pip install ctx-packer[all]
 ```
 
 **Adds**: python-igraph (fast PageRank), sentence-transformers (local embeddings), py-tree-sitter (accurate AST parsing)
@@ -54,10 +54,10 @@ pip install context-packer[all]
 Build indexes for semantic search and dependency analysis:
 
 ```bash
-context-pack index /path/to/your/repo
+ctx-pack index /path/to/your/repo
 ```
 
-This creates a `.context-pack/` directory with:
+This creates a `.ctx-pack/` directory with:
 - `vector.idx` - Semantic search index
 - `graph.pkl` - Dependency graph with PageRank scores
 - `metadata.json` - Staleness detection metadata
@@ -69,46 +69,46 @@ Create an optimized context pack for LLM review:
 
 ```bash
 # Generate ZIP output (default)
-context-pack pack /path/to/your/repo
+ctx-pack pack /path/to/your/repo
 
 # Generate XML output for paste workflows
-context-pack pack /path/to/your/repo --format xml
+ctx-pack pack /path/to/your/repo --format xml
 
 # Specify token budget
-context-pack pack /path/to/your/repo --budget 50000
+ctx-pack pack /path/to/your/repo --budget 50000
 
 # Query with natural language
-context-pack query "authentication and user management" --format zip
+ctx-pack query "authentication and user management" --format zip
 ```
 
 ### 3. Use the Output
 
 **For XML output**: Copy the generated `repomix-output.xml` and paste into Claude.ai or ChatGPT
 
-**For ZIP output**: Upload `context-pack.zip` to Cursor or Claude Code. The archive includes:
+**For ZIP output**: Upload `ctx-pack.zip` to Cursor or Claude Code. The archive includes:
 - `files/` - Selected source files with preserved directory structure
 - `REVIEW_CONTEXT.md` - Manifest with importance scores and reading order
 
 ## CLI Commands
 
-### `context-pack index`
+### `ctx-pack index`
 
 Build and save indexes for later queries:
 
 ```bash
-context-pack index <repo_path> [OPTIONS]
+ctx-pack index <repo_path> [OPTIONS]
 ```
 
 **Options**:
-- `--config PATH` - Custom configuration file (default: `.context-pack.yaml`)
+- `--config PATH` - Custom configuration file (default: `.ctx-pack.yaml`)
 - `--verbose` - Enable detailed logging with timing information
 
-### `context-pack query`
+### `ctx-pack query`
 
 Search indexed repository and generate output:
 
 ```bash
-context-pack query <query_text> [OPTIONS]
+ctx-pack query <query_text> [OPTIONS]
 ```
 
 **Options**:
@@ -118,12 +118,12 @@ context-pack query <query_text> [OPTIONS]
 - `--output PATH` - Output directory (default: ./output)
 - `--verbose` - Enable detailed logging
 
-### `context-pack pack`
+### `ctx-pack pack`
 
 Full workflow: index + query + pack:
 
 ```bash
-context-pack pack <repo_path> [OPTIONS]
+ctx-pack pack <repo_path> [OPTIONS]
 ```
 
 **Options**:
@@ -137,7 +137,7 @@ context-pack pack <repo_path> [OPTIONS]
 
 ## Configuration
 
-Create a `.context-pack.yaml` file in your repository root to customize behavior:
+Create a `.ctx-pack.yaml` file in your repository root to customize behavior:
 
 ```yaml
 # Output settings
@@ -182,7 +182,7 @@ performance:
   incremental_index: true
 ```
 
-See `.context-pack.yaml.example` for detailed documentation of all options.
+See `.ctx-pack.yaml.example` for detailed documentation of all options.
 
 ## How It Works
 
@@ -263,22 +263,22 @@ Fallback backends maintain functionality within 2x of primary performance.
 
 ```bash
 # Index your repository once
-context-pack index ~/projects/myapp
+ctx-pack index ~/projects/myapp
 
 # Generate context for PR review
-context-pack query "authentication changes" \
+ctx-pack query "authentication changes" \
   --changed-files changed.txt \
   --format zip \
   --budget 50000
 
-# Upload context-pack.zip to Cursor for review
+# Upload ctx-pack.zip to Cursor for review
 ```
 
 ### Bug Investigation
 
 ```bash
 # Find relevant code for a bug
-context-pack pack ~/projects/myapp \
+ctx-pack pack ~/projects/myapp \
   --query "database connection pooling and timeout handling" \
   --format xml \
   --budget 30000
@@ -290,7 +290,7 @@ context-pack pack ~/projects/myapp \
 
 ```bash
 # Select core API files
-context-pack pack ~/projects/myapp \
+ctx-pack pack ~/projects/myapp \
   --query "public API endpoints and data models" \
   --format zip \
   --budget 80000
@@ -341,14 +341,14 @@ pytest --hypothesis-profile=debug
 
 LEANN is an optional primary backend. Install with:
 ```bash
-pip install context-packer[all]
+pip install ctx-packer[all]
 ```
 
 ### "igraph not available, using NetworkX fallback"
 
 python-igraph requires C++ compilation. Install with:
 ```bash
-pip install context-packer[all]
+pip install ctx-packer[all]
 ```
 
 Or force NetworkX backend in config:
@@ -374,8 +374,8 @@ Set `OPENAI_API_KEY` environment variable for API access.
 
 Files have changed since last index. This is automatic. To force rebuild:
 ```bash
-rm -rf .context-pack/
-context-pack index /path/to/repo
+rm -rf .ctx-pack/
+ctx-pack index /path/to/repo
 ```
 
 ## License
@@ -389,6 +389,10 @@ This ensures that any derivative work must also be open source under GPL-3.0.
 ## Contributing
 
 Contributions welcome! Please see CONTRIBUTING.md for guidelines.
+
+## AI Agents
+
+See [AI_AGENTS.md](AI_AGENTS.md) for guidelines on how AI agents should use this tool.
 
 ## Citation
 
