@@ -1,0 +1,10 @@
+
+token_budget: 50000
+include_patterns:
+  - "**/*.ts"
+  - "**/*.js"
+  - "**/*.rs"
+exclude_patterns:
+  - "**/node_modules/**"
+  - "**/target/**"
+  - "**/.git/**"

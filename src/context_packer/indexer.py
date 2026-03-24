@@ -31,70 +31,70 @@ def index_repository(
 ) -> PerformanceTracker:
     """
     Build and persist indexes for later queries.
-    
+
     This function implements the index phase workflow:
     1. Parse codebase with AST Chunker (with fallback)
     2. Build Vector Index (with fallback)
     3. Build RepoMap Graph (with fallback)
     4. Save indexes to .context-pack/
     5. Save metadata for staleness detection
-    
+
     Args:
         repo_path: Path to the repository root directory
         config: Configuration instance (uses defaults if None)
         index_dir: Directory to save indexes (default: .context-pack)
-    
+
     Returns:
         PerformanceTracker with indexing metrics
-    
+
     Raises:
         ValueError: If repo_path does not exist or is not a directory
         RuntimeError: If indexing fails
-    
+
     Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 13.1, 13.3
     """
     if not os.path.exists(repo_path):
         raise ValueError(f"Repository path does not exist: {repo_path}")
-    
+
     if not os.path.isdir(repo_path):
         raise ValueError(f"Repository path is not a directory: {repo_path}")
-    
+
     # Load configuration
     if config is None:
         config = Config.load()
-    
+
     # Initialize performance tracker
     tracker = PerformanceTracker()
     tracker.start_indexing()
-    
+
     logger.info(f"Starting index phase for repository: {repo_path}")
     start_time = time.time()
-    
+
     # Create index directory
     index_path = Path(repo_path) / index_dir
     index_path.mkdir(parents=True, exist_ok=True)
-    
+
     # Initialize backend selector
     backend_selector = BackendSelector(config)
     backend_selector.log_current_configuration()
-    
+
     # Phase 1: Parse codebase with AST Chunker (with fallback)
     logger.info("Phase 1: Parsing codebase with AST Chunker")
     tracker.start_phase("parsing")
     parse_start = time.time()
-    
+
     try:
-        chunks = parse_with_fallback(repo_path)
+        chunks = parse_with_fallback(repo_path, config=config)
         parse_duration = time.time() - parse_start
         tracker.end_phase("parsing")
         tracker.track_memory()
-        
+
         if not chunks:
             raise RuntimeError("No code chunks extracted from repository")
-        
+
         unique_files = len(set(chunk.path for chunk in chunks))
         tracker.set_files_processed(unique_files)
-        
+
         logger.log_phase(
             phase="parsing",
             duration=parse_duration,
@@ -104,28 +104,28 @@ def index_repository(
     except Exception as e:
         logger.log_error(e, {"phase": "parsing", "repo_path": repo_path})
         raise RuntimeError(f"Failed to parse repository: {e}") from e
-    
+
     # Phase 2: Build Vector Index (with fallback)
     logger.info("Phase 2: Building Vector Index")
     tracker.start_phase("vector_indexing")
     vector_start = time.time()
-    
+
     try:
         vector_index = backend_selector.select_vector_index(
             model_name=config.embeddings["model"],
             device=config.embeddings["device"],
             batch_size=config.embeddings["batch_size"]
         )
-        
+
         vector_index.build(chunks)
         vector_duration = time.time() - vector_start
         tracker.end_phase("vector_indexing")
         tracker.track_memory()
-        
+
         # Save vector index
         vector_index_path = str(index_path / "vector.idx")
         vector_index.save(vector_index_path)
-        
+
         logger.log_phase(
             phase="vector_indexing",
             duration=vector_duration,
@@ -134,23 +134,23 @@ def index_repository(
     except Exception as e:
         logger.log_error(e, {"phase": "vector_indexing", "repo_path": repo_path})
         raise RuntimeError(f"Failed to build vector index: {e}") from e
-    
+
     # Phase 3: Build RepoMap Graph (with fallback)
     logger.info("Phase 3: Building RepoMap Graph")
     tracker.start_phase("graph_building")
     graph_start = time.time()
-    
+
     try:
         graph = backend_selector.select_graph()
         graph.build(chunks)
         graph_duration = time.time() - graph_start
         tracker.end_phase("graph_building")
         tracker.track_memory()
-        
+
         # Save graph
         graph_path = str(index_path / "graph.pkl")
         graph.save(graph_path)
-        
+
         logger.log_phase(
             phase="graph_building",
             duration=graph_duration,
@@ -159,16 +159,16 @@ def index_repository(
     except Exception as e:
         logger.log_error(e, {"phase": "graph_building", "repo_path": repo_path})
         raise RuntimeError(f"Failed to build graph: {e}") from e
-    
+
     # Phase 4: Save metadata for staleness detection
     logger.info("Phase 4: Saving metadata for staleness detection")
     tracker.start_phase("metadata_saving")
     metadata_start = time.time()
-    
+
     try:
         # Compute file hashes
         file_hashes = _compute_file_hashes(chunks, repo_path)
-        
+
         # Create metadata
         metadata = IndexMetadata(
             created_at=datetime.now(),
@@ -177,7 +177,7 @@ def index_repository(
             backend=f"{vector_index.__class__.__name__}+{graph.__class__.__name__}",
             file_hashes=file_hashes
         )
-        
+
         # Save metadata
         metadata_path = index_path / "metadata.json"
         with open(metadata_path, 'w') as f:
@@ -192,10 +192,10 @@ def index_repository(
                 f,
                 indent=2
             )
-        
+
         metadata_duration = time.time() - metadata_start
         tracker.end_phase("metadata_saving")
-        
+
         logger.log_phase(
             phase="metadata_saving",
             duration=metadata_duration,
@@ -204,13 +204,13 @@ def index_repository(
     except Exception as e:
         logger.log_error(e, {"phase": "metadata_saving", "repo_path": repo_path})
         raise RuntimeError(f"Failed to save metadata: {e}") from e
-    
+
     # Calculate index size
     tracker.set_index_size(str(index_path))
-    
+
     # End indexing tracking
     tracker.end_indexing()
-    
+
     # Log completion with metrics
     total_duration = time.time() - start_time
     logger.info(
@@ -218,27 +218,27 @@ def index_repository(
         f"index_dir={index_path}"
     )
     logger.info(f"\n{tracker.format_metrics('indexing')}")
-    
+
     return tracker
 
 
 def _compute_file_hashes(chunks: List[CodeChunk], repo_path: str) -> dict:
     """
     Compute SHA256 hashes for all files in chunks.
-    
+
     Args:
         chunks: List of CodeChunk objects
         repo_path: Path to the repository root
-    
+
     Returns:
         Dictionary mapping file paths to SHA256 hashes
     """
     file_hashes = {}
     unique_files = set(chunk.path for chunk in chunks)
-    
+
     for file_path in unique_files:
         full_path = os.path.join(repo_path, file_path)
-        
+
         try:
             with open(full_path, 'rb') as f:
                 content = f.read()
@@ -248,7 +248,7 @@ def _compute_file_hashes(chunks: List[CodeChunk], repo_path: str) -> dict:
             logger.warning(f"Failed to hash file {file_path}: {e}")
             # Use empty hash for files we can't read
             file_hashes[file_path] = ""
-    
+
     return file_hashes
 
 
@@ -259,42 +259,42 @@ def load_indexes(
 ) -> tuple[VectorIndex, RepoMapGraph, IndexMetadata]:
     """
     Load indexes from disk with automatic staleness detection and rebuild.
-    
+
     Args:
         repo_path: Path to the repository root directory
         index_dir: Directory containing indexes (default: .context-pack)
         auto_rebuild: Automatically rebuild stale indexes (default: True)
-    
+
     Returns:
         Tuple of (VectorIndex, RepoMapGraph, IndexMetadata)
-    
+
     Raises:
         FileNotFoundError: If indexes don't exist
         RuntimeError: If loading fails
-    
+
     Requirements: 9.3, 9.4, 9.5, 9.6
     """
     index_path = Path(repo_path) / index_dir
-    
+
     # Check if indexes exist
     vector_index_path = index_path / "vector.idx"
     graph_path = index_path / "graph.pkl"
     metadata_path = index_path / "metadata.json"
-    
+
     if not vector_index_path.exists():
         raise FileNotFoundError(f"Vector index not found: {vector_index_path}")
-    
+
     if not graph_path.exists():
         raise FileNotFoundError(f"Graph not found: {graph_path}")
-    
+
     if not metadata_path.exists():
         raise FileNotFoundError(f"Metadata not found: {metadata_path}")
-    
+
     # Load metadata
     logger.info("Loading index metadata")
     with open(metadata_path, 'r') as f:
         metadata_dict = json.load(f)
-    
+
     metadata = IndexMetadata(
         created_at=datetime.fromisoformat(metadata_dict['created_at']),
         repo_path=metadata_dict['repo_path'],
@@ -302,11 +302,11 @@ def load_indexes(
         backend=metadata_dict['backend'],
         file_hashes=metadata_dict['file_hashes']
     )
-    
+
     # Check staleness
     if metadata.is_stale(repo_path):
         logger.warning("Indexes are stale (files have been modified)")
-        
+
         if auto_rebuild:
             logger.info("Automatically rebuilding stale indexes")
             index_repository(repo_path, index_dir=index_dir)
@@ -314,20 +314,20 @@ def load_indexes(
             return load_indexes(repo_path, index_dir, auto_rebuild=False)
         else:
             logger.warning("Auto-rebuild disabled, using stale indexes")
-    
+
     # Load vector index with auto-detection
     logger.info(f"Loading vector index from {vector_index_path}")
     from .vector_index import load_vector_index
     vector_index = load_vector_index(str(vector_index_path))
-    
+
     # Load graph with auto-detection
     logger.info(f"Loading graph from {graph_path}")
     from .graph import load_graph
     graph = load_graph(str(graph_path))
-    
+
     logger.info(
         f"Indexes loaded successfully | backend={metadata.backend} | "
         f"file_count={metadata.file_count}"
     )
-    
+
     return vector_index, graph, metadata

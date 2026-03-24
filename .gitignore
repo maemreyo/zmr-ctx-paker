@@ -54,3 +54,4 @@ dmypy.json
 
 # Ruff
 .ruff_cache/
+tests/query_results
