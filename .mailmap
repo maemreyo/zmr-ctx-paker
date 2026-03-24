@@ -1,0 +1,4 @@
+# This file maps author names and email addresses to canonical forms
+# Format: Canonical Name <canonical@email> Commit Name <commit@email>
+
+zamery <zaob.ogn@gmail.com>

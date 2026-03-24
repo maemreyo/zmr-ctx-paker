@@ -1,0 +1,199 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "context-packer"
+version = "0.1.0"
+description = "Intelligently package codebases into optimized context for Large Language Models"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "GPL-3.0-or-later"}
+authors = [
+    {name = "zamery", email = "zaob.ogn@gmail.com"}
+]
+maintainers = [
+    {name = "zamery", email = "zaob.ogn@gmail.com"}
+]
+keywords = [
+    "llm",
+    "context",
+    "codebase",
+    "semantic-search",
+    "pagerank",
+    "code-analysis",
+    "ast",
+    "vector-search",
+    "dependency-graph",
+    "code-review",
+    "ai",
+    "machine-learning",
+    "natural-language-processing",
+    "embeddings",
+    "token-budget",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: Code Generators",
+    "Topic :: Software Development :: Documentation",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Text Processing :: Markup :: XML",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Typing :: Typed",
+]
+
+# Core dependencies - minimal set for basic functionality
+dependencies = [
+    "tiktoken>=0.5.0,<1.0.0",      # Token counting for LLM context windows
+    "PyYAML>=6.0,<7.0",             # Configuration file parsing
+    "lxml>=4.9.0,<6.0.0",           # Fast XML generation for output
+    "typer>=0.9.0,<1.0.0",          # CLI framework with rich support
+    "rich>=13.0.0,<14.0.0",         # Rich terminal output for CLI
+]
+
+[project.optional-dependencies]
+# Fast tier: Core + fallback backends (faiss-cpu, networkx)
+fast = [
+    "faiss-cpu>=1.7.4,<2.0.0",      # Fallback vector index (HNSW)
+    "networkx>=3.0,<4.0",           # Fallback graph library (pure Python)
+    "scikit-learn>=1.3.0,<2.0.0",  # TF-IDF fallback for embeddings
+]
+
+# All tier: Fast + primary backends (LEANN, igraph, sentence-transformers, tree-sitter)
+all = [
+    "faiss-cpu>=1.7.4,<2.0.0",      # Fallback vector index
+    "networkx>=3.0,<4.0",           # Fallback graph library
+    "scikit-learn>=1.3.0,<2.0.0",  # TF-IDF fallback
+    "python-igraph>=0.11.0,<1.0.0", # Primary graph library (C++ backend)
+    "sentence-transformers>=2.2.0,<3.0.0", # Local embedding model
+    "torch>=2.0.0,<3.0.0",          # PyTorch for sentence-transformers
+    "py-tree-sitter>=0.20.0,<1.0.0", # Primary AST parser
+    "tree-sitter-python>=0.20.0,<1.0.0", # Python grammar for tree-sitter
+    "tree-sitter-javascript>=0.20.0,<1.0.0", # JavaScript grammar for tree-sitter
+]
+
+# Development dependencies
+dev = [
+    "pytest>=7.4.0,<9.0.0",
+    "pytest-cov>=4.1.0,<6.0.0",
+    "pytest-benchmark>=4.0.0,<5.0.0",
+    "hypothesis>=6.82.0,<7.0.0",
+    "black>=23.0.0,<25.0.0",
+    "ruff>=0.0.280,<1.0.0",
+    "mypy>=1.4.0,<2.0.0",
+    "types-PyYAML>=6.0.0,<7.0.0",
+]
+
+[project.scripts]
+context-pack = "context_packer.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/maemreyo/zmr-ctx-paker"
+Documentation = "https://github.com/maemreyo/zmr-ctx-paker#readme"
+Repository = "https://github.com/maemreyo/zmr-ctx-paker"
+"Bug Tracker" = "https://github.com/maemreyo/zmr-ctx-paker/issues"
+"Source Code" = "https://github.com/maemreyo/zmr-ctx-paker"
+Changelog = "https://github.com/maemreyo/zmr-ctx-paker/blob/main/CHANGELOG.md"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["context_packer*"]
+
+[tool.setuptools.package-data]
+context_packer = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--cov=context_packer",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+]
+markers = [
+    "benchmark: marks tests as performance benchmarks",
+    "integration: marks tests as integration tests",
+    "property: marks tests as property-based tests",
+    "slow: marks tests as slow-running tests (e.g., 10k file benchmarks)",
+]
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["*/tests/*", "*/test_*.py"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.black]
+line-length = 100
+target-version = ["py39"]
+include = '\.pyi?$'
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+    "B008",  # do not perform function calls in argument defaults
+]
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["F401"]
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = [
+    "faiss.*",
+    "igraph.*",
+    "networkx.*",
+    "sentence_transformers.*",
+    "tree_sitter.*",
+    "lxml.*",
+]
+ignore_missing_imports = true
