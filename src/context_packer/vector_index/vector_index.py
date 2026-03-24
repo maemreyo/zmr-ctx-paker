@@ -14,8 +14,8 @@ from typing import List, Optional, Tuple
 
 import numpy as np
 
-from .logger import get_logger
-from .models import CodeChunk
+from ..logger import get_logger
+from ..models import CodeChunk
 
 
 class VectorIndex(ABC):

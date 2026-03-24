@@ -10,8 +10,8 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from .logger import get_logger
-from .models import CodeChunk
+from ..logger import get_logger
+from ..models import CodeChunk
 
 logger = get_logger()
 

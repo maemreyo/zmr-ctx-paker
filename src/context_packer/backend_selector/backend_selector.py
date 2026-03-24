@@ -6,10 +6,10 @@ Provides centralized backend selection for all components with graceful degradat
 
 from typing import Optional
 
-from .config import Config
-from .graph import RepoMapGraph, create_graph
-from .logger import get_logger
-from .vector_index import VectorIndex, create_vector_index
+from ..config import Config
+from ..graph import RepoMapGraph, create_graph
+from ..logger import get_logger
+from ..vector_index import VectorIndex, create_vector_index
 
 
 class BackendSelector:

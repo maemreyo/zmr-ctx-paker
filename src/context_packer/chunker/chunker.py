@@ -7,23 +7,40 @@ from pathlib import Path
 from typing import List, Optional, Set
 import fnmatch
 
-from .logger import get_logger
-from .models import CodeChunk
+from ..logger import get_logger
+from ..models import CodeChunk
 
 logger = get_logger()
 
 
 def _should_include_file(file_path: Path, repo_root: Path, include_patterns: List[str], exclude_patterns: List[str]) -> bool:
     relative_path = str(file_path.relative_to(repo_root))
+    path_parts = relative_path.split('/')
+
     for pattern in exclude_patterns:
-        if fnmatch.fnmatch(relative_path, pattern) or \
-           fnmatch.fnmatch(relative_path, pattern.replace("**/", "*/")) or \
-           fnmatch.fnmatch(relative_path, pattern.replace("**", "*")):
+        if _match_pattern(relative_path, path_parts, pattern):
             return False
+
     for pattern in include_patterns:
-        if fnmatch.fnmatch(relative_path, pattern) or \
-           fnmatch.fnmatch(relative_path, pattern.replace("**/", "*/")) or \
-           fnmatch.fnmatch(relative_path, pattern.replace("**", "*")):
+        if _match_pattern(relative_path, path_parts, pattern):
+            return True
+
+    return False
+
+
+def _match_pattern(relative_path: str, path_parts: List[str], pattern: str) -> bool:
+    if fnmatch.fnmatch(relative_path, pattern):
+        return True
+    if fnmatch.fnmatch(relative_path, pattern.replace('**/', '*/')):
+        return True
+    if fnmatch.fnmatch(relative_path, pattern.replace('**', '*')):
+        return True
+    if pattern.startswith('**/'):
+        simple_pattern = pattern[3:]
+        for part in path_parts:
+            if fnmatch.fnmatch(part, simple_pattern):
+                return True
+        if fnmatch.fnmatch(relative_path.split('/')[-1], simple_pattern):
             return True
     return False
 
@@ -96,7 +113,7 @@ class MarkdownChunker:
     def parse(self, repo_path: str, config=None) -> List[CodeChunk]:
         if not os.path.exists(repo_path) or not os.path.isdir(repo_path):
             raise ValueError(f"Repository path does not exist or is not a directory: {repo_path}")
-        from .config import Config
+        from ..config import Config
         if config is None:
             config = Config()
         repo_path_obj = Path(repo_path)
@@ -168,7 +185,7 @@ class TreeSitterChunker(ASTChunker):
         chunks = []
         repo_path_obj = Path(repo_path)
 
-        from .config import Config
+        from ..config import Config
         if config is None:
             config = Config()
 
@@ -397,7 +414,7 @@ class RegexChunker(ASTChunker):
         chunks = []
         repo_path_obj = Path(repo_path)
 
-        from .config import Config
+        from ..config import Config
         if config is None:
             config = Config()
 

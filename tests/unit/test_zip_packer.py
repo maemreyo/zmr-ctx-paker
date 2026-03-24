@@ -10,7 +10,7 @@ import zipfile
 
 import pytest
 
-from context_packer.zip_packer import ZIPPacker
+from context_packer.packer import ZIPPacker
 
 
 class TestZIPPacker:
