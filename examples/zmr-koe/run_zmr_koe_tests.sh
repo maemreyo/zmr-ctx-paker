@@ -24,6 +24,7 @@ include_patterns:
   - "**/*.js"
   - "**/*.rs"
   - "**/*.svelte"
+  - "**/*.md"
 exclude_patterns:
   - "**/node_modules/**"
   - "**/target/**"
