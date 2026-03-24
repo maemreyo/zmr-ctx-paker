@@ -91,14 +91,14 @@ echo "============================================"
 echo "  Building package..."
 echo "============================================"
 rm -rf dist/ build/ *.egg-info/
-python3 -m build
+python3.11 -m build
 
 # Upload to PyPI
 echo
 echo "============================================"
 echo "  Uploading to PyPI..."
 echo "============================================"
-python3 -m twine upload dist/* --username __token__ --password "$PYPI_TOKEN"
+python3.11 -m twine upload dist/* --username __token__ --password "$PYPI_TOKEN"
 
 echo
 echo "============================================"
