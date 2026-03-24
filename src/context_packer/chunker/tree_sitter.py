@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import List
+from typing import List, Set
 
 from .base import ASTChunker
 from .markdown import MarkdownChunker
@@ -14,6 +14,13 @@ logger = get_logger()
 
 class TreeSitterChunker(ASTChunker):
     """AST parser using py-tree-sitter with language-specific resolvers."""
+
+    IMPORT_TYPES = {
+        'python': {'import_statement', 'import_from_statement'},
+        'javascript': {'import_statement'},
+        'typescript': {'import_statement'},
+        'rust': {'use_declaration'},
+    }
 
     def __init__(self):
         try:
@@ -92,12 +99,51 @@ class TreeSitterChunker(ASTChunker):
 
         parser = self.Parser(self.languages[language])
         tree = parser.parse(bytes(content, 'utf8'))
-        return self._extract_definitions(
+        relative_path = str(file_path.relative_to(repo_root))
+
+        chunks = self._extract_definitions(
             tree.root_node,
             content,
-            str(file_path.relative_to(repo_root)),
+            relative_path,
             language
         )
+
+        file_imports = self._extract_file_imports(tree.root_node, language)
+        for chunk in chunks:
+            for imp in file_imports:
+                if imp not in chunk.symbols_referenced:
+                    chunk.symbols_referenced.append(imp)
+
+        return chunks
+
+    def _extract_file_imports(self, root_node, language: str) -> List[str]:
+        imports: Set[str] = set()
+        import_types = self.IMPORT_TYPES.get(language, set())
+        self._collect_imports(root_node, import_types, imports)
+        return list(imports)
+
+    def _collect_imports(self, node, import_types: Set[str], imports: Set[str]) -> None:
+        if node.type in import_types:
+            self._extract_import_names_from_node(node, imports)
+        for child in node.children:
+            self._collect_imports(child, import_types, imports)
+
+    def _extract_import_names_from_node(self, node, imports: Set[str]) -> None:
+        for child in node.children:
+            text = child.text.decode('utf8') if hasattr(child, 'text') else ''
+            if child.type == 'identifier':
+                imports.add(text)
+            elif child.type == 'string':
+                cleaned = text.strip("'\"")
+                imports.add(cleaned)
+            elif child.type in ('dotted_name', 'qualified_imports', 'scoped_identifier'):
+                self._extract_import_names_from_node(child, imports)
+            elif child.type == 'scoped_use_list':
+                for use_child in child.children:
+                    if use_child.type == 'identifier':
+                        imports.add(use_child.text.decode('utf8'))
+                    elif use_child.type == 'scoped_identifier':
+                        self._extract_import_names_from_node(use_child, imports)
 
     def _extract_definitions(self, node, content: str, file_path: str, language: str) -> List[CodeChunk]:
         chunks = []
