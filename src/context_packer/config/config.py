@@ -233,7 +233,7 @@ class Config:
             }
         
         valid_backends = {
-            "vector_index": ["auto", "leann", "faiss"],
+            "vector_index": ["auto", "native-leann", "leann", "faiss"],
             "graph": ["auto", "igraph", "networkx"],
             "embeddings": ["auto", "local", "api"]
         }

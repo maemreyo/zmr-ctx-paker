@@ -15,13 +15,13 @@ from ..vector_index import VectorIndex, create_vector_index
 class BackendSelector:
     """
     Automatic backend selection with fallback chains.
-    
+
     Implements graceful degradation hierarchy:
-    - Level 1: igraph + LEANN + local embeddings (optimal)
-    - Level 2: NetworkX + LEANN + local embeddings
-    - Level 3: NetworkX + FAISS + local embeddings
-    - Level 4: NetworkX + FAISS + API embeddings
-    - Level 5: NetworkX + TF-IDF (no embeddings)
+    - Level 1: igraph + NativeLEANN + local embeddings (optimal, 97% storage savings)
+    - Level 2: NetworkX + NativeLEANN + local embeddings
+    - Level 3: NetworkX + LEANNIndex + local embeddings
+    - Level 4: NetworkX + FAISS + local embeddings
+    - Level 5: NetworkX + FAISS + API embeddings
     - Level 6: File size ranking only (no graph)
     """
     
@@ -39,44 +39,45 @@ class BackendSelector:
         self,
         model_name: Optional[str] = None,
         device: Optional[str] = None,
-        batch_size: Optional[int] = None
+        batch_size: Optional[int] = None,
+        index_path: Optional[str] = None
     ) -> VectorIndex:
         """
         Select vector index backend with fallback chain.
-        
+
         Tries backends in order based on configuration:
-        1. LEANN (if configured or auto)
-        2. FAISS (if LEANN fails or configured)
-        3. TF-IDF (minimal fallback if all fail)
-        
+        1. NativeLEANN (leann library - 97% storage savings)
+        2. LEANNIndex (cosine similarity fallback)
+        3. FAISSIndex (HNSW fallback)
+
         Args:
             model_name: Embedding model name (uses config default if None)
             device: Device to use ('cpu' or 'cuda', uses config default if None)
             batch_size: Batch size for embeddings (uses config default if None)
-        
+            index_path: Path for LEANN index storage
+
         Returns:
             VectorIndex instance with selected backend
-        
+
         Raises:
             RuntimeError: If all backends fail
         """
-        # Use config defaults if not specified
         model_name = model_name or self.config.embeddings["model"]
         device = device or self.config.embeddings["device"]
         batch_size = batch_size or self.config.embeddings["batch_size"]
-        
+        index_path = index_path or "./leann_index"
+
         backend_config = self.config.backends["vector_index"]
-        
-        # Use existing create_vector_index which already implements fallback
+
         try:
             return create_vector_index(
                 backend=backend_config,
                 model_name=model_name,
                 device=device,
-                batch_size=batch_size
+                batch_size=batch_size,
+                index_path=index_path
             )
         except RuntimeError as e:
-            # All backends failed
             self.logger.error(f"All vector index backends failed: {e}")
             raise
     
@@ -127,57 +128,54 @@ class BackendSelector:
     def get_fallback_level(self) -> int:
         """
         Determine current fallback level based on available backends.
-        
+
         Returns:
             Fallback level (1-6):
-            - 1: igraph + LEANN + local embeddings (optimal)
-            - 2: NetworkX + LEANN + local embeddings
-            - 3: NetworkX + FAISS + local embeddings
-            - 4: NetworkX + FAISS + API embeddings
-            - 5: NetworkX + TF-IDF (no embeddings)
+            - 1: igraph + NativeLEANN + local embeddings (optimal, 97% storage savings)
+            - 2: NetworkX + NativeLEANN + local embeddings
+            - 3: NetworkX + LEANNIndex + local embeddings
+            - 4: NetworkX + FAISS + local embeddings
+            - 5: NetworkX + FAISS + API embeddings
             - 6: File size ranking only (no graph)
         """
-        # Check graph backend
         graph_backend = self.config.backends["graph"]
         has_igraph = graph_backend == "igraph" or graph_backend == "auto"
-        
-        # Check vector index backend
+
         vector_backend = self.config.backends["vector_index"]
-        has_leann = vector_backend == "leann" or vector_backend == "auto"
-        has_faiss = vector_backend == "faiss" or vector_backend == "auto"
-        
-        # Check embeddings backend
+        has_native_leann = vector_backend == "native-leann" or vector_backend == "auto"
+        has_leann = vector_backend == "leann"
+        has_faiss = vector_backend == "faiss"
+
         embeddings_backend = self.config.backends["embeddings"]
         has_local = embeddings_backend == "local" or embeddings_backend == "auto"
-        has_api = embeddings_backend == "api" or embeddings_backend == "auto"
-        
-        # Determine level
-        if has_igraph and has_leann and has_local:
-            return 1  # Optimal
+        has_api = embeddings_backend == "api"
+
+        if has_igraph and has_native_leann and has_local:
+            return 1
+        elif has_native_leann and has_local:
+            return 2
         elif has_leann and has_local:
-            return 2  # NetworkX + LEANN + local
+            return 3
         elif has_faiss and has_local:
-            return 3  # NetworkX + FAISS + local
+            return 4
         elif has_faiss and has_api:
-            return 4  # NetworkX + FAISS + API
-        elif has_faiss:
-            return 5  # NetworkX + TF-IDF
+            return 5
         else:
-            return 6  # File size ranking only
-    
+            return 6
+
     def log_current_configuration(self) -> None:
         """Log the current backend configuration."""
         level = self.get_fallback_level()
-        
+
         level_descriptions = {
-            1: "Optimal (igraph + LEANN + local embeddings)",
-            2: "Good (NetworkX + LEANN + local embeddings)",
-            3: "Acceptable (NetworkX + FAISS + local embeddings)",
-            4: "Degraded (NetworkX + FAISS + API embeddings)",
-            5: "Minimal (NetworkX + TF-IDF)",
+            1: "Optimal (igraph + NativeLEANN + local embeddings, 97% storage savings)",
+            2: "Good (NetworkX + NativeLEANN + local embeddings)",
+            3: "Acceptable (NetworkX + LEANNIndex + local embeddings)",
+            4: "Degraded (NetworkX + FAISS + local embeddings)",
+            5: "Minimal (NetworkX + FAISS + API embeddings)",
             6: "Fallback only (file size ranking)"
         }
-        
+
         self.logger.info(
             f"Backend configuration | level={level} | "
             f"description={level_descriptions[level]} | "

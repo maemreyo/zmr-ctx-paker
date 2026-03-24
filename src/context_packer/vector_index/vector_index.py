@@ -771,87 +771,139 @@ def create_vector_index(
     backend: str = "auto",
     model_name: str = "all-MiniLM-L6-v2",
     device: str = "cpu",
-    batch_size: int = 32
+    batch_size: int = 32,
+    index_path: str = "./leann_index",
 ) -> VectorIndex:
     """Create vector index with automatic backend selection and fallback.
-    
+
+    Backend priority in 'auto' mode:
+    1. NativeLEANNIndex (LEANN library - 97% storage savings)
+    2. LEANNIndex (cosine similarity fallback)
+    3. FAISSIndex (HNSW fallback)
+
     Args:
-        backend: Backend to use ('auto', 'leann', 'faiss')
+        backend: Backend to use ('auto', 'native-leann', 'leann', 'faiss')
         model_name: Sentence-transformers model name
         device: Device to use ('cpu' or 'cuda')
         batch_size: Batch size for encoding
-        
+        index_path: Path for LEANN index storage
+
     Returns:
         VectorIndex instance
-        
+
     Raises:
         RuntimeError: If all backends fail
     """
     logger = get_logger()
-    
-    # If specific backend requested, try only that one
+
+    if backend == "native-leann":
+        try:
+            from .leann_index import NativeLEANNIndex
+            return NativeLEANNIndex(
+                index_path=index_path,
+                backend="hnsw",
+                chunk_size=256,
+                overlap=32,
+            )
+        except ImportError:
+            raise RuntimeError(
+                "leann not available. Install with: pip install leann "
+                "or: pip install ctx-packer[leann]"
+            )
+        except Exception as e:
+            raise RuntimeError(f"Failed to create Native LEANN index: {e}")
+
     if backend == "leann":
         try:
             return LEANNIndex(model_name, device, batch_size)
         except Exception as e:
             raise RuntimeError(f"Failed to create LEANN index: {e}")
-    
+
     if backend == "faiss":
         try:
             return FAISSIndex(model_name, device, batch_size)
         except Exception as e:
             raise RuntimeError(f"Failed to create FAISS index: {e}")
-    
-    # Auto mode: try LEANN first, fall back to FAISS
+
     if backend == "auto":
-        # Try LEANN
         try:
-            logger.info("Attempting to create LEANN index (primary backend)")
+            from .leann_index import NativeLEANNIndex
+            logger.info(
+                "Attempting to create Native LEANN index (97% storage savings)"
+            )
+            return NativeLEANNIndex(
+                index_path=index_path,
+                backend="hnsw",
+                chunk_size=256,
+                overlap=32,
+            )
+        except ImportError:
+            logger.log_fallback(
+                component="vector_index",
+                primary="NativeLEANN (leann library)",
+                fallback="LEANNIndex (cosine similarity)",
+                reason="leann library not installed"
+            )
+        except Exception as e:
+            logger.log_fallback(
+                component="vector_index",
+                primary="NativeLEANN (leann library)",
+                fallback="LEANNIndex (cosine similarity)",
+                reason=str(e)
+            )
+
+        try:
+            logger.info("Attempting to create LEANN index (cosine similarity fallback)")
             return LEANNIndex(model_name, device, batch_size)
         except Exception as e:
             logger.log_fallback(
                 component="vector_index",
-                primary="LEANN",
-                fallback="FAISS",
+                primary="LEANNIndex (cosine similarity)",
+                fallback="FAISSIndex (HNSW)",
                 reason=str(e)
             )
-        
-        # Fall back to FAISS
+
         try:
-            logger.info("Attempting to create FAISS index (fallback backend)")
+            logger.info("Attempting to create FAISS index (HNSW fallback)")
             return FAISSIndex(model_name, device, batch_size)
         except Exception as e:
             logger.error(f"FAISS fallback also failed: {e}")
             raise RuntimeError(
                 "All vector index backends failed. "
-                "Install faiss-cpu with: pip install faiss-cpu"
+                "Install leann for 97% storage savings: pip install ctx-packer[leann]"
             )
-    
-    raise ValueError(f"Invalid backend: {backend}. Must be 'auto', 'leann', or 'faiss'")
+
+    raise ValueError(
+        f"Invalid backend: {backend}. "
+        "Must be 'auto', 'native-leann', 'leann', or 'faiss'"
+    )
 
 
 def load_vector_index(path: str) -> VectorIndex:
     """Load vector index from disk with automatic backend detection.
-    
+
     Args:
         path: File path to load index from
-        
+
     Returns:
         Loaded VectorIndex instance
-        
+
     Raises:
         IOError: If load fails
     """
     logger = get_logger()
-    
+
     try:
-        # Load metadata to detect backend
         with open(path, 'rb') as f:
             metadata = pickle.load(f)
-        
+
         backend = metadata.get('backend')
-        
-        if backend == 'LEANNIndex':
+
+        if backend == 'NativeLEANNIndex':
+            logger.info("Detected Native LEANN index, loading...")
+            from .leann_index import NativeLEANNIndex
+            return NativeLEANNIndex.load(path)
+        elif backend == 'LEANNIndex':
             logger.info("Detected LEANN index, loading...")
             return LEANNIndex.load(path)
         elif backend == 'FAISSIndex':
@@ -859,7 +911,7 @@ def load_vector_index(path: str) -> VectorIndex:
             return FAISSIndex.load(path)
         else:
             raise ValueError(f"Unknown backend in saved index: {backend}")
-            
+
     except Exception as e:
         logger.error(f"Failed to load vector index: {e}")
         raise IOError(f"Failed to load vector index: {e}")

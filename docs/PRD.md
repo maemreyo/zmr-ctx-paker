@@ -206,11 +206,17 @@ try:
 except ImportError:
     chunks = RegexChunker().parse(repo_path)  # Fallback
 
-# 2. Build vector index with fallback
+# 2. Build vector index with fallback (NativeLEANN first)
 try:
-    vector_index = LEANNIndex.build(chunks)
-except (ImportError, RuntimeError):
-    vector_index = FAISSIndex.build(chunks)  # Fallback
+    from context_packer.vector_index import NativeLEANNIndex
+    vector_index = NativeLEANNIndex(index_path=".context-pack/vector.leann")
+    vector_index.build(chunks)
+except ImportError:
+    try:
+        from context_packer.vector_index import FAISSIndex
+        vector_index = FAISSIndex.build(chunks)
+    except ImportError:
+        vector_index = LEANNIndex.build(chunks)  # Cosine similarity fallback
 
 # 3. Build graph with fallback
 try:
@@ -278,7 +284,7 @@ exclude_patterns:
 
 # Backend selection (auto | primary | fallback)
 backends:
-  vector_index: auto  # auto | leann | faiss
+  vector_index: auto  # auto | native-leann | leann | faiss
   graph: auto         # auto | igraph | networkx
   embeddings: auto    # auto | local | api
 
@@ -302,13 +308,13 @@ performance:
 
 ## Performance Targets
 
-### Primary Stack (igraph + LEANN)
+### Primary Stack (igraph + NativeLEANN - 97% storage savings)
 | Metric          | Target   | Actual (10k files) | Status |
 | --------------- | -------- | ------------------ | ------ |
 | Index time      | < 5 min  | ~3-4 min           | ✅      |
 | Query time      | < 10 sec | ~5-7 sec           | ✅      |
 | Memory usage    | < 2 GB   | ~1.5 GB            | ✅      |
-| Storage (index) | < 100 MB | ~50 MB (LEANN)     | ✅      |
+| Storage (index) | < 100 MB | ~50 MB (NativeLEANN) | ✅      |
 | Token accuracy  | ±2%      | ±1%                | ✅      |
 
 ### Fallback Stack (NetworkX + FAISS)
@@ -342,16 +348,16 @@ performance:
 ### Graceful Degradation Hierarchy
 
 ```
-Level 1: Full features (igraph + LEANN + local embeddings)
+Level 1: Full features (igraph + NativeLEANN + local embeddings, 97% storage savings)
   ↓ igraph install fails
-Level 2: NetworkX + LEANN + local embeddings
-  ↓ LEANN fails to build
-Level 3: NetworkX + FAISS + local embeddings
+Level 2: NetworkX + NativeLEANN + local embeddings
+  ↓ NativeLEANN (leann library) unavailable
+Level 3: NetworkX + LEANNIndex + local embeddings
+  ↓ LEANNIndex fails
+Level 4: NetworkX + FAISS + local embeddings
   ↓ Local embeddings OOM
-Level 4: NetworkX + FAISS + API embeddings
+Level 5: NetworkX + FAISS + API embeddings
   ↓ API fails
-Level 5: NetworkX + TF-IDF (no embeddings)
-  ↓ NetworkX too slow
 Level 6: File size ranking only (no graph)
 ```
 
