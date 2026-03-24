@@ -123,7 +123,8 @@ def index_repository(
             vector_index = backend_selector.select_vector_index(
                 model_name=config.embeddings["model"],
                 device=config.embeddings["device"],
-                batch_size=config.embeddings["batch_size"]
+                batch_size=config.embeddings["batch_size"],
+                index_path=str(index_path / "leann_index")
             )
 
             vector_index.build(chunks)

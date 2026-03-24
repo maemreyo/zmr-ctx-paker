@@ -96,9 +96,10 @@ exclude_patterns:
 
 backends:
   # Vector index backend for semantic search
-  # Options: "auto" | "leann" | "faiss"
-  # - auto: Try LEANN first, fall back to FAISS if unavailable
-  # - leann: Use LEANN only (97% storage savings, graph-based)
+  # Options: "auto" | "native-leann" | "leann" | "faiss"
+  # - auto: Try NativeLEANN first (97% storage savings), fall back to FAISS
+  # - native-leann: Use NativeLEANN only (requires `pip install leann`)
+  # - leann: Use LEANNIndex (cosine similarity, no external dependency)
   # - faiss: Use FAISS only (battle-tested HNSW index)
   vector_index: auto
 
