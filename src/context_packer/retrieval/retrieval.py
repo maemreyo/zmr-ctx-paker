@@ -131,7 +131,7 @@ class RetrievalEngine:
         pagerank_weight: float = 0.4,
         symbol_boost: float = 0.3,
         path_boost: float = 0.2,
-        domain_boost: float = 0.4,
+        domain_boost: float = 0.25,
         test_penalty: float = 0.5,
         domain_map: Optional["DomainKeywordMap"] = None,
     ):
@@ -426,12 +426,15 @@ class RetrievalEngine:
         | Query type       | symbol | path | domain |
         |------------------|--------|------|--------|
         | symbol           | 1.5    | 0.5  | 0.3    |
-        | path-dominant    | 0.5    | 1.5  | 1.0    |
+        | path-dominant    | 0.5    | 1.5  | 0.5    |
         | semantic-dominant| 0.2    | 0.2  | 0.2    |
+
+        With default boost values (symbol=0.3, path=0.2, domain=0.2):
+        - path-dominant: domain_eff = 0.2 * 0.5 = 0.1
         """
         multipliers = {
             "symbol": (1.5, 0.5, 0.3),
-            "path-dominant": (0.5, 1.5, 1.0),
+            "path-dominant": (0.5, 1.5, 0.5),
             "semantic-dominant": (0.2, 0.2, 0.2),
         }
         sym_mul, path_mul, dom_mul = multipliers.get(query_type, (0.2, 0.2, 0.2))
