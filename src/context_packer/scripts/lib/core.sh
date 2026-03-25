@@ -88,6 +88,7 @@ Options:
   --force           Overwrite existing config files
   --list-agents     Show all supported agents
   -h, --help        Show this help
+  -v, --version     Show version
 
 Examples:
   ctx-packer-init
@@ -96,6 +97,17 @@ Examples:
   ctx-packer-init --path ~/my-project --skip-index
 
 EOF
+}
+
+show_version() {
+  _ensure_ctx_packer_in_path
+  if command -v ctx-packer &> /dev/null; then
+    local version
+    version=$(ctx-packer --version 2>/dev/null || echo "ctx-packer version: unknown")
+    echo "$version"
+  else
+    echo "ctx-packer-init (ctx-packer not installed yet)"
+  fi
 }
 
 check_git() {

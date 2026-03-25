@@ -36,6 +36,10 @@ while [[ $# -gt 0 ]]; do
       list_agents
       exit 0
       ;;
+    --version|-v)
+      show_version
+      exit 0
+      ;;
     --help|-h)
       show_help
       exit 0
