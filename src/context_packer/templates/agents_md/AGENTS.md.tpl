@@ -22,10 +22,10 @@ pip install "ctx-packer[all]"
 
 ```bash
 # 1. Index the repository (one time)
-ctx-packer index .
+${CTX_CMD_INDEX}
 
 # 2. Query for context
-ctx-packer query "your search terms" --format zip
+${CTX_CMD_QUERY} --format zip
 
 # 3. Use output in your AI tool
 ```
@@ -34,12 +34,12 @@ ctx-packer query "your search terms" --format zip
 
 | Command | Description |
 |---------|-------------|
-| `ctx-packer index <path>` | Build semantic, graph, and domain indexes |
-| `ctx-packer query "<text>" [opts]` | Search and generate output |
-| `ctx-packer pack <path> --query "<text>"` | Full workflow (index + query + pack) |
-| `ctx-packer status <path>` | Show index statistics |
-| `ctx-packer vacuum <path>` | Optimize SQLite database |
-| `ctx-packer reindex-domain <path>` | Rebuild domain map only |
+| `${CTX_CMD_INDEX}` | Build semantic, graph, and domain indexes |
+| `${CTX_CMD_QUERY} [opts]` | Search and generate output |
+| `${CTX_CMD_PACK}` | Full workflow (index + query + pack) |
+| `${CTX_CMD_STATUS}` | Show index statistics |
+| `${CTX_CMD_VACUUM}` | Optimize SQLite database |
+| `${CTX_CMD_REINDEX_DOMAIN}` | Rebuild domain map only |
 
 ### Options
 
@@ -52,22 +52,22 @@ ctx-packer query "your search terms" --format zip
 
 ### Code Review
 ```bash
-ctx-packer pack . --query "authentication changes" --format zip --budget 50000
+${CTX_CMD_FULL_ZIP} --budget 50000
 ```
 
 ### Bug Investigation
 ```bash
-ctx-packer pack . --query "database connection handling" --format xml --budget 30000
+${CTX_CMD_FULL_XML} --budget 30000
 ```
 
 ### Feature Development
 ```bash
-ctx-packer query "public API endpoints" --format zip --budget 80000
+${CTX_CMD_QUERY} --format zip --budget 80000
 ```
 
 ### PR Context
 ```bash
-ctx-packer pack . --changed-files changed_files.txt --format zip
+${CTX_CMD_FULL_ZIP} --changed-files changed_files.txt
 ```
 
 ## Output
@@ -92,10 +92,10 @@ When working in this repository, you can use ctx-packer to:
 Example workflow:
 ```bash
 # Index (if not done)
-ctx-packer index .
+${CTX_CMD_INDEX}
 
 # Query relevant code
-ctx-packer query "the feature or bug you're working on" --format zip
+${CTX_CMD_QUERY} --format zip
 
 # The ZIP contains relevant files ranked by semantic similarity
 ```

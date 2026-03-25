@@ -28,18 +28,41 @@ _render_template() {
     log_error "Template not found: $tpl"
     return 1
   fi
-  export CTX_PACKER_VERSION="$(ctx-packer --version 2>/dev/null | head -1 || echo 'latest')"
-  export CTX_DATE="$(date +%Y-%m-%d)"
-  export CTX_TARGET_NAME="$(basename "$CTX_TARGET")"
-  envsubst '${CTX_DATE} ${CTX_PACKER_VERSION} ${CTX_TARGET_NAME}' < "$tpl"
+  CTX_PACKER_VERSION="$(ctx-packer --version 2>/dev/null | head -1 || echo 'latest')"
+  CTX_DATE="$(date +%Y-%m-%d)"
+  CTX_TARGET_NAME="$(basename "$CTX_TARGET")"
+  
+  export CTX_PACKER_VERSION
+  export CTX_DATE
+  export CTX_TARGET_NAME
+
+  envsubst '
+    ${CTX_DATE}
+    ${CTX_PACKER_VERSION}
+    ${CTX_TARGET_NAME}
+    ${CTX_CMD_INDEX}
+    ${CTX_CMD_QUERY}
+    ${CTX_CMD_PACK}
+    ${CTX_CMD_STATUS}
+    ${CTX_CMD_VACUUM}
+    ${CTX_CMD_REINDEX_DOMAIN}
+    ${CTX_CMD_FULL_ZIP}
+    ${CTX_CMD_FULL_XML}
+  ' < "$tpl"
 }
 
 _remove_section() {
   local file="$1"
   local marker="${2:-ctx-packer}"
-  if [[ -f "$file" ]]; then
-    sed -i "/^# ${marker}/,/^$/d" "$file"
-  fi
+  [[ -f "$file" ]] || return 0
+  
+  local tmp
+  tmp="$(mktemp)"
+  awk -v marker="^# ${marker}" '
+    /^# / && found { found=0 }
+    $0 ~ marker { found=1 }
+    !found { print }
+  ' "$file" > "$tmp" && mv "$tmp" "$file"
 }
 
 list_agents() {
@@ -79,6 +102,47 @@ check_git() {
   if [[ ! -d "$CTX_TARGET/.git" ]]; then
     log_warn "Not a git repository. Configuration will still work."
   fi
+}
+
+_has_gum() { command -v gum &>/dev/null; }
+
+_ensure_gum() {
+  _has_gum && return 0
+
+  log_warn "gum (interactive UI) not found."
+
+  if _has_gum_installer; then
+    if gum confirm "Install gum for interactive agent selection?"; then
+      _install_gum && return 0
+    fi
+  else
+    log_warn "Cannot auto-install gum. Using defaults."
+  fi
+  return 1
+}
+
+_has_gum_installer() {
+  command -v brew &>/dev/null || command -v apt-get &>/dev/null || \
+  command -v pacman &>/dev/null || command -v nix-env &>/dev/null
+}
+
+_install_gum() {
+  if command -v brew &>/dev/null; then
+    brew install gum
+  elif command -v apt-get &>/dev/null; then
+    sudo mkdir -p /etc/apt/keyrings
+    curl -fsSL https://repo.charm.sh/apt/gpg.key \
+      | sudo gpg --dearmor -o /etc/apt/keyrings/charm.gpg
+    echo "deb [signed-by=/etc/apt/keyrings/charm.gpg] https://repo.charm.sh/apt/ * *" \
+      | sudo tee /etc/apt/sources.list.d/charm.list
+    sudo apt update && sudo apt install -y gum
+  elif command -v pacman &>/dev/null; then
+    sudo pacman -S --noconfirm gum
+  fi
+}
+
+_is_interactive() {
+  [[ -t 0 ]] && [[ -t 1 ]]
 }
 
 _ensure_ctx_packer_in_path() {

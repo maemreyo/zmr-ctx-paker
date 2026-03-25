@@ -40,8 +40,8 @@ get_agent_display() {
   local id="$1"
   for e in "${AGENT_REGISTRY[@]}"; do
     if [[ "$e" =~ ^${id}: ]]; then
-      IFS=: read -r _ name _ <<< "$e"
-      echo "$name"
+      local rest="${e#*:}"          # bỏ "id:"
+      echo "${rest%%:*}"            # lấy đến : tiếp theo
       return
     fi
   done
@@ -52,8 +52,9 @@ get_agent_desc() {
   local id="$1"
   for e in "${AGENT_REGISTRY[@]}"; do
     if [[ "$e" =~ ^${id}: ]]; then
-      IFS=: read -r _ _ desc _ <<< "$e"
-      echo "$desc"
+      local rest="${e#*:}"          # bỏ "id:"
+      rest="${rest#*:}"             # bỏ "name:"
+      echo "${rest%:*}"             # lấy đến : cuối cùng (bỏ default field)
       return
     fi
   done

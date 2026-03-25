@@ -4,6 +4,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/core.sh"
+source "$SCRIPT_DIR/lib/selector.sh"
+source "$SCRIPT_DIR/lib/commands.sh"
 source "$SCRIPT_DIR/lib/install.sh"
 source "$SCRIPT_DIR/lib/index.sh"
 source "$SCRIPT_DIR/agents/_registry.sh"
@@ -46,11 +48,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ ${#SELECTED_AGENTS[@]} -eq 0 ]]; then
-  mapfile -t SELECTED_AGENTS < <(get_default_agents)
-elif [[ "${SELECTED_AGENTS[0]}" == "all" ]]; then
-  mapfile -t SELECTED_AGENTS < <(get_agent_ids)
-fi
+resolve_agents SELECTED_AGENTS
 
 for agent_id in "${SELECTED_AGENTS[@]}"; do
   if ! is_valid_agent "$agent_id"; then
@@ -68,6 +66,7 @@ log_ok "Agents: ${SELECTED_AGENTS[*]}"
 
 check_git
 install_ctx_packer
+_discover_commands
 
 for agent_id in "${SELECTED_AGENTS[@]}"; do
   source "$SCRIPT_DIR/agents/${agent_id}.sh"

@@ -7,38 +7,38 @@ Use ctx-packer to retrieve relevant code context for AI-assisted coding tasks.
 
 ### Index Repository
 ```bash
-ctx-packer index .
+${CTX_CMD_INDEX}
 ```
 Creates vector index, dependency graph, and domain map.
 
 ### Query Code
 ```bash
-ctx-packer query "<search terms>" --format zip
-ctx-packer query "<search terms>" --format xml
+${CTX_CMD_QUERY} --format zip
+${CTX_CMD_QUERY} --format xml
 ```
 
 ### Pack for AI Context
 ```bash
-ctx-packer pack . --query "<feature or topic>"
+${CTX_CMD_PACK}
 ```
 
 ### Status Check
 ```bash
-ctx-packer status .
+${CTX_CMD_STATUS}
 ```
 
 ## Use Cases
 
 | Task | Command |
 |------|---------|
-| Code Review | `ctx-packer pack . --query "changes" --format zip` |
-| Bug Investigation | `ctx-packer pack . --query "error handling" --format xml` |
-| Feature Context | `ctx-packer pack . --query "API endpoints" --budget 80000` |
-| Documentation | `ctx-packer query "public methods" --format zip` |
+| Code Review | `${CTX_CMD_FULL_ZIP}` |
+| Bug Investigation | `${CTX_CMD_FULL_XML}` |
+| Feature Context | `${CTX_CMD_FULL_ZIP} --budget 80000` |
+| Documentation | `${CTX_CMD_QUERY} --format zip` |
 
 ## Tips
 
 - Index once, reuse many times
 - Use `--format xml` for pasting into web interfaces
 - Adjust `--budget` for context size control
-- Check `ctx-packer status .` for index health
+- Check `${CTX_CMD_STATUS}` for index health

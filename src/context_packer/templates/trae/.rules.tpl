@@ -8,22 +8,22 @@ This project uses ctx-packer to build optimized code context for AI agents.
 
 | Command | Description |
 |---------|-------------|
-| `ctx-packer index <path>` | Build indexes (vector, graph, domain) |
-| `ctx-packer query "<text>"` | Search and output |
-| `ctx-packer pack <path> --query "<text>"` | Full workflow |
-| `ctx-packer status <path>` | Show index stats |
+| `${CTX_CMD_INDEX}` | Build indexes (vector, graph, domain) |
+| `${CTX_CMD_QUERY}` | Search and output |
+| `${CTX_CMD_PACK}` | Full workflow |
+| `${CTX_CMD_STATUS}` | Show index stats |
 
 ## Usage Examples
 
 ```bash
 # Index the repo
-ctx-packer index .
+${CTX_CMD_INDEX}
 
 # Search for context
-ctx-packer query "authentication" --format zip
+${CTX_CMD_QUERY} --format zip
 
 # Pack for AI context
-ctx-packer pack . --query "feature investigation"
+${CTX_CMD_PACK}
 ```
 
 ## Notes

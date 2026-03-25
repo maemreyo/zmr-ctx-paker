@@ -17,14 +17,14 @@ run_index() {
   log_ok "Timeout: ${timeout_seconds}s (set CTX_INDEX_TIMEOUT to override)"
 
   local exit_code=0
-  if timeout "$timeout_seconds" ctx-packer index "$target" 2>&1; then
+  if timeout "$timeout_seconds" ctx-packer index "$target"; then
     log_ok "Index built successfully"
   else
     exit_code=$?
     if [[ $exit_code -eq 124 ]]; then
       log_warn "Index timed out after ${timeout_seconds}s"
     else
-      log_warn "Index exited with code $exit_code"
+      log_warn "Index exited with code $exit_code. Check output above."
     fi
   fi
 }

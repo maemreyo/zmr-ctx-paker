@@ -137,7 +137,13 @@ where = ["src"]
 include = ["context_packer*"]
 
 [tool.setuptools.package-data]
-context_packer = ["py.typed", "scripts/**", "templates/**"]
+context_packer = [
+    "py.typed",
+    "scripts/init.sh",
+    "scripts/lib/*.sh",
+    "scripts/agents/*.sh",
+    "templates/**"
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
