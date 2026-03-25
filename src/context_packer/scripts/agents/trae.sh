@@ -6,7 +6,13 @@ install_trae() {
 
   if [[ -f "$rules_file" ]]; then
     if grep -q "ctx-packer" "$rules_file" 2>/dev/null; then
-      log_skip "$rules_file (ctx-packer already present)"
+      if [[ "${CTX_FORCE:-false}" == "true" ]]; then
+        _remove_section "$rules_file" "ctx-packer"
+        _render_template "trae/.rules.tpl" >> "$rules_file"
+        log_ok "Replaced ctx-packer section in $rules_file (--force)"
+      else
+        log_skip "$rules_file (ctx-packer already present)"
+      fi
     else
       echo "" >> "$rules_file"
       _render_template "trae/.rules.tpl" >> "$rules_file"

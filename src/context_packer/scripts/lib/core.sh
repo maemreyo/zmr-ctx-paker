@@ -28,10 +28,18 @@ _render_template() {
     log_error "Template not found: $tpl"
     return 1
   fi
-  CTX_PACKER_VERSION="$(ctx-packer --version 2>/dev/null | head -1 || echo 'latest')"
-  CTX_DATE="$(date +%Y-%m-%d)"
-  CTX_TARGET_NAME="$(basename "$CTX_TARGET")"
-  envsubst < "$tpl"
+  export CTX_PACKER_VERSION="$(ctx-packer --version 2>/dev/null | head -1 || echo 'latest')"
+  export CTX_DATE="$(date +%Y-%m-%d)"
+  export CTX_TARGET_NAME="$(basename "$CTX_TARGET")"
+  envsubst '${CTX_DATE} ${CTX_PACKER_VERSION} ${CTX_TARGET_NAME}' < "$tpl"
+}
+
+_remove_section() {
+  local file="$1"
+  local marker="${2:-ctx-packer}"
+  if [[ -f "$file" ]]; then
+    sed -i "/^# ${marker}/,/^$/d" "$file"
+  fi
 }
 
 list_agents() {
@@ -52,11 +60,11 @@ Usage: ctx-packer-init [options]
 
 Options:
   --path <dir>       Target project path (default: current dir)
-  --agents <list>    Comma-separated agent IDs, or 'all'
-  --skip-index       Skip running ctx-packer index after setup
-  --force            Overwrite existing config files
-  --list-agents      Show all supported agents
-  -h, --help         Show this help
+  --agents <list>   Comma-separated agent IDs, or 'all'
+  --skip-index      Skip running ctx-packer index after setup
+  --force           Overwrite existing config files
+  --list-agents     Show all supported agents
+  -h, --help        Show this help
 
 Examples:
   ctx-packer-init
@@ -68,7 +76,15 @@ EOF
 }
 
 check_git() {
-  if [[ ! -d ".git" ]]; then
+  if [[ ! -d "$CTX_TARGET/.git" ]]; then
     log_warn "Not a git repository. Configuration will still work."
+  fi
+}
+
+_ensure_ctx_packer_in_path() {
+  local user_bin
+  user_bin="$(python3 -m site --user-base 2>/dev/null)/bin"
+  if [[ -d "$user_bin" ]]; then
+    export PATH="$user_bin:$PATH"
   fi
 }

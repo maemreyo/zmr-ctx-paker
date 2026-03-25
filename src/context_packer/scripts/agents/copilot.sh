@@ -7,7 +7,13 @@ install_copilot() {
 
   if [[ -f "$copilot_file" ]]; then
     if grep -q "ctx-packer" "$copilot_file" 2>/dev/null; then
-      log_skip "$copilot_file (ctx-packer already present)"
+      if [[ "${CTX_FORCE:-false}" == "true" ]]; then
+        _remove_section "$copilot_file" "ctx-packer"
+        _render_template "copilot/copilot-instructions.md.tpl" >> "$copilot_file"
+        log_ok "Replaced ctx-packer in $copilot_file (--force)"
+      else
+        log_skip "$copilot_file (ctx-packer already present)"
+      fi
     else
       echo "" >> "$copilot_file"
       _render_template "copilot/copilot-instructions.md.tpl" >> "$copilot_file"
