@@ -29,6 +29,7 @@ class Config:
     
     # File filtering
     include_tests: bool = False
+    respect_gitignore: bool = True
     include_patterns: List[str] = field(default_factory=lambda: [
         "**/*.py", "**/*.js", "**/*.ts", "**/*.jsx", "**/*.tsx",
         "**/*.java", "**/*.go", "**/*.rs", "**/*.c", "**/*.cpp", "**/*.h"
@@ -36,14 +37,15 @@ class Config:
     exclude_patterns: List[str] = field(default_factory=lambda: [
         "*.min.js", "*.min.css", "node_modules/**", "__pycache__/**",
         ".git/**", "dist/**", "build/**", "*.egg-info/**",
-        ".venv/**", "venv/**", ".pytest_cache/**", "htmlcov/**"
+        ".venv/**", "venv/**", ".pytest_cache/**", "htmlcov/**",
+        ".ws-ctx-engine/**", ".ws-ctx-engine.yaml"
     ])
     
     # Backend selection
     backends: Dict[str, str] = field(default_factory=lambda: {
-        "vector_index": "auto",  # auto | leann | faiss
-        "graph": "auto",         # auto | igraph | networkx
-        "embeddings": "auto"     # auto | local | api
+        "vector_index": "native-leann",  # auto | native-leann | leann | faiss
+        "graph": "igraph",               # auto | igraph | networkx
+        "embeddings": "local"            # auto | local | api
     })
     
     # Embeddings config
@@ -128,7 +130,10 @@ class Config:
         # Set file filtering
         if "include_tests" in data:
             config.include_tests = bool(data["include_tests"])
-        
+
+        if "respect_gitignore" in data:
+            config.respect_gitignore = bool(data["respect_gitignore"])
+
         if "include_patterns" in data:
             config.include_patterns = cls._validate_patterns(
                 data["include_patterns"], "include_patterns", logger
@@ -227,9 +232,9 @@ class Config:
         if not isinstance(value, dict):
             logger.error(f"Invalid backends type: {type(value).__name__}, expected dict")
             return {
-                "vector_index": "auto",
-                "graph": "auto",
-                "embeddings": "auto"
+                "vector_index": "native-leann",
+                "graph": "igraph",
+                "embeddings": "local"
             }
         
         valid_backends = {
@@ -249,9 +254,9 @@ class Config:
                         f"Invalid backends.{key}: {backend_value}, "
                         f"must be one of {valid_values}"
                     )
-                    backends[key] = "auto"
+                    backends[key] = Config().backends[key]
             else:
-                backends[key] = "auto"
+                backends[key] = Config().backends[key]
         
         return backends
     

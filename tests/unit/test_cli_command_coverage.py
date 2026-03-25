@@ -12,7 +12,14 @@ runner = CliRunner()
 
 
 def _cfg() -> SimpleNamespace:
-    return SimpleNamespace(format="xml", token_budget=1000)
+    return SimpleNamespace(
+        format="xml",
+        token_budget=1000,
+        backends={"vector_index": "auto", "graph": "auto", "embeddings": "auto"},
+        embeddings={"api_key_env": "OPENAI_API_KEY"},
+        respect_gitignore=True,
+        exclude_patterns=["node_modules/**"],
+    )
 
 
 def test_index_command_repo_not_found() -> None:
@@ -194,6 +201,33 @@ def test_load_config_prefers_repo_local_config(monkeypatch) -> None:
     assert loaded["path"] == str(Path(".") / ".ws-ctx-engine.yaml")
 
 
+def test_load_config_respects_gitignore_by_default_without_init_config() -> None:
+    with runner.isolated_filesystem():
+        repo = Path("repo")
+        repo.mkdir()
+        (repo / ".gitignore").write_text(".svelte-kit/\nsrc-tauri/target/\n", encoding="utf-8")
+
+        cfg = _load_config(None, repo_path=str(repo))
+
+    assert ".svelte-kit/**" in cfg.exclude_patterns
+    assert "src-tauri/target/**" in cfg.exclude_patterns
+
+
+def test_load_config_can_disable_gitignore_respect_via_config() -> None:
+    with runner.isolated_filesystem():
+        repo = Path("repo")
+        repo.mkdir()
+        (repo / ".gitignore").write_text(".svelte-kit/\n", encoding="utf-8")
+        (repo / ".ws-ctx-engine.yaml").write_text(
+            "respect_gitignore: false\nexclude_patterns:\n  - node_modules/**\n",
+            encoding="utf-8",
+        )
+
+        cfg = _load_config(None, repo_path=str(repo))
+
+    assert ".svelte-kit/**" not in cfg.exclude_patterns
+
+
 def test_version_flag_falls_back_to_unknown(monkeypatch) -> None:
     import importlib.metadata
 
@@ -205,6 +239,30 @@ def test_version_flag_falls_back_to_unknown(monkeypatch) -> None:
 
     assert result.exit_code == 0
     assert "unknown" in result.stdout
+
+
+def test_doctor_command_success_when_all_optional_dependencies_available(monkeypatch) -> None:
+    monkeypatch.setattr("ws_ctx_engine.cli.cli._is_module_available", lambda module_name: True)
+
+    result = runner.invoke(app, ["doctor"])
+
+    assert result.exit_code == 0
+    assert "Dependency Doctor" in result.stdout
+    assert "Ready for full feature set" in result.stdout
+
+
+def test_doctor_command_recommends_all_profile_when_dependencies_missing(monkeypatch) -> None:
+    def _fake_is_available(module_name: str) -> bool:
+        return module_name not in {"leann", "sentence_transformers"}
+
+    monkeypatch.setattr("ws_ctx_engine.cli.cli._is_module_available", _fake_is_available)
+
+    result = runner.invoke(app, ["doctor"])
+
+    assert result.exit_code == 1
+    assert "ws-ctx-engine[all]" in result.stdout
+    assert "leann" in result.stdout
+    assert "sentence-transformers" in result.stdout
 
 
 def test_index_command_success_path(monkeypatch) -> None:
@@ -219,6 +277,40 @@ def test_index_command_success_path(monkeypatch) -> None:
     with runner.isolated_filesystem():
         Path("repo").mkdir()
         result = runner.invoke(app, ["index", "repo", "--verbose"])
+
+    assert result.exit_code == 0
+    assert called["count"] == 1
+
+
+def test_index_command_fails_fast_when_explicit_backend_missing(monkeypatch) -> None:
+    cfg = _cfg()
+    cfg.backends = {"vector_index": "native-leann", "graph": "igraph", "embeddings": "local"}
+    monkeypatch.setattr("ws_ctx_engine.cli.cli._load_config", lambda config, repo_path=None: cfg)
+    monkeypatch.setattr("ws_ctx_engine.cli.cli._is_module_available", lambda module_name: module_name != "leann")
+
+    with runner.isolated_filesystem():
+        Path("repo").mkdir()
+        result = runner.invoke(app, ["index", "repo"])
+
+    assert result.exit_code == 1
+    assert "Dependency check failed" in result.stdout
+    assert "vector_index=native-leann requires leann" in result.stdout
+
+
+def test_index_command_allows_auto_backends_with_missing_optional_dependencies(monkeypatch) -> None:
+    monkeypatch.setattr("ws_ctx_engine.cli.cli._load_config", lambda config, repo_path=None: _cfg())
+    monkeypatch.setattr("ws_ctx_engine.cli.cli._is_module_available", lambda module_name: False)
+
+    called = {"count": 0}
+
+    def _fake_index_repository(**kwargs):
+        called["count"] += 1
+
+    monkeypatch.setattr("ws_ctx_engine.cli.cli.index_repository", _fake_index_repository)
+
+    with runner.isolated_filesystem():
+        Path("repo").mkdir()
+        result = runner.invoke(app, ["index", "repo"])
 
     assert result.exit_code == 0
     assert called["count"] == 1
@@ -585,6 +677,65 @@ def test_reindex_domain_fails_for_missing_repo_no_index_and_missing_metadata() -
 
     assert missing_metadata.exit_code == 1
     assert "metadata.json is missing" in missing_metadata.stdout
+
+
+def test_init_config_generates_file_with_gitignore_patterns() -> None:
+    with runner.isolated_filesystem():
+        repo = Path("repo")
+        repo.mkdir()
+        (repo / ".gitignore").write_text("node_modules/\n!.env\ndist/\n", encoding="utf-8")
+
+        result = runner.invoke(app, ["init-config", str(repo)])
+
+        assert result.exit_code == 0
+        cfg_path = repo / ".ws-ctx-engine.yaml"
+        assert cfg_path.exists()
+
+        content = cfg_path.read_text(encoding="utf-8")
+        assert "vector_index: auto" in content
+        assert "graph: auto" in content
+        assert "embeddings: auto" in content
+        assert "respect_gitignore: true" in content
+        assert "node_modules/**" in content
+        assert "dist/**" in content
+        assert ".ws-ctx-engine/**" in content
+        assert ".ws-ctx-engine.yaml" in content
+
+        gitignore_content = (repo / ".gitignore").read_text(encoding="utf-8")
+        assert ".ws-ctx-engine/" in gitignore_content
+        assert ".ws-ctx-engine.yaml" in gitignore_content
+        assert "output/" in gitignore_content
+
+
+def test_init_config_does_not_overwrite_without_force() -> None:
+    with runner.isolated_filesystem():
+        repo = Path("repo")
+        repo.mkdir()
+        cfg_path = repo / ".ws-ctx-engine.yaml"
+        cfg_path.write_text("format: zip\n", encoding="utf-8")
+
+        result = runner.invoke(app, ["init-config", str(repo)])
+
+        assert result.exit_code == 1
+        assert "Use --force to overwrite" in result.stdout
+
+
+def test_init_config_does_not_duplicate_wsctx_gitignore_patterns() -> None:
+    with runner.isolated_filesystem():
+        repo = Path("repo")
+        repo.mkdir()
+        (repo / ".gitignore").write_text(
+            "# ws-ctx-engine artifacts\n.ws-ctx-engine/\n.ws-ctx-engine.yaml\noutput/\n*.ws-ctx-engine.zip\nrepomix-output.xml\n",
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(app, ["init-config", str(repo)])
+
+        assert result.exit_code == 0
+        gitignore_content = (repo / ".gitignore").read_text(encoding="utf-8")
+        assert gitignore_content.count(".ws-ctx-engine/") == 1
+        assert gitignore_content.count(".ws-ctx-engine.yaml") == 1
+        assert gitignore_content.count("output/") == 1
 
 
 def test_load_config_explicit_existing_file(monkeypatch) -> None:

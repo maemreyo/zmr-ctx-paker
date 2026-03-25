@@ -17,20 +17,7 @@ pip install ws-ctx-engine
 
 **Use case:** When you want minimal dependencies and are okay with basic functionality.
 
-### Fast (Recommended)
-The fast tier adds fallback backends for improved reliability:
-- All core dependencies
-- `faiss-cpu>=1.7.4` - Fallback vector index (HNSW algorithm)
-- `networkx>=3.0` - Fallback graph library (pure Python)
-
-**Install:**
-```bash
-pip install ws-ctx-engine[fast]
-```
-
-**Use case:** Recommended for most users. Provides good performance with fallback strategies.
-
-### All (Full Features)
+### All (Recommended)
 The all tier includes primary backends for optimal performance:
 - All fast dependencies
 - `python-igraph>=0.11.0` - Primary graph library (C++ backend, faster PageRank)
@@ -39,12 +26,25 @@ The all tier includes primary backends for optimal performance:
 - `tree-sitter-python>=0.20.0` - Python grammar for tree-sitter
 - `tree-sitter-javascript>=0.20.0` - JavaScript grammar for tree-sitter
 
-**Install:**
+**Install (default recommendation):**
 ```bash
-pip install ws-ctx-engine[all]
+pip install "ws-ctx-engine[all]"
 ```
 
-**Use case:** When you need maximum performance and all features.
+**Use case:** Recommended for most users. Maximum compatibility and full features.
+
+### Fast (Fallback-focused)
+The fast tier adds fallback backends for improved reliability:
+- All core dependencies
+- `faiss-cpu>=1.7.4` - Fallback vector index (HNSW algorithm)
+- `networkx>=3.0` - Fallback graph library (pure Python)
+
+**Install:**
+```bash
+pip install "ws-ctx-engine[fast]"
+```
+
+**Use case:** Lighter installation when you explicitly want fewer dependencies.
 
 ## Development Installation
 
@@ -72,6 +72,18 @@ python -c "import ws_ctx_engine; print(ws_ctx_engine.__version__)"
 ```
 
 You should see: `0.1.0`
+
+Then run dependency doctor:
+
+```bash
+ws-ctx-engine doctor
+```
+
+If anything is missing, install recommended profile:
+
+```bash
+pip install "ws-ctx-engine[all]"
+```
 
 ## Requirements
 

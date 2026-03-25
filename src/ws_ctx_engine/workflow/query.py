@@ -172,6 +172,7 @@ def search_codebase(
         repo_path=repo_path,
         index_dir=index_dir,
         auto_rebuild=True,
+        config=config,
     )
 
     domain_map_db_path = Path(repo_path) / index_dir / "domain_map.db"
@@ -284,7 +285,8 @@ def query_and_pack(
         vector_index, graph, metadata = load_indexes(
             repo_path=repo_path,
             index_dir=index_dir,
-            auto_rebuild=True
+            auto_rebuild=True,
+            config=config,
         )
         load_duration = time.time() - load_start
         tracker.end_phase("index_loading")

@@ -35,6 +35,7 @@ class TestConfigDefaults:
         """Test default file filtering settings."""
         config = Config()
         assert config.include_tests is False
+        assert config.respect_gitignore is True
         assert "**/*.py" in config.include_patterns
         assert "**/*.js" in config.include_patterns
         assert "node_modules/**" in config.exclude_patterns
@@ -94,6 +95,7 @@ class TestConfigLoading:
             "semantic_weight": 0.7,
             "pagerank_weight": 0.3,
             "include_tests": True,
+            "respect_gitignore": False,
         }
         
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
@@ -108,6 +110,7 @@ class TestConfigLoading:
             assert config.semantic_weight == 0.7
             assert config.pagerank_weight == 0.3
             assert config.include_tests is True
+            assert config.respect_gitignore is False
         finally:
             os.unlink(temp_path)
     
