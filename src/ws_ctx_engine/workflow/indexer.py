@@ -301,7 +301,8 @@ def _compute_file_hashes(chunks: List[CodeChunk], repo_path: str) -> dict:
 def load_indexes(
     repo_path: str,
     index_dir: str = ".ws-ctx-engine",
-    auto_rebuild: bool = True
+    auto_rebuild: bool = True,
+    config: Optional[Config] = None,
 ) -> tuple[VectorIndex, RepoMapGraph, IndexMetadata]:
     """
     Load indexes from disk with automatic staleness detection and rebuild.
@@ -355,21 +356,28 @@ def load_indexes(
 
         if auto_rebuild:
             logger.info("Automatically rebuilding stale indexes")
-            index_repository(repo_path, index_dir=index_dir)
+            index_repository(repo_path, config=config, index_dir=index_dir)
             # Reload after rebuild
-            return load_indexes(repo_path, index_dir, auto_rebuild=False)
+            return load_indexes(repo_path, index_dir, auto_rebuild=False, config=config)
         else:
             logger.warning("Auto-rebuild disabled, using stale indexes")
 
-    # Load vector index with auto-detection
-    logger.info(f"Loading vector index from {vector_index_path}")
-    from ..vector_index import load_vector_index
-    vector_index = load_vector_index(str(vector_index_path))
+    try:
+        # Load vector index with auto-detection
+        logger.info(f"Loading vector index from {vector_index_path}")
+        from ..vector_index import load_vector_index
+        vector_index = load_vector_index(str(vector_index_path))
 
-    # Load graph with auto-detection
-    logger.info(f"Loading graph from {graph_path}")
-    from ..graph import load_graph
-    graph = load_graph(str(graph_path))
+        # Load graph with auto-detection
+        logger.info(f"Loading graph from {graph_path}")
+        from ..graph import load_graph
+        graph = load_graph(str(graph_path))
+    except Exception as e:
+        if auto_rebuild:
+            logger.warning(f"Failed to load indexes, rebuilding from scratch: {e}")
+            index_repository(repo_path, config=config, index_dir=index_dir)
+            return load_indexes(repo_path, index_dir, auto_rebuild=False, config=config)
+        raise RuntimeError(f"Failed to load indexes: {e}") from e
 
     logger.info(
         f"Indexes loaded successfully | backend={metadata.backend} | "

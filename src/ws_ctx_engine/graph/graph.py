@@ -260,7 +260,7 @@ class IGraphRepoMap(RepoMapGraph):
                 'boost_factor': self.boost_factor,
                 'file_to_vertex': self.file_to_vertex,
                 'vertex_to_file': self.vertex_to_file,
-                'graph_pickle': self.graph.__getstate__()  # igraph's serialization
+                'graph': self.graph,
             }
             
             with open(save_path, 'wb') as f:
@@ -299,8 +299,19 @@ class IGraphRepoMap(RepoMapGraph):
             instance.vertex_to_file = data['vertex_to_file']
             
             # Restore graph
-            instance.graph = instance._ig.Graph()
-            instance.graph.__setstate__(data['graph_pickle'])
+            if 'graph' in data and data['graph'] is not None:
+                instance.graph = data['graph']
+            elif 'graph_pickle' in data:
+                instance.graph = instance._ig.Graph()
+                if hasattr(instance.graph, '__setstate__'):
+                    instance.graph.__setstate__(data['graph_pickle'])
+                else:
+                    raise ValueError(
+                        "Incompatible igraph serialization format. "
+                        "Please rebuild index files with 'ws-ctx-engine index'."
+                    )
+            else:
+                raise ValueError("Missing graph payload in saved igraph index")
             
             logger.debug(f"Loaded igraph from {path}")
             

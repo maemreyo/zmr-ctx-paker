@@ -1,49 +1,13 @@
-# Include documentation
+# Include project metadata/documentation in source distribution
 include README.md
 include LICENSE
 include CHANGELOG.md
 include CONTRIBUTING.md
 include CODE_OF_CONDUCT.md
 include SECURITY.md
-
-# Include configuration examples
+include pyproject.toml
 include .ws-ctx-engine.yaml.example
 
-# Include package metadata
-include pyproject.toml
-include setup.py
-
-# Include type stubs
+# Include source files
 recursive-include src *.py
-recursive-include src *.pyi
 
-# Exclude development and build files
-exclude .gitignore
-exclude .gitattributes
-exclude .editorconfig
-exclude .pre-commit-config.yaml
-recursive-exclude * __pycache__
-recursive-exclude * *.py[co]
-recursive-exclude * .DS_Store
-
-# Exclude tests
-recursive-exclude tests *
-
-# Exclude documentation build
-recursive-exclude docs/_build *
-
-# Exclude CI/CD
-recursive-exclude .github *
-
-# Exclude IDE files
-recursive-exclude .vscode *
-recursive-exclude .idea *
-
-# Exclude coverage and benchmarks
-exclude .coverage
-recursive-exclude htmlcov *
-recursive-exclude .benchmarks *
-recursive-exclude .hypothesis *
-
-# Exclude ws-ctx-engine output
-recursive-exclude .ws-ctx-engine *

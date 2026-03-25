@@ -27,29 +27,41 @@ pip install ws-ctx-engine
 
 **Includes**: tiktoken, PyYAML, lxml, typer, rich
 
-### Fast (Recommended)
-
-Core + fallback backends for semantic search and graph analysis:
-
-```bash
-pip install ws-ctx-engine[fast]
-```
-
-**Adds**: faiss-cpu (vector search), networkx (graph analysis)
-
-### All (Full Features)
+### All (Recommended)
 
 All features including primary backends for optimal performance:
 
 ```bash
-pip install ws-ctx-engine[all]
+pip install "ws-ctx-engine[all]"
 ```
 
 **Adds**: python-igraph (fast PageRank), sentence-transformers (local embeddings), py-tree-sitter (accurate AST parsing)
 
+### Fast (Fallback-focused)
+
+Core + fallback backends for semantic search and graph analysis:
+
+```bash
+pip install "ws-ctx-engine[fast]"
+```
+
+**Adds**: faiss-cpu (vector search), networkx (graph analysis)
+
 ## Quick Start
 
-### 1. Index Your Repository
+### 1. Check Dependencies (Recommended)
+
+```bash
+ws-ctx-engine doctor
+```
+
+If doctor reports missing optional dependencies:
+
+```bash
+pip install "ws-ctx-engine[all]"
+```
+
+### 2. Index Your Repository
 
 Build indexes for semantic search and dependency analysis:
 
@@ -63,7 +75,7 @@ This creates a `.ws-ctx-engine/` directory with:
 - `metadata.json` - Staleness detection metadata
 - `logs/` - Execution logs
 
-### 2. Generate Context Pack
+### 3. Generate Context Pack
 
 Create an optimized context pack for LLM review:
 
@@ -81,7 +93,7 @@ ws-ctx-engine pack /path/to/your/repo --budget 50000
 ws-ctx-engine query "authentication and user management" --format zip
 ```
 
-### 3. Use the Output
+### 4. Use the Output
 
 **For XML output**: Copy the generated `repomix-output.xml` and paste into Claude.ai or ChatGPT
 
@@ -90,6 +102,14 @@ ws-ctx-engine query "authentication and user management" --format zip
 - `REVIEW_CONTEXT.md` - Manifest with importance scores and reading order
 
 ## CLI Commands
+
+### `ws-ctx-engine doctor`
+
+Check optional dependencies and show recommended setup:
+
+```bash
+ws-ctx-engine doctor
+```
 
 ### `ws-ctx-engine index`
 
@@ -341,14 +361,14 @@ pytest --hypothesis-profile=debug
 
 LEANN is an optional primary backend. Install with:
 ```bash
-pip install ws-ctx-engine[all]
+pip install "ws-ctx-engine[all]"
 ```
 
 ### "igraph not available, using NetworkX fallback"
 
 python-igraph requires C++ compilation. Install with:
 ```bash
-pip install ws-ctx-engine[all]
+pip install "ws-ctx-engine[all]"
 ```
 
 Or force NetworkX backend in config:

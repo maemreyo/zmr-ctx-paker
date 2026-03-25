@@ -47,6 +47,10 @@ pagerank_weight: 0.4
 # Set to true if you want test files included in the output
 include_tests: false
 
+# Respect .gitignore automatically when indexing/searching
+# Set to false only when you explicitly want ignored files indexed
+respect_gitignore: true
+
 # Glob patterns for files to include
 # Uses Python glob syntax with ** for recursive matching
 include_patterns:
@@ -89,6 +93,8 @@ exclude_patterns:
   - "*.dll"            # Windows DLLs
   - ".DS_Store"        # macOS metadata
   - "Thumbs.db"        # Windows thumbnails
+  - ".ws-ctx-engine/**" # ws-ctx-engine index/log artifacts
+  - ".ws-ctx-engine.yaml" # ws-ctx-engine config file
 
 # ==============================================================================
 # BACKEND SELECTION
@@ -108,7 +114,7 @@ backends:
   # - auto: Try igraph first, fall back to NetworkX if unavailable
   # - igraph: Use igraph only (C++ backend, <1s for 10k files)
   # - networkx: Use NetworkX only (pure Python, <10s for 10k files)
-  graph: auto
+  graph: igraph
 
   # Embeddings backend for vector generation
   # Options: "auto" | "local" | "api"
