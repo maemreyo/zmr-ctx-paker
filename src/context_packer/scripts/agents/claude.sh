@@ -16,7 +16,14 @@ install_claude() {
 
   if [[ -f "$claude_md" ]]; then
     if grep -q "ctx-packer" "$claude_md" 2>/dev/null; then
-      log_skip "$claude_md (ctx-packer section already present)"
+      if [[ "${CTX_FORCE:-false}" == "true" ]]; then
+        _remove_section "$claude_md" "Code Packaging"
+        echo "" >> "$claude_md"
+        _render_template "claude/CLAUDE_append.md.tpl" >> "$claude_md"
+        log_ok "Replaced ctx-packer section in $claude_md (--force)"
+      else
+        log_skip "$claude_md (ctx-packer section already present)"
+      fi
     else
       echo "" >> "$claude_md"
       _render_template "claude/CLAUDE_append.md.tpl" >> "$claude_md"

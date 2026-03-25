@@ -8,7 +8,7 @@ import os
 
 def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    init_script = os.path.join(script_dir, "..", "scripts", "init.sh")
+    init_script = os.path.join(script_dir, "scripts", "init.sh")
 
     result = subprocess.run(
         ["bash", init_script] + sys.argv[1:],

@@ -3,6 +3,7 @@
 
 install_ctx_packer() {
   log_section "Installing ctx-packer"
+  _ensure_ctx_packer_in_path
 
   if command -v ctx-packer &> /dev/null; then
     local current_version
@@ -36,7 +37,7 @@ _do_install() {
     exit 1
   fi
 
-  export PATH="$HOME/Library/Python/3.11/bin:$PATH"
+  _ensure_ctx_packer_in_path
   if command -v ctx-packer &> /dev/null; then
     local new_version
     new_version=$(ctx-packer --version 2>/dev/null | head -1 || echo "installed")

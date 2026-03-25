@@ -70,8 +70,11 @@ check_git
 install_ctx_packer
 
 for agent_id in "${SELECTED_AGENTS[@]}"; do
-  log_section "$(get_agent_display "$agent_id")"
   source "$SCRIPT_DIR/agents/${agent_id}.sh"
+done
+
+for agent_id in "${SELECTED_AGENTS[@]}"; do
+  log_section "$(get_agent_display "$agent_id")"
   "install_${agent_id}"
 done
 
