@@ -10,13 +10,13 @@ This project uses **ctx-packer** for intelligent code context packaging.
 
 ```bash
 # Index this repository (first time only)
-ctx-packer index .
+${CTX_CMD_INDEX}
 
 # Query for context
-ctx-packer query "your search" --format zip
+${CTX_CMD_QUERY} --format zip
 
 # Full workflow
-ctx-packer pack . --query "your search"
+${CTX_CMD_PACK}
 ```
 
 ### When to Rebuild Index
@@ -24,7 +24,7 @@ ctx-packer pack . --query "your search"
 If you see "Index is stale, rebuilding", the index will rebuild automatically. You can also manually rebuild:
 ```bash
 rm -rf .context-pack/
-ctx-packer index .
+${CTX_CMD_INDEX}
 ```
 
 ### Output Location
