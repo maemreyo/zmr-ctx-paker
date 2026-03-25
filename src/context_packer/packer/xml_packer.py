@@ -5,7 +5,7 @@ Generates Repomix-style XML output with metadata and file contents.
 """
 
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import tiktoken
 from lxml import etree
@@ -51,7 +51,8 @@ class XMLPacker:
         self,
         selected_files: List[str],
         repo_path: str,
-        metadata: Dict[str, Any]
+        metadata: Dict[str, Any],
+        secret_scanner: Optional[Any] = None,
     ) -> str:
         """
         Generate XML output from selected files.
@@ -81,7 +82,7 @@ class XMLPacker:
         files_elem = etree.Element("files")
         
         for file_path in selected_files:
-            file_elem = self._create_file_element(file_path, repo_path)
+            file_elem = self._create_file_element(file_path, repo_path, secret_scanner=secret_scanner)
             files_elem.append(file_elem)
         
         root.append(files_elem)
@@ -134,10 +135,25 @@ class XMLPacker:
         if "changed_files" in metadata and metadata["changed_files"]:
             changed_elem = etree.SubElement(metadata_elem, "changed_files")
             changed_elem.text = ", ".join(metadata["changed_files"])
+
+        index_health = metadata.get("index_health")
+        if isinstance(index_health, dict):
+            index_health_elem = etree.SubElement(metadata_elem, "index_health")
+            for field in ("status", "stale_reason", "files_indexed", "index_built_at", "vcs"):
+                value = index_health.get(field)
+                if value is None:
+                    continue
+                field_elem = etree.SubElement(index_health_elem, field)
+                field_elem.text = str(value)
         
         return metadata_elem
     
-    def _create_file_element(self, file_path: str, repo_path: str) -> etree.Element:
+    def _create_file_element(
+        self,
+        file_path: str,
+        repo_path: str,
+        secret_scanner: Optional[Any] = None,
+    ) -> etree.Element:
         """
         Create file XML element with content.
         
@@ -166,6 +182,12 @@ class XMLPacker:
             self.logger.error(f"Failed to read {file_path}: {e}")
             raise
         
+        if secret_scanner is not None:
+            scan_result = secret_scanner.scan(file_path)
+            if scan_result.secrets_detected:
+                detected = ", ".join(scan_result.secrets_detected)
+                content = f"[REDACTED: detected secrets ({detected})]"
+
         # Count tokens
         token_count = len(self.encoding.encode(content))
         

@@ -11,7 +11,7 @@ Before exploring unfamiliar areas of the codebase, use ctx-packer:
 
 ```bash
 ${CTX_CMD_INDEX}             # Build index (run once or after major changes)
-${CTX_CMD_QUERY}             # Find relevant files by topic
+${CTX_CMD_SEARCH}            # Find relevant files by topic
 ${CTX_CMD_STATUS}            # Check if index is fresh
 ${CTX_CMD_FULL_ZIP}          # Full context bundle
 ```

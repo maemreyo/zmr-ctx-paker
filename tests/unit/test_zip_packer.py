@@ -89,7 +89,14 @@ class TestZIPPacker:
                 "file_count": 3,
                 "total_tokens": 150,
                 "query": "find test functions",
-                "changed_files": ["file1.py"]
+                "changed_files": ["file1.py"],
+                "index_health": {
+                    "status": "stale",
+                    "stale_reason": "1 file modified",
+                    "files_indexed": 3,
+                    "index_built_at": "2026-03-25T10:30:00Z",
+                    "vcs": "git",
+                },
             }
             importance_scores = {
                 "file1.py": 0.9,  # High score
@@ -117,6 +124,12 @@ class TestZIPPacker:
                 assert "0.5000" in manifest
                 assert "file3.py" in manifest
                 assert "0.2000" in manifest
+
+                # Check index health metadata is surfaced
+                assert "Index Status" in manifest
+                assert "stale" in manifest
+                assert "Index Stale Reason" in manifest
+                assert "1 file modified" in manifest
                 
                 # Check inclusion reasons
                 assert "Changed file" in manifest or "Semantic match" in manifest

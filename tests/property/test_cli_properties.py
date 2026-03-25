@@ -4,6 +4,7 @@ Property-based tests for CLI interface.
 Tests Properties 29-33 from the design document.
 """
 
+import json
 import os
 import shutil
 import subprocess
@@ -378,6 +379,117 @@ def test_cli_handles_missing_config_file():
         # Should fail with non-zero exit code
         assert result.returncode != 0
         assert "not found" in result.stdout.lower() or "not found" in result.stderr.lower()
+
+
+@given(limit=st.integers(min_value=1, max_value=5))
+@settings(max_examples=5, deadline=60000)
+def test_search_agent_mode_ndjson_lines_are_parseable(limit: int):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        repo_path = Path(tmpdir)
+        create_test_repo(repo_path)
+
+        env = os.environ.copy()
+        env["OMP_NUM_THREADS"] = "1"
+        env["MKL_NUM_THREADS"] = "1"
+        env["OPENBLAS_NUM_THREADS"] = "1"
+        env["VECLIB_MAXIMUM_THREADS"] = "1"
+        env["NUMEXPR_NUM_THREADS"] = "1"
+        env["TOKENIZERS_PARALLELISM"] = "false"
+
+        index_result = subprocess.run(
+            [sys.executable, "-m", "context_packer.cli", "index", str(repo_path)],
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        assert index_result.returncode == 0
+
+        search_result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "context_packer.cli",
+                "--agent-mode",
+                "search",
+                "calculator",
+                "--repo",
+                str(repo_path),
+                "--limit",
+                str(limit),
+            ],
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        assert search_result.returncode == 0
+
+        lines = [line for line in search_result.stdout.splitlines() if line.strip()]
+        assert len(lines) >= 1
+
+        payloads = [json.loads(line) for line in lines]
+        assert payloads[0]["type"] == "meta"
+        assert all(isinstance(item, dict) for item in payloads)
+
+
+@given(query_text=st.sampled_from(["calculator", "authentication", "utils function"]))
+@settings(max_examples=3, deadline=60000)
+def test_pack_json_output_is_parseable_and_has_required_shape(query_text: str):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        repo_path = Path(tmpdir)
+        create_test_repo(repo_path)
+
+        output_dir = repo_path / "output"
+        output_dir.mkdir(exist_ok=True)
+
+        env = os.environ.copy()
+        env["OMP_NUM_THREADS"] = "1"
+        env["MKL_NUM_THREADS"] = "1"
+        env["OPENBLAS_NUM_THREADS"] = "1"
+        env["VECLIB_MAXIMUM_THREADS"] = "1"
+        env["NUMEXPR_NUM_THREADS"] = "1"
+        env["TOKENIZERS_PARALLELISM"] = "false"
+
+        config_path = repo_path / "phase2-pack.yaml"
+        config_path.write_text(
+            f"""
+backends:
+  vector_index: faiss
+  graph: networkx
+  embeddings: local
+output_path: {output_dir}
+""",
+            encoding="utf-8",
+        )
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "context_packer.cli",
+                "pack",
+                str(repo_path),
+                "--query",
+                query_text,
+                "--format",
+                "json",
+                "--config",
+                str(config_path),
+            ],
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+
+        assert result.returncode == 0
+
+        output_file = output_dir / "context-pack.json"
+        assert output_file.exists()
+
+        payload = json.loads(output_file.read_text(encoding="utf-8"))
+        assert "metadata" in payload
+        assert "files" in payload
+        assert "index_health" in payload["metadata"]
+        assert isinstance(payload["files"], list)
 
 
 def test_cli_verbose_flag_enables_detailed_logging():

@@ -13,7 +13,7 @@ This project uses **ctx-packer** for intelligent code context packaging.
 ${CTX_CMD_INDEX}
 
 # Query for context
-${CTX_CMD_QUERY} --format zip
+${CTX_CMD_SEARCH}
 
 # Full workflow
 ${CTX_CMD_PACK}
