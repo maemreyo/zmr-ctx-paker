@@ -7,6 +7,7 @@ Provides CLI commands for indexing repositories, querying, and packing context.
 import sys
 from pathlib import Path
 from typing import Optional
+import importlib.metadata
 
 import typer
 from rich.console import Console
@@ -26,6 +27,31 @@ app = typer.Typer(
 # Initialize console for rich output
 console = Console()
 logger = get_logger()
+
+def version_callback(value: bool):
+    if value:
+        try:
+            version = importlib.metadata.version("ctx-packer")
+        except importlib.metadata.PackageNotFoundError:
+            version = "unknown"
+        console.print(f"ctx-packer version: [bold cyan]{version}[/bold cyan]")
+        raise typer.Exit()
+
+@app.callback()
+def main(
+    version: Optional[bool] = typer.Option(
+        None,
+        "--version",
+        "-V",
+        callback=version_callback,
+        is_eager=True,
+        help="Show the application's version and exit.",
+    )
+):
+    """
+    Intelligently package codebases into optimized context for Large Language Models.
+    """
+    pass
 
 
 @app.command()
