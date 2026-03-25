@@ -1,4 +1,23 @@
 # Changelog
+## [0.1.5] - 2026-03-25
+
+### Added
+- `context-pack status` - Show index size, file count, backend info
+- `context-pack vacuum` - Optimize SQLite database
+- `context-pack reindex-domain` - Only rebuild domain_map.db (fast)
+- SQLite DomainMapDB backend for large repositories (>10K files)
+- Phase 1-4: Parallel Write → Shadow Read → SQLite Primary → Cleanup
+
+### Changed
+- Tuned retrieval weights: domain_boost 0.4 → 0.25
+- Improved query classification for better ranking
+- Fixed DomainMapDB.drop-in compatibility with RetrievalEngine
+
+### Fixed
+- Missing `directories_for()` method in DomainMapDB
+- Broken try block structure in query.py
+
+
 ## [0.1.4] - 2026-03-25
 
 ### Added
