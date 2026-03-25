@@ -64,19 +64,19 @@ Khác biệt quan trọng nhất là câu hỏi mà mỗi tool ưu tiên trả l
 
 ## 4. So sánh nhanh theo ma trận
 
-| Tiêu chí | `ws-ctx-engine` | `Repomix` | Nhận định |
-|---|---|---|---|
-| Triết lý sản phẩm | Retrieval-first | Packing-first | Khác biệt nền tảng |
-| Workflow mặc định | Index -> Search/Query -> Pack | Scan -> Filter -> Pack | `ws-ctx-engine` phức tạp hơn nhưng có chiều sâu hơn |
-| Cơ chế chọn file | Semantic + PageRank + lexical/domain boosts | Chủ yếu dựa vào lọc, token count, compression, đóng gói | `ws-ctx-engine` mạnh hơn rõ ở relevance selection |
-| Output formats | XML, ZIP, JSON, Markdown | XML, Markdown, JSON, Plain text, split output | `Repomix` đầy đủ và polished hơn ở output layer |
-| Ignore/include | YAML config + custom matcher + respect `.gitignore` | `.gitignore` / `.ignore` / `.repomixignore` + CLI glob mạnh | `Repomix` có semantics gần sản phẩm hơn |
-| Compression | Không có compression-first thực thụ | Có `--compress` dựa trên Tree-sitter | `Repomix` thắng rõ |
-| Remote repo | Không thấy support trực tiếp | Có remote repository support | `Repomix` thắng rõ |
-| MCP / agent | Có MCP read-only, init scripts cho nhiều agent | Có MCP/integrations/plugins rộng hơn | `ws-ctx-engine` mạnh ở chiều sâu retrieval; `Repomix` mạnh ở distribution |
-| Security | Secret scan + RADE delimiters + path guard + rate limit | Secretlint/security checks | `ws-ctx-engine` bảo vệ agent workflow sâu hơn |
-| Độ trưởng thành product | Alpha, docs/code drift còn đáng kể | Ecosystem rộng, nhiều bề mặt sử dụng hơn | `Repomix` trưởng thành hơn ở go-to-market |
-| Kiến trúc dài hạn | Có moat kỹ thuật rõ | Tập trung UX/output and ecosystem | Tùy mục tiêu cạnh tranh |
+| Tiêu chí                | `ws-ctx-engine`                                         | `Repomix`                                                   | Nhận định                                                                 |
+| ----------------------- | ------------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Triết lý sản phẩm       | Retrieval-first                                         | Packing-first                                               | Khác biệt nền tảng                                                        |
+| Workflow mặc định       | Index -> Search/Query -> Pack                           | Scan -> Filter -> Pack                                      | `ws-ctx-engine` phức tạp hơn nhưng có chiều sâu hơn                       |
+| Cơ chế chọn file        | Semantic + PageRank + lexical/domain boosts             | Chủ yếu dựa vào lọc, token count, compression, đóng gói     | `ws-ctx-engine` mạnh hơn rõ ở relevance selection                         |
+| Output formats          | XML, ZIP, JSON, Markdown                                | XML, Markdown, JSON, Plain text, split output               | `Repomix` đầy đủ và polished hơn ở output layer                           |
+| Ignore/include          | YAML config + custom matcher + respect `.gitignore`     | `.gitignore` / `.ignore` / `.repomixignore` + CLI glob mạnh | `Repomix` có semantics gần sản phẩm hơn                                   |
+| Compression             | Không có compression-first thực thụ                     | Có `--compress` dựa trên Tree-sitter                        | `Repomix` thắng rõ                                                        |
+| Remote repo             | Không thấy support trực tiếp                            | Có remote repository support                                | `Repomix` thắng rõ                                                        |
+| MCP / agent             | Có MCP read-only, init scripts cho nhiều agent          | Có MCP/integrations/plugins rộng hơn                        | `ws-ctx-engine` mạnh ở chiều sâu retrieval; `Repomix` mạnh ở distribution |
+| Security                | Secret scan + RADE delimiters + path guard + rate limit | Secretlint/security checks                                  | `ws-ctx-engine` bảo vệ agent workflow sâu hơn                             |
+| Độ trưởng thành product | Alpha, docs/code drift còn đáng kể                      | Ecosystem rộng, nhiều bề mặt sử dụng hơn                    | `Repomix` trưởng thành hơn ở go-to-market                                 |
+| Kiến trúc dài hạn       | Có moat kỹ thuật rõ                                     | Tập trung UX/output and ecosystem                           | Tùy mục tiêu cạnh tranh                                                   |
 
 ## 5. Phân tích chuyên sâu theo từng lớp
 
