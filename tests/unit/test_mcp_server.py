@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from context_packer.mcp.server import MCPStdioServer
-from context_packer.mcp_server import run_mcp_server as run_mcp_server_wrapper
+from ws_ctx_engine.mcp.server import MCPStdioServer
+from ws_ctx_engine.mcp_server import run_mcp_server as run_mcp_server_wrapper
 
 
 def test_initialize_response_shape() -> None:
@@ -17,7 +17,7 @@ def test_initialize_response_shape() -> None:
         assert response["jsonrpc"] == "2.0"
         assert response["id"] == 1
         assert response["result"]["capabilities"] == {"tools": {}}
-        assert response["result"]["serverInfo"]["name"] == "ctx-packer"
+        assert response["result"]["serverInfo"]["name"] == "ws-ctx-engine"
 
 
 def test_initialized_notifications_return_none() -> None:
@@ -174,7 +174,7 @@ def test_mcp_server_wrapper_forwards_arguments(monkeypatch) -> None:
         captured["config_path"] = config_path
         captured["rate_limit"] = rate_limit
 
-    monkeypatch.setattr("context_packer.mcp_server._run_mcp_server", _fake_run_mcp_server)
+    monkeypatch.setattr("ws_ctx_engine.mcp_server._run_mcp_server", _fake_run_mcp_server)
 
     run_mcp_server_wrapper(workspace="/tmp/work", config_path="/tmp/cfg.json", rate_limit={"search_codebase": 10})
 
@@ -210,7 +210,7 @@ def test_run_loop_skips_notification_with_no_response(monkeypatch) -> None:
 
 
 def test_run_mcp_server_constructs_server_and_calls_run(monkeypatch) -> None:
-    from context_packer.mcp import server as server_module
+    from ws_ctx_engine.mcp import server as server_module
 
     called = {"run": 0}
 

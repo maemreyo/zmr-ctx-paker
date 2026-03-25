@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from context_packer.config import Config
+from ws_ctx_engine.config import Config
 
 
 class TestConfigDefaults:

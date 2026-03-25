@@ -18,7 +18,7 @@ class TestPythonDecoratorExtraction:
     def test_extract_decorated_function(self, temp_repo):
         """Test that decorated functions are extracted."""
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -48,7 +48,7 @@ class DecoratedClass:
     def test_extract_decorated_async_function(self, temp_repo):
         """Test that decorated async functions are extracted."""
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -82,7 +82,7 @@ class TestJavaScriptExportExtraction:
     def test_extract_export_function(self, temp_repo):
         """Test that exported functions are extracted."""
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -112,7 +112,7 @@ export class ExportedClass {
     def test_extract_default_export(self, temp_repo):
         """Test that default exported functions are extracted."""
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -146,7 +146,7 @@ class TestTypeScriptInterfaceExtraction:
     def test_extract_typescript_interface(self, temp_repo):
         """Test that TypeScript interfaces are extracted."""
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -182,7 +182,7 @@ enum Status {
     def test_extract_export_interface(self, temp_repo):
         """Test that exported TypeScript interfaces are extracted."""
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -216,7 +216,7 @@ class TestRustImplAndTraitExtraction:
     def test_extract_rust_impl_block(self, temp_repo):
         """Test that impl blocks are extracted with correct type name."""
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -248,7 +248,7 @@ impl Foo {
     def test_extract_rust_generic_impl(self, temp_repo):
         """Test that generic impl blocks are extracted."""
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -284,7 +284,7 @@ class TestGlobalChunkDeduplication:
     def test_no_duplicate_chunks_across_files(self, temp_repo):
         """Test that there are no duplicate chunks across multiple files."""
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -313,7 +313,7 @@ class TestRustScopedUseDeclarations:
     def test_rust_use_scoped_identifiers(self, temp_repo):
         """Test that scoped use declarations are properly extracted."""
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 

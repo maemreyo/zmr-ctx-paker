@@ -1,6 +1,6 @@
-# Context Packer
+# ws-ctx-engine
 
-Intelligently package codebases into optimized context for Large Language Models (LLMs). Context Packer uses hybrid ranking (semantic search + PageRank) to select the most relevant files within your token budget, with comprehensive fallback strategies for production reliability.
+Intelligently package codebases into optimized context for Large Language Models (LLMs). ws-ctx-engine uses hybrid ranking (semantic search + PageRank) to select the most relevant files within your token budget, with comprehensive fallback strategies for production reliability.
 
 ## Features
 
@@ -15,14 +15,14 @@ Intelligently package codebases into optimized context for Large Language Models
 
 ## Installation
 
-Context Packer offers three installation tiers based on your needs:
+ws-ctx-engine offers three installation tiers based on your needs:
 
 ### Minimal (Core Only)
 
 Basic functionality with regex-based parsing and file size ranking:
 
 ```bash
-pip install ctx-packer
+pip install ws-ctx-engine
 ```
 
 **Includes**: tiktoken, PyYAML, lxml, typer, rich
@@ -32,7 +32,7 @@ pip install ctx-packer
 Core + fallback backends for semantic search and graph analysis:
 
 ```bash
-pip install ctx-packer[fast]
+pip install ws-ctx-engine[fast]
 ```
 
 **Adds**: faiss-cpu (vector search), networkx (graph analysis)
@@ -42,7 +42,7 @@ pip install ctx-packer[fast]
 All features including primary backends for optimal performance:
 
 ```bash
-pip install ctx-packer[all]
+pip install ws-ctx-engine[all]
 ```
 
 **Adds**: python-igraph (fast PageRank), sentence-transformers (local embeddings), py-tree-sitter (accurate AST parsing)
@@ -54,10 +54,10 @@ pip install ctx-packer[all]
 Build indexes for semantic search and dependency analysis:
 
 ```bash
-ctx-packer index /path/to/your/repo
+ws-ctx-engine index /path/to/your/repo
 ```
 
-This creates a `.ctx-pack/` directory with:
+This creates a `.ws-ctx-engine/` directory with:
 - `vector.idx` - Semantic search index
 - `graph.pkl` - Dependency graph with PageRank scores
 - `metadata.json` - Staleness detection metadata
@@ -69,46 +69,46 @@ Create an optimized context pack for LLM review:
 
 ```bash
 # Generate ZIP output (default)
-ctx-packer pack /path/to/your/repo
+ws-ctx-engine pack /path/to/your/repo
 
 # Generate XML output for paste workflows
-ctx-packer pack /path/to/your/repo --format xml
+ws-ctx-engine pack /path/to/your/repo --format xml
 
 # Specify token budget
-ctx-packer pack /path/to/your/repo --budget 50000
+ws-ctx-engine pack /path/to/your/repo --budget 50000
 
 # Query with natural language
-ctx-packer query "authentication and user management" --format zip
+ws-ctx-engine query "authentication and user management" --format zip
 ```
 
 ### 3. Use the Output
 
 **For XML output**: Copy the generated `repomix-output.xml` and paste into Claude.ai or ChatGPT
 
-**For ZIP output**: Upload `ctx-packer.zip` to Cursor or Claude Code. The archive includes:
+**For ZIP output**: Upload `ws-ctx-engine.zip` to Cursor or Claude Code. The archive includes:
 - `files/` - Selected source files with preserved directory structure
 - `REVIEW_CONTEXT.md` - Manifest with importance scores and reading order
 
 ## CLI Commands
 
-### `ctx-packer index`
+### `ws-ctx-engine index`
 
 Build and save indexes for later queries:
 
 ```bash
-ctx-packer index <repo_path> [OPTIONS]
+ws-ctx-engine index <repo_path> [OPTIONS]
 ```
 
 **Options**:
-- `--config PATH` - Custom configuration file (default: `.ctx-pack.yaml`)
+- `--config PATH` - Custom configuration file (default: `.ws-ctx-engine.yaml`)
 - `--verbose` - Enable detailed logging with timing information
 
-### `ctx-packer query`
+### `ws-ctx-engine query`
 
 Search indexed repository and generate output:
 
 ```bash
-ctx-packer query <query_text> [OPTIONS]
+ws-ctx-engine query <query_text> [OPTIONS]
 ```
 
 **Options**:
@@ -118,12 +118,12 @@ ctx-packer query <query_text> [OPTIONS]
 - `--output PATH` - Output directory (default: ./output)
 - `--verbose` - Enable detailed logging
 
-### `ctx-packer pack`
+### `ws-ctx-engine pack`
 
 Full workflow: index + query + pack:
 
 ```bash
-ctx-packer pack <repo_path> [OPTIONS]
+ws-ctx-engine pack <repo_path> [OPTIONS]
 ```
 
 **Options**:
@@ -137,7 +137,7 @@ ctx-packer pack <repo_path> [OPTIONS]
 
 ## Configuration
 
-Create a `.ctx-pack.yaml` file in your repository root to customize behavior:
+Create a `.ws-ctx-engine.yaml` file in your repository root to customize behavior:
 
 ```yaml
 # Output settings
@@ -182,11 +182,11 @@ performance:
   incremental_index: true
 ```
 
-See `.ctx-pack.yaml.example` for detailed documentation of all options.
+See `.ws-ctx-engine.yaml.example` for detailed documentation of all options.
 
 ## How It Works
 
-Context Packer uses a multi-stage pipeline to select the most relevant code:
+ws-ctx-engine uses a multi-stage pipeline to select the most relevant code:
 
 ### 1. AST Parsing
 
@@ -228,7 +228,7 @@ Package selected files in chosen format:
 
 ## Fallback Strategy
 
-Context Packer never fails due to missing dependencies. Each component has automatic fallbacks:
+ws-ctx-engine never fails due to missing dependencies. Each component has automatic fallbacks:
 
 ```
 Level 1: igraph + LEANN + local embeddings (optimal)
@@ -263,22 +263,22 @@ Fallback backends maintain functionality within 2x of primary performance.
 
 ```bash
 # Index your repository once
-ctx-packer index ~/projects/myapp
+ws-ctx-engine index ~/projects/myapp
 
 # Generate context for PR review
-ctx-packer query "authentication changes" \
+ws-ctx-engine query "authentication changes" \
   --changed-files changed.txt \
   --format zip \
   --budget 50000
 
-# Upload ctx-packer.zip to Cursor for review
+# Upload ws-ctx-engine.zip to Cursor for review
 ```
 
 ### Bug Investigation
 
 ```bash
 # Find relevant code for a bug
-ctx-packer pack ~/projects/myapp \
+ws-ctx-engine pack ~/projects/myapp \
   --query "database connection pooling and timeout handling" \
   --format xml \
   --budget 30000
@@ -290,7 +290,7 @@ ctx-packer pack ~/projects/myapp \
 
 ```bash
 # Select core API files
-ctx-packer pack ~/projects/myapp \
+ws-ctx-engine pack ~/projects/myapp \
   --query "public API endpoints and data models" \
   --format zip \
   --budget 80000
@@ -308,7 +308,7 @@ pip install -e ".[dev,all]"
 pytest
 
 # Run with coverage
-pytest --cov=context_packer --cov-report=html
+pytest --cov=ws_ctx_engine --cov-report=html
 
 # Run property-based tests only
 pytest -m property
@@ -341,14 +341,14 @@ pytest --hypothesis-profile=debug
 
 LEANN is an optional primary backend. Install with:
 ```bash
-pip install ctx-packer[all]
+pip install ws-ctx-engine[all]
 ```
 
 ### "igraph not available, using NetworkX fallback"
 
 python-igraph requires C++ compilation. Install with:
 ```bash
-pip install ctx-packer[all]
+pip install ws-ctx-engine[all]
 ```
 
 Or force NetworkX backend in config:
@@ -374,8 +374,8 @@ Set `OPENAI_API_KEY` environment variable for API access.
 
 Files have changed since last index. This is automatic. To force rebuild:
 ```bash
-rm -rf .ctx-pack/
-ctx-packer index /path/to/repo
+rm -rf .ws-ctx-engine/
+ws-ctx-engine index /path/to/repo
 ```
 
 ## License
@@ -396,11 +396,11 @@ See [AI_AGENTS.md](AI_AGENTS.md) for guidelines on how AI agents should use this
 
 ## Citation
 
-If you use Context Packer in research, please cite:
+If you use ws-ctx-engine in research, please cite:
 
 ```bibtex
-@software{context_packer,
-  title = {Context Packer: Intelligent Codebase Packaging for LLMs},
+@software{ws_ctx_engine,
+  title = {ws-ctx-engine: Intelligent Codebase Packaging for LLMs},
   author = {zamery},
   year = {2024},
   url = {https://github.com/maemreyo/zmr-ctx-paker}

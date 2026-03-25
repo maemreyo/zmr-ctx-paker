@@ -1,7 +1,7 @@
 import pytest
 from typer.testing import CliRunner
 
-from context_packer.cli.cli import _parse_rate_limits, app
+from ws_ctx_engine.cli.cli import _parse_rate_limits, app
 
 
 runner = CliRunner()
@@ -47,7 +47,7 @@ def test_mcp_command_allows_workspace_to_be_omitted(monkeypatch) -> None:
         captured["config_path"] = config_path
         captured["rate_limit"] = rate_limit
 
-    monkeypatch.setattr("context_packer.cli.cli.run_mcp_server", _fake_run_mcp_server)
+    monkeypatch.setattr("ws_ctx_engine.cli.cli.run_mcp_server", _fake_run_mcp_server)
 
     with runner.isolated_filesystem():
         result = runner.invoke(app, ["mcp", "--rate-limit", "search_codebase=42"])

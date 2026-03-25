@@ -1,5 +1,5 @@
 """
-Unit tests for ContextPackerLogger.
+Unit tests for WsCtxEngineLogger.
 """
 
 import logging
@@ -9,11 +9,11 @@ from pathlib import Path
 
 import pytest
 
-from context_packer.logger import ContextPackerLogger, get_logger
+from ws_ctx_engine.logger import WsCtxEngineLogger, get_logger
 
 
-class TestContextPackerLogger:
-    """Test ContextPackerLogger functionality."""
+class TestWsCtxEngineLogger:
+    """Test WsCtxEngineLogger functionality."""
     
     def _flush_logger(self, logger):
         """Helper to flush logger handlers."""
@@ -25,7 +25,7 @@ class TestContextPackerLogger:
         log_dir = tmp_path / "logs"
         assert not log_dir.exists()
         
-        logger = ContextPackerLogger(log_dir=str(log_dir))
+        logger = WsCtxEngineLogger(log_dir=str(log_dir))
         
         assert log_dir.exists()
         assert log_dir.is_dir()
@@ -33,7 +33,7 @@ class TestContextPackerLogger:
     def test_logger_creates_log_file(self, tmp_path):
         """Test that logger creates a log file."""
         log_dir = tmp_path / "logs"
-        logger = ContextPackerLogger(log_dir=str(log_dir))
+        logger = WsCtxEngineLogger(log_dir=str(log_dir))
         
         # Log a message to ensure file is created
         logger.info("Test message")
@@ -43,22 +43,22 @@ class TestContextPackerLogger:
             handler.flush()
         
         # Check that a log file was created
-        log_files = list(log_dir.glob("context-packer-*.log"))
+        log_files = list(log_dir.glob("ws-ctx-engine-*.log"))
         assert len(log_files) == 1
-        assert log_files[0].name.startswith("context-packer-")
+        assert log_files[0].name.startswith("ws-ctx-engine-")
         assert log_files[0].name.endswith(".log")
     
     def test_logger_writes_to_file(self, tmp_path):
         """Test that logger writes messages to file."""
         log_dir = tmp_path / "logs"
-        logger = ContextPackerLogger(log_dir=str(log_dir))
+        logger = WsCtxEngineLogger(log_dir=str(log_dir))
         
         test_message = "Test log message"
         logger.info(test_message)
         self._flush_logger(logger)
         
         # Read log file
-        log_files = list(log_dir.glob("context-packer-*.log"))
+        log_files = list(log_dir.glob("ws-ctx-engine-*.log"))
         log_content = log_files[0].read_text()
         
         assert test_message in log_content
@@ -67,13 +67,13 @@ class TestContextPackerLogger:
     def test_logger_structured_format(self, tmp_path):
         """Test that logger uses structured format: timestamp | level | name | message."""
         log_dir = tmp_path / "logs"
-        logger = ContextPackerLogger(log_dir=str(log_dir))
+        logger = WsCtxEngineLogger(log_dir=str(log_dir))
         
         logger.info("Test message")
         self._flush_logger(logger)
         
         # Read log file
-        log_files = list(log_dir.glob("context-packer-*.log"))
+        log_files = list(log_dir.glob("ws-ctx-engine-*.log"))
         log_content = log_files[0].read_text()
         
         # Check format: timestamp | level | name | message
@@ -83,13 +83,13 @@ class TestContextPackerLogger:
         parts = lines[0].split(' | ')
         assert len(parts) == 4
         assert "INFO" in parts[1]
-        assert "context_packer" in parts[2]
+        assert "ws_ctx_engine" in parts[2]
         assert "Test message" in parts[3]
     
     def test_log_fallback(self, tmp_path):
         """Test log_fallback method."""
         log_dir = tmp_path / "logs"
-        logger = ContextPackerLogger(log_dir=str(log_dir))
+        logger = WsCtxEngineLogger(log_dir=str(log_dir))
         
         logger.log_fallback(
             component="vector_index",
@@ -100,7 +100,7 @@ class TestContextPackerLogger:
         self._flush_logger(logger)
         
         # Read log file
-        log_files = list(log_dir.glob("context-packer-*.log"))
+        log_files = list(log_dir.glob("ws-ctx-engine-*.log"))
         log_content = log_files[0].read_text()
         
         assert "Fallback triggered" in log_content
@@ -112,7 +112,7 @@ class TestContextPackerLogger:
     def test_log_phase(self, tmp_path):
         """Test log_phase method."""
         log_dir = tmp_path / "logs"
-        logger = ContextPackerLogger(log_dir=str(log_dir))
+        logger = WsCtxEngineLogger(log_dir=str(log_dir))
         
         logger.log_phase(
             phase="parsing",
@@ -123,7 +123,7 @@ class TestContextPackerLogger:
         self._flush_logger(logger)
         
         # Read log file
-        log_files = list(log_dir.glob("context-packer-*.log"))
+        log_files = list(log_dir.glob("ws-ctx-engine-*.log"))
         log_content = log_files[0].read_text()
         
         assert "Phase complete" in log_content
@@ -136,13 +136,13 @@ class TestContextPackerLogger:
     def test_log_phase_without_metrics(self, tmp_path):
         """Test log_phase method without additional metrics."""
         log_dir = tmp_path / "logs"
-        logger = ContextPackerLogger(log_dir=str(log_dir))
+        logger = WsCtxEngineLogger(log_dir=str(log_dir))
         
         logger.log_phase(phase="indexing", duration=1.2)
         self._flush_logger(logger)
         
         # Read log file
-        log_files = list(log_dir.glob("context-packer-*.log"))
+        log_files = list(log_dir.glob("ws-ctx-engine-*.log"))
         log_content = log_files[0].read_text()
         
         assert "Phase complete" in log_content
@@ -152,7 +152,7 @@ class TestContextPackerLogger:
     def test_log_error(self, tmp_path):
         """Test log_error method."""
         log_dir = tmp_path / "logs"
-        logger = ContextPackerLogger(log_dir=str(log_dir))
+        logger = WsCtxEngineLogger(log_dir=str(log_dir))
         
         try:
             raise ValueError("Test error")
@@ -164,7 +164,7 @@ class TestContextPackerLogger:
         self._flush_logger(logger)
         
         # Read log file
-        log_files = list(log_dir.glob("context-packer-*.log"))
+        log_files = list(log_dir.glob("ws-ctx-engine-*.log"))
         log_content = log_files[0].read_text()
         
         assert "Error occurred" in log_content
@@ -177,7 +177,7 @@ class TestContextPackerLogger:
     def test_log_error_without_context(self, tmp_path):
         """Test log_error method without context."""
         log_dir = tmp_path / "logs"
-        logger = ContextPackerLogger(log_dir=str(log_dir))
+        logger = WsCtxEngineLogger(log_dir=str(log_dir))
         
         try:
             raise RuntimeError("Test runtime error")
@@ -186,7 +186,7 @@ class TestContextPackerLogger:
         self._flush_logger(logger)
         
         # Read log file
-        log_files = list(log_dir.glob("context-packer-*.log"))
+        log_files = list(log_dir.glob("ws-ctx-engine-*.log"))
         log_content = log_files[0].read_text()
         
         assert "Error occurred" in log_content
@@ -196,13 +196,13 @@ class TestContextPackerLogger:
     def test_debug_method(self, tmp_path):
         """Test debug method."""
         log_dir = tmp_path / "logs"
-        logger = ContextPackerLogger(log_dir=str(log_dir))
+        logger = WsCtxEngineLogger(log_dir=str(log_dir))
         
         logger.debug("Debug message")
         self._flush_logger(logger)
         
         # Read log file (DEBUG should be in file)
-        log_files = list(log_dir.glob("context-packer-*.log"))
+        log_files = list(log_dir.glob("ws-ctx-engine-*.log"))
         log_content = log_files[0].read_text()
         
         assert "Debug message" in log_content
@@ -211,13 +211,13 @@ class TestContextPackerLogger:
     def test_info_method(self, tmp_path):
         """Test info method."""
         log_dir = tmp_path / "logs"
-        logger = ContextPackerLogger(log_dir=str(log_dir))
+        logger = WsCtxEngineLogger(log_dir=str(log_dir))
         
         logger.info("Info message")
         self._flush_logger(logger)
         
         # Read log file
-        log_files = list(log_dir.glob("context-packer-*.log"))
+        log_files = list(log_dir.glob("ws-ctx-engine-*.log"))
         log_content = log_files[0].read_text()
         
         assert "Info message" in log_content
@@ -226,13 +226,13 @@ class TestContextPackerLogger:
     def test_warning_method(self, tmp_path):
         """Test warning method."""
         log_dir = tmp_path / "logs"
-        logger = ContextPackerLogger(log_dir=str(log_dir))
+        logger = WsCtxEngineLogger(log_dir=str(log_dir))
         
         logger.warning("Warning message")
         self._flush_logger(logger)
         
         # Read log file
-        log_files = list(log_dir.glob("context-packer-*.log"))
+        log_files = list(log_dir.glob("ws-ctx-engine-*.log"))
         log_content = log_files[0].read_text()
         
         assert "Warning message" in log_content
@@ -241,13 +241,13 @@ class TestContextPackerLogger:
     def test_error_method(self, tmp_path):
         """Test error method."""
         log_dir = tmp_path / "logs"
-        logger = ContextPackerLogger(log_dir=str(log_dir))
+        logger = WsCtxEngineLogger(log_dir=str(log_dir))
         
         logger.error("Error message")
         self._flush_logger(logger)
         
         # Read log file
-        log_files = list(log_dir.glob("context-packer-*.log"))
+        log_files = list(log_dir.glob("ws-ctx-engine-*.log"))
         log_content = log_files[0].read_text()
         
         assert "Error message" in log_content
@@ -267,8 +267,8 @@ class TestContextPackerLogger:
         log_dir = tmp_path / "logs"
         
         # Create logger twice with same name
-        logger1 = ContextPackerLogger(log_dir=str(log_dir), name="test_logger")
-        logger2 = ContextPackerLogger(log_dir=str(log_dir), name="test_logger")
+        logger1 = WsCtxEngineLogger(log_dir=str(log_dir), name="test_logger")
+        logger2 = WsCtxEngineLogger(log_dir=str(log_dir), name="test_logger")
         
         # Should have same underlying logger
         assert logger1.logger is logger2.logger

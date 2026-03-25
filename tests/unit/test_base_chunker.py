@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from context_packer.chunker.base import _should_include_file, _match_pattern, ASTChunker
-from context_packer.models import CodeChunk
+from ws_ctx_engine.chunker.base import _should_include_file, _match_pattern, ASTChunker
+from ws_ctx_engine.models import CodeChunk
 
 
 class TestShouldIncludeFile:

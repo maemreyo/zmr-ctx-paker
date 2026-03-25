@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from context_packer.output.md_formatter import MarkdownFormatter
+from ws_ctx_engine.output.md_formatter import MarkdownFormatter
 
 
 def test_markdown_formatter_renders_index_and_safe_file_block() -> None:
@@ -19,7 +19,7 @@ def test_markdown_formatter_renders_index_and_safe_file_block() -> None:
 
     rendered = formatter.render(metadata, files)
 
-    assert "# ctx-packer Context Pack" in rendered
+    assert "# ws-ctx-engine Context Pack" in rendered
     assert "> Query: auth flow | Files: 1 | Generated: 2026-03-25T10:00:00Z" in rendered
     assert "- [src/auth.py](#1) — Score: 0.93 — security" in rendered
     assert "## 1. `src/auth.py`" in rendered

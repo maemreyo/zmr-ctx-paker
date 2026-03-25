@@ -6,16 +6,16 @@
 - 9ca818c feat: enhance init script and templates
 - e78990e feat: add version flag to CLI and init script
 - 2f583b7 fix: ensure script permissions and centralize command strings
-- 5e6b223 docs: add enhancement plan v2 for ctx-packer-init
+- 5e6b223 docs: add enhancement plan v2 for wsctx-init
 - 3f9729a feat: add AI agent configuration installer with init script
-- de06207 feat(init): add ctx-packer-init command for AI agent configuration
-- 2febd1e feat(cli): add enhanced modular architecture plan for ctx-packer init
+- de06207 feat(init): add wsctx-init command for AI agent configuration
+- 2febd1e feat(cli): add enhanced modular architecture plan for ws-ctx-engine init
 - d12487c chore: bump version to 0.1.7 and update entry point script name
-- 4b264ea chore: rename CLI tool from context-pack to ctx-packer
+- 4b264ea chore: rename CLI tool from ws-ctx-engine to ws-ctx-engine
 - d129d93 feat(vector_index): add NativeLEANN backend for 97% storage savings
 - 45aa53d docs: add repository review and LEANN implementation research
 - 8e8457b build: update project version and dependencies for release 0.1.4
-- dec3a24 docs: Update README with ctx-packer name and AI Agents section
+- dec3a24 docs: Update README with ws-ctx-engine name and AI Agents section
 - ab52943 docs: Add AI_AGENTS.md for agent usage
 - a7c35c1 fix: properly exclude examples/zmr-koe/source from git
 - bca7395 feat: Add status, vacuum, reindex-domain commands
@@ -27,7 +27,7 @@
 - 0758179 feat(retrieval): add domain keyword map and query classifier for conceptual queries
 - 9d8a313 feat(retrieval): add symbol-based and path-based boosting to retrieval engine
 - c9736c5 test: refactor self-tests script to use function and clean output
-- c545007 feat: add self-test script and review prompts for context-packer
+- c545007 feat: add self-test script and review prompts for ws-ctx-engine
 - 4072a25 feat(chunker): enhance language resolvers and add comprehensive tests
 - db32cf9 refactor(chunker): restructure code into modular language resolvers
 - 37093a9 refactor: reorganize project structure into modules
@@ -37,16 +37,16 @@
 - 84ae9c5 feat(chunker): extend chunker to support markdown and more AST types
 - 5cef4ef docs: add chunker issues and improvement report
 - 2423cb6 feat(tests): add comprehensive test suite and example configurations
-- 45d9cf6 feat(context-packer): Add complete project implementation with core modules and tests
-- bf3e17f feat(context-packer): Initialize project with specifications and documentation
+- 45d9cf6 feat(ws-ctx-engine): Add complete project implementation with core modules and tests
+- bf3e17f feat(ws-ctx-engine): Initialize project with specifications and documentation
 
 
 ## [0.1.7] - 2026-03-25
 
 ### Added
-- `context-pack status` - Show index size, file count, backend info
-- `context-pack vacuum` - Optimize SQLite database
-- `context-pack reindex-domain` - Only rebuild domain_map.db (fast)
+- `ws-ctx-engine status` - Show index size, file count, backend info
+- `ws-ctx-engine vacuum` - Optimize SQLite database
+- `ws-ctx-engine reindex-domain` - Only rebuild domain_map.db (fast)
 - SQLite DomainMapDB backend for large repositories (>10K files)
 - Phase 1-4: Parallel Write → Shadow Read → SQLite Primary → Cleanup
 
@@ -63,9 +63,9 @@
 ## [0.1.6] - 2026-03-25
 
 ### Added
-- `context-pack status` - Show index size, file count, backend info
-- `context-pack vacuum` - Optimize SQLite database
-- `context-pack reindex-domain` - Only rebuild domain_map.db (fast)
+- `ws-ctx-engine status` - Show index size, file count, backend info
+- `ws-ctx-engine vacuum` - Optimize SQLite database
+- `ws-ctx-engine reindex-domain` - Only rebuild domain_map.db (fast)
 - SQLite DomainMapDB backend for large repositories (>10K files)
 - Phase 1-4: Parallel Write → Shadow Read → SQLite Primary → Cleanup
 
@@ -82,9 +82,9 @@
 ## [0.1.5] - 2026-03-25
 
 ### Added
-- `context-pack status` - Show index size, file count, backend info
-- `context-pack vacuum` - Optimize SQLite database
-- `context-pack reindex-domain` - Only rebuild domain_map.db (fast)
+- `ws-ctx-engine status` - Show index size, file count, backend info
+- `ws-ctx-engine vacuum` - Optimize SQLite database
+- `ws-ctx-engine reindex-domain` - Only rebuild domain_map.db (fast)
 - SQLite DomainMapDB backend for large repositories (>10K files)
 - Phase 1-4: Parallel Write → Shadow Read → SQLite Primary → Cleanup
 
@@ -101,9 +101,9 @@
 ## [0.1.4] - 2026-03-25
 
 ### Added
-- `context-pack status` - Show index size, file count, backend info
-- `context-pack vacuum` - Optimize SQLite database
-- `context-pack reindex-domain` - Only rebuild domain_map.db (fast)
+- `ws-ctx-engine status` - Show index size, file count, backend info
+- `ws-ctx-engine vacuum` - Optimize SQLite database
+- `ws-ctx-engine reindex-domain` - Only rebuild domain_map.db (fast)
 - SQLite DomainMapDB backend for large repositories (>10K files)
 - Phase 1-4: Parallel Write → Shadow Read → SQLite Primary → Cleanup
 
@@ -120,9 +120,9 @@
 ## [0.1.3] - 2026-03-24
 
 ### Added
-- `context-pack status` - Show index size, file count, backend info
-- `context-pack vacuum` - Optimize SQLite database
-- `context-pack reindex-domain` - Only rebuild domain_map.db (fast)
+- `ws-ctx-engine status` - Show index size, file count, backend info
+- `ws-ctx-engine vacuum` - Optimize SQLite database
+- `ws-ctx-engine reindex-domain` - Only rebuild domain_map.db (fast)
 - SQLite DomainMapDB backend for large repositories (>10K files)
 - Phase 1-4: Parallel Write → Shadow Read → SQLite Primary → Cleanup
 
@@ -139,9 +139,9 @@
 ## [0.1.2] - 2026-03-24
 
 ### Added
-- `context-pack status` - Show index size, file count, backend info
-- `context-pack vacuum` - Optimize SQLite database
-- `context-pack reindex-domain` - Only rebuild domain_map.db (fast)
+- `ws-ctx-engine status` - Show index size, file count, backend info
+- `ws-ctx-engine vacuum` - Optimize SQLite database
+- `ws-ctx-engine reindex-domain` - Only rebuild domain_map.db (fast)
 - SQLite DomainMapDB backend for large repositories (>10K files)
 - Phase 1-4: Parallel Write → Shadow Read → SQLite Primary → Cleanup
 
@@ -158,9 +158,9 @@
 ## [0.1.1] - 2026-03-24
 
 ### Added
-- `context-pack status` - Show index size, file count, backend info
-- `context-pack vacuum` - Optimize SQLite database
-- `context-pack reindex-domain` - Only rebuild domain_map.db (fast)
+- `ws-ctx-engine status` - Show index size, file count, backend info
+- `ws-ctx-engine vacuum` - Optimize SQLite database
+- `ws-ctx-engine reindex-domain` - Only rebuild domain_map.db (fast)
 - SQLite DomainMapDB backend for large repositories (>10K files)
 - Phase 1-4: Parallel Write → Shadow Read → SQLite Primary → Cleanup
 
@@ -187,7 +187,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README.md with installation instructions and usage examples
 - CONTRIBUTING.md with development guidelines
 - CODE_OF_CONDUCT.md based on Contributor Covenant 2.1
-- Example configuration file (.context-pack.yaml.example)
+- Example configuration file (.ws-ctx-engine.yaml.example)
 - GPL-3.0-or-later license
 
 ## [0.1.0] - 2025-01-XX

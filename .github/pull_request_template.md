@@ -47,7 +47,7 @@ Relates to #
 
 ```bash
 # Commands used for testing
-context-pack pack /path/to/test/repo
+ws-ctx-engine pack /path/to/test/repo
 ```
 
 **Test Results**:

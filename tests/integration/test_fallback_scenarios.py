@@ -15,8 +15,8 @@ import numpy as np
 import pytest
 from lxml import etree
 
-from context_packer.config import Config
-from context_packer.workflow import index_repository, query_and_pack
+from ws_ctx_engine.config import Config
+from ws_ctx_engine.workflow import index_repository, query_and_pack
 
 # Check if required dependencies are available
 try:
@@ -354,7 +354,7 @@ class TestLEANNToFAISSFallback:
             mock_st.return_value = mock_model
             
             # Mock LEANN to force failure
-            with patch('context_packer.vector_index.LEANNIndex', create=True) as mock_leann:
+            with patch('ws_ctx_engine.vector_index.LEANNIndex', create=True) as mock_leann:
                 # Make LEANN raise ImportError to trigger fallback
                 mock_leann.side_effect = ImportError("LEANN not available")
                 
@@ -369,7 +369,7 @@ class TestLEANNToFAISSFallback:
                 index_time = time.time() - start_time
                 
                 # Verify indexes were created
-                index_dir = small_repo / ".context-pack"
+                index_dir = small_repo / ".ws-ctx-engine"
                 assert (index_dir / "vector.idx").exists()
                 assert (index_dir / "graph.pkl").exists()
                 
@@ -430,7 +430,7 @@ class TestIGraphToNetworkXFallback:
             mock_st.return_value = mock_model
             
             # Mock igraph to force failure
-            with patch('context_packer.graph.IGraphRepoMap', create=True) as mock_igraph:
+            with patch('ws_ctx_engine.graph.IGraphRepoMap', create=True) as mock_igraph:
                 # Make igraph raise ImportError to trigger fallback
                 mock_igraph.side_effect = ImportError("igraph not available")
                 
@@ -445,7 +445,7 @@ class TestIGraphToNetworkXFallback:
                 index_time = time.time() - start_time
                 
                 # Verify indexes were created
-                index_dir = small_repo / ".context-pack"
+                index_dir = small_repo / ".ws-ctx-engine"
                 assert (index_dir / "vector.idx").exists()
                 assert (index_dir / "graph.pkl").exists()
                 
@@ -661,7 +661,7 @@ class TestErrorScenarios:
             )
             
             # Verify indexes were created
-            index_dir = small_repo / ".context-pack"
+            index_dir = small_repo / ".ws-ctx-engine"
             assert (index_dir / "vector.idx").exists()
             assert (index_dir / "graph.pkl").exists()
             

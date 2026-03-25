@@ -8,8 +8,8 @@ from unittest.mock import MagicMock, Mock, patch
 import numpy as np
 import pytest
 
-from context_packer.models import CodeChunk
-from context_packer.vector_index import (
+from ws_ctx_engine.models import CodeChunk
+from ws_ctx_engine.vector_index import (
     EmbeddingGenerator,
     FAISSIndex,
     LEANNIndex,
@@ -76,21 +76,21 @@ class TestEmbeddingGenerator:
         assert gen._model is None
         assert gen._use_api is False
     
-    @patch('context_packer.vector_index.vector_index.psutil.virtual_memory')
+    @patch('ws_ctx_engine.vector_index.vector_index.psutil.virtual_memory')
     def test_check_memory_sufficient(self, mock_memory):
         """Test memory check when sufficient memory available."""
         mock_memory.return_value.available = 1024 * 1024 * 1024  # 1GB
         gen = EmbeddingGenerator()
         assert gen._check_memory() is True
     
-    @patch('context_packer.vector_index.vector_index.psutil.virtual_memory')
+    @patch('ws_ctx_engine.vector_index.vector_index.psutil.virtual_memory')
     def test_check_memory_insufficient(self, mock_memory):
         """Test memory check when insufficient memory available."""
         mock_memory.return_value.available = 100 * 1024 * 1024  # 100MB
         gen = EmbeddingGenerator()
         assert gen._check_memory() is False
     
-    @patch('context_packer.vector_index.vector_index.psutil.virtual_memory')
+    @patch('ws_ctx_engine.vector_index.vector_index.psutil.virtual_memory')
     def test_encode_local_success(self, mock_memory):
         """Test successful local encoding."""
         mock_memory.return_value.available = 1024 * 1024 * 1024  # 1GB

@@ -11,7 +11,7 @@ We release patches for security vulnerabilities in the following versions:
 
 ## Reporting a Vulnerability
 
-We take the security of Context Packer seriously. If you believe you have found a security vulnerability, please report it to us as described below.
+We take the security of ws-ctx-engine seriously. If you believe you have found a security vulnerability, please report it to us as described below.
 
 ### Please Do Not
 
@@ -39,7 +39,7 @@ We take the security of Context Packer seriously. If you believe you have found 
 
 ## Security Best Practices
 
-When using Context Packer, follow these security best practices:
+When using ws-ctx-engine, follow these security best practices:
 
 ### API Keys and Secrets
 
@@ -53,7 +53,7 @@ When using Context Packer, follow these security best practices:
 
 ### Configuration Files
 
-- Review `.context-pack.yaml` before committing
+- Review `.ws-ctx-engine.yaml` before committing
 - Exclude sensitive paths in `exclude_patterns`
 - Be cautious with `include_patterns` to avoid exposing sensitive files
 
@@ -67,7 +67,7 @@ When using Context Packer, follow these security best practices:
 
 - Keep dependencies up to date:
   ```bash
-  pip install --upgrade context-packer
+  pip install --upgrade ws-ctx-engine
   ```
 - Review security advisories for dependencies
 - Use virtual environments to isolate dependencies
@@ -75,27 +75,27 @@ When using Context Packer, follow these security best practices:
 ### Network Security
 
 - When using OpenAI API fallback, ensure HTTPS connections
-- Review network logs in `.context-pack/logs/` for suspicious activity
+- Review network logs in `.ws-ctx-engine/logs/` for suspicious activity
 - Use firewall rules to restrict outbound connections if needed
 
 ## Known Security Considerations
 
 ### Code Execution
 
-Context Packer parses source code but **does not execute it**. However:
+ws-ctx-engine parses source code but **does not execute it**. However:
 - AST parsing may trigger parser bugs in Tree-sitter
 - Malformed source files could cause parser crashes (handled by fallback)
 
 ### Data Privacy
 
-- Indexed code is stored locally in `.context-pack/`
+- Indexed code is stored locally in `.ws-ctx-engine/`
 - When using OpenAI API fallback, code snippets are sent to OpenAI
 - Review OpenAI's data usage policy: https://openai.com/policies/api-data-usage-policies
 
 ### File System Access
 
-- Context Packer reads files from the specified repository path
-- It writes to `.context-pack/` and the configured output directory
+- ws-ctx-engine reads files from the specified repository path
+- It writes to `.ws-ctx-engine/` and the configured output directory
 - Ensure proper file permissions on sensitive repositories
 
 ## Security Updates
@@ -133,4 +133,4 @@ For general questions, use [GitHub Discussions](https://github.com/maemreyo/zmr-
 
 ---
 
-Thank you for helping keep Context Packer and its users safe!
+Thank you for helping keep ws-ctx-engine and its users safe!

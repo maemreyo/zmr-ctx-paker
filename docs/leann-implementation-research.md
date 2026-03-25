@@ -102,7 +102,7 @@ chat = LeannChat(
 response = chat.ask("Summarize the key findings", top_k=3)
 ```
 
-### Code-Specific Usage (For Context Packer)
+### Code-Specific Usage (For ws-ctx-engine)
 
 ```python
 from leann import LeannBuilder
@@ -148,12 +148,12 @@ uv sync --extra diskann
 
 ---
 
-## Tích Hợp Vào Context Packer
+## Tích Hợp Vào ws-ctx-engine
 
 ### Option 1: Thay Thế FAISS Hoàn Toàn
 
 ```python
-# src/context_packer/vector_index/leann_index.py
+# src/ws_ctx_engine/vector_index/leann_index.py
 from leann import LeannBuilder, LeannSearcher
 from pathlib import Path
 
@@ -182,7 +182,7 @@ class LEANNVectorIndex:
 ### Option 2: LEANN Như Primary, FAISS Fallback
 
 ```python
-# src/context_packer/vector_index/vector_index.py
+# src/ws_ctx_engine/vector_index/vector_index.py
 def create_vector_index() -> VectorIndex:
     try:
         from leann import LeannBuilder
@@ -213,7 +213,7 @@ def index(repo_path: str, use_leann: bool = False):
 
 ---
 
-## Storage Comparison: Context Packer Scenarios
+## Storage Comparison: ws-ctx-engine Scenarios
 
 ### Scenario: 10,000 file codebase
 
@@ -255,7 +255,7 @@ all = [
 
 ### Phase 2: Implement LEANNVectorIndex
 
-1. Create `src/context_packer/vector_index/leann_index.py`
+1. Create `src/ws_ctx_engine/vector_index/leann_index.py`
 2. Implement same interface as existing VectorIndex
 3. Add `backend_name` config option
 4. Add `backend="leann"` to auto-detection
@@ -294,7 +294,7 @@ all = [
 
 ### 4. Code Chunking Quality
 - LEANN has built-in code chunking for Python, Java, C#, TypeScript
-- Context Packer has sophisticated AST-based chunking
+- ws-ctx-engine has sophisticated AST-based chunking
 - Need to ensure compatibility between chunk boundaries
 
 ---

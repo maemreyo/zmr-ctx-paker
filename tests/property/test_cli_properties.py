@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 from hypothesis import given, settings, strategies as st
 
-from context_packer.config import Config
+from ws_ctx_engine.config import Config
 
 
 # Helper function to create a minimal test repository
@@ -52,7 +52,7 @@ def process_data(data):
 """)
     
     # Create config file that uses fallback backends (no API required)
-    config_file = repo_path / ".context-pack.yaml"
+    config_file = repo_path / ".ws-ctx-engine.yaml"
     config_file.write_text("""
 backends:
   vector_index: faiss
@@ -67,8 +67,8 @@ def test_cli_index_command_creates_indexes():
     """
     Property 29: CLI Index Command
     
-    For any valid repository path provided to `context-pack index`,
-    the command SHALL build and save indexes to `.context-pack/` directory.
+    For any valid repository path provided to `ws-ctx-engine index`,
+    the command SHALL build and save indexes to `.ws-ctx-engine/` directory.
     
     **Validates: Requirements 11.2**
     """
@@ -80,7 +80,7 @@ def test_cli_index_command_creates_indexes():
         
         # Run index command
         result = subprocess.run(
-            [sys.executable, "-m", "context_packer.cli", "index", str(repo_path)],
+            [sys.executable, "-m", "ws_ctx_engine.cli", "index", str(repo_path)],
             capture_output=True,
             text=True,
         )
@@ -89,7 +89,7 @@ def test_cli_index_command_creates_indexes():
         assert result.returncode == 0, f"Index command failed: {result.stderr}"
         
         # Verify indexes were created
-        index_dir = repo_path / ".context-pack"
+        index_dir = repo_path / ".ws-ctx-engine"
         assert index_dir.exists(), "Index directory was not created"
         assert (index_dir / "vector.idx").exists(), "Vector index was not created"
         assert (index_dir / "graph.pkl").exists(), "Graph was not created"
@@ -105,7 +105,7 @@ def test_cli_query_command_generates_output(format_choice: str, budget: int):
     """
     Property 30: CLI Query Command
     
-    For any query text provided to `context-pack query`,
+    For any query text provided to `ws-ctx-engine query`,
     the command SHALL search indexes and generate output in the configured format.
     
     **Validates: Requirements 11.3**
@@ -118,7 +118,7 @@ def test_cli_query_command_generates_output(format_choice: str, budget: int):
         
         # First, build indexes
         result = subprocess.run(
-            [sys.executable, "-m", "context_packer.cli", "index", str(repo_path)],
+            [sys.executable, "-m", "ws_ctx_engine.cli", "index", str(repo_path)],
             capture_output=True,
             text=True,
         )
@@ -129,7 +129,7 @@ def test_cli_query_command_generates_output(format_choice: str, budget: int):
         output_dir.mkdir(exist_ok=True)
         
         # Create config file with output settings
-        config_path = repo_path / ".context-pack.yaml"
+        config_path = repo_path / ".ws-ctx-engine.yaml"
         config_path.write_text(f"""
 format: {format_choice}
 token_budget: {budget}
@@ -139,7 +139,7 @@ output_path: {output_dir}
         # Run query command
         result = subprocess.run(
             [
-                sys.executable, "-m", "context_packer.cli", "query",
+                sys.executable, "-m", "ws_ctx_engine.cli", "query",
                 "calculator function",
                 "--repo", str(repo_path),
                 "--format", format_choice,
@@ -158,7 +158,7 @@ output_path: {output_dir}
             assert output_file.exists(), "XML output was not created"
             assert output_file.stat().st_size > 0, "XML output is empty"
         else:  # zip
-            output_file = output_dir / "context-pack.zip"
+            output_file = output_dir / "ws-ctx-engine.zip"
             assert output_file.exists(), "ZIP output was not created"
             assert output_file.stat().st_size > 0, "ZIP output is empty"
 
@@ -167,7 +167,7 @@ def test_cli_pack_command_executes_full_workflow():
     """
     Property 31: CLI Pack Command
     
-    For any valid repository path provided to `context-pack pack`,
+    For any valid repository path provided to `ws-ctx-engine pack`,
     the command SHALL execute the full workflow (index, query, pack) and produce output.
     
     **Validates: Requirements 11.4**
@@ -183,7 +183,7 @@ def test_cli_pack_command_executes_full_workflow():
         output_dir.mkdir(exist_ok=True)
         
         # Create config file
-        config_path = repo_path / ".context-pack.yaml"
+        config_path = repo_path / ".ws-ctx-engine.yaml"
         config_path.write_text(f"""
 format: xml
 token_budget: 50000
@@ -193,7 +193,7 @@ output_path: {output_dir}
         # Run pack command (full workflow)
         result = subprocess.run(
             [
-                sys.executable, "-m", "context_packer.cli", "pack",
+                sys.executable, "-m", "ws_ctx_engine.cli", "pack",
                 str(repo_path),
                 "--query", "calculator",
             ],
@@ -205,7 +205,7 @@ output_path: {output_dir}
         assert result.returncode == 0, f"Pack command failed: {result.stderr}"
         
         # Verify indexes were created
-        index_dir = repo_path / ".context-pack"
+        index_dir = repo_path / ".ws-ctx-engine"
         assert index_dir.exists(), "Index directory was not created"
         assert (index_dir / "vector.idx").exists(), "Vector index was not created"
         
@@ -225,7 +225,7 @@ def test_cli_flag_handling_overrides_config(format_choice: str, budget: int):
     Property 32: CLI Flag Handling
     
     For any valid CLI flags (--format, --budget, --config),
-    the Context_Packer SHALL apply the flag values,
+    the ws_ctx_engine SHALL apply the flag values,
     overriding configuration file or default values.
     
     **Validates: Requirements 11.5, 11.6, 11.7**
@@ -241,7 +241,7 @@ def test_cli_flag_handling_overrides_config(format_choice: str, budget: int):
         output_dir.mkdir(exist_ok=True)
         
         # Create config file with DIFFERENT values than CLI flags
-        config_path = repo_path / ".context-pack.yaml"
+        config_path = repo_path / ".ws-ctx-engine.yaml"
         opposite_format = "zip" if format_choice == "xml" else "xml"
         config_path.write_text(f"""
 format: {opposite_format}
@@ -251,7 +251,7 @@ output_path: {output_dir}
         
         # Build indexes first
         result = subprocess.run(
-            [sys.executable, "-m", "context_packer.cli", "index", str(repo_path)],
+            [sys.executable, "-m", "ws_ctx_engine.cli", "index", str(repo_path)],
             capture_output=True,
             text=True,
         )
@@ -260,7 +260,7 @@ output_path: {output_dir}
         # Run query with CLI flags that override config
         result = subprocess.run(
             [
-                sys.executable, "-m", "context_packer.cli", "query",
+                sys.executable, "-m", "ws_ctx_engine.cli", "query",
                 "test query",
                 "--repo", str(repo_path),
                 "--format", format_choice,  # Override config
@@ -278,11 +278,11 @@ output_path: {output_dir}
             output_file = output_dir / "repomix-output.xml"
             assert output_file.exists(), "XML output was not created (flag not applied)"
             # Verify ZIP was NOT created
-            zip_file = output_dir / "context-pack.zip"
+            zip_file = output_dir / "ws-ctx-engine.zip"
             assert not zip_file.exists() or zip_file.stat().st_size == 0, \
                 "ZIP was created despite --format xml flag"
         else:  # zip
-            output_file = output_dir / "context-pack.zip"
+            output_file = output_dir / "ws-ctx-engine.zip"
             assert output_file.exists(), "ZIP output was not created (flag not applied)"
 
 
@@ -301,7 +301,7 @@ def test_cli_exit_codes_success_and_failure():
         # Test 1: Success case - valid index command
         create_test_repo(repo_path)
         result = subprocess.run(
-            [sys.executable, "-m", "context_packer.cli", "index", str(repo_path)],
+            [sys.executable, "-m", "ws_ctx_engine.cli", "index", str(repo_path)],
             capture_output=True,
             text=True,
         )
@@ -310,7 +310,7 @@ def test_cli_exit_codes_success_and_failure():
         # Test 2: Failure case - invalid repo path
         invalid_path = repo_path / "nonexistent"
         result = subprocess.run(
-            [sys.executable, "-m", "context_packer.cli", "index", str(invalid_path)],
+            [sys.executable, "-m", "ws_ctx_engine.cli", "index", str(invalid_path)],
             capture_output=True,
             text=True,
         )
@@ -319,7 +319,7 @@ def test_cli_exit_codes_success_and_failure():
         # Test 3: Failure case - invalid format flag
         result = subprocess.run(
             [
-                sys.executable, "-m", "context_packer.cli", "query",
+                sys.executable, "-m", "ws_ctx_engine.cli", "query",
                 "test",
                 "--repo", str(repo_path),
                 "--format", "invalid_format",
@@ -332,7 +332,7 @@ def test_cli_exit_codes_success_and_failure():
         # Test 4: Failure case - invalid budget (negative)
         result = subprocess.run(
             [
-                sys.executable, "-m", "context_packer.cli", "query",
+                sys.executable, "-m", "ws_ctx_engine.cli", "query",
                 "test",
                 "--repo", str(repo_path),
                 "--budget", "-1000",
@@ -348,7 +348,7 @@ def test_cli_exit_codes_success_and_failure():
         create_test_repo(new_repo)
         result = subprocess.run(
             [
-                sys.executable, "-m", "context_packer.cli", "query",
+                sys.executable, "-m", "ws_ctx_engine.cli", "query",
                 "test",
                 "--repo", str(new_repo),
             ],
@@ -368,7 +368,7 @@ def test_cli_handles_missing_config_file():
         # Try to use non-existent config file
         result = subprocess.run(
             [
-                sys.executable, "-m", "context_packer.cli", "index",
+                sys.executable, "-m", "ws_ctx_engine.cli", "index",
                 str(repo_path),
                 "--config", str(repo_path / "nonexistent.yaml"),
             ],
@@ -397,7 +397,7 @@ def test_search_agent_mode_ndjson_lines_are_parseable(limit: int):
         env["TOKENIZERS_PARALLELISM"] = "false"
 
         index_result = subprocess.run(
-            [sys.executable, "-m", "context_packer.cli", "index", str(repo_path)],
+            [sys.executable, "-m", "ws_ctx_engine.cli", "index", str(repo_path)],
             capture_output=True,
             text=True,
             env=env,
@@ -408,7 +408,7 @@ def test_search_agent_mode_ndjson_lines_are_parseable(limit: int):
             [
                 sys.executable,
                 "-m",
-                "context_packer.cli",
+                "ws_ctx_engine.cli",
                 "--agent-mode",
                 "search",
                 "calculator",
@@ -465,7 +465,7 @@ output_path: {output_dir}
             [
                 sys.executable,
                 "-m",
-                "context_packer.cli",
+                "ws_ctx_engine.cli",
                 "pack",
                 str(repo_path),
                 "--query",
@@ -482,7 +482,7 @@ output_path: {output_dir}
 
         assert result.returncode == 0
 
-        output_file = output_dir / "context-pack.json"
+        output_file = output_dir / "ws-ctx-engine.json"
         assert output_file.exists()
 
         payload = json.loads(output_file.read_text(encoding="utf-8"))
@@ -501,7 +501,7 @@ def test_cli_verbose_flag_enables_detailed_logging():
         # Run with verbose flag
         result = subprocess.run(
             [
-                sys.executable, "-m", "context_packer.cli", "index",
+                sys.executable, "-m", "ws_ctx_engine.cli", "index",
                 str(repo_path),
                 "--verbose",
             ],

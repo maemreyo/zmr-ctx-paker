@@ -10,8 +10,8 @@ from pathlib import Path
 import pytest
 from hypothesis import given, strategies as st, assume, settings
 
-from context_packer.chunker import TreeSitterChunker, RegexChunker, parse_with_fallback
-from context_packer.models import CodeChunk
+from ws_ctx_engine.chunker import TreeSitterChunker, RegexChunker, parse_with_fallback
+from ws_ctx_engine.models import CodeChunk
 
 
 # Strategy for generating valid Python code

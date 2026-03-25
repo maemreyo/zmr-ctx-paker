@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from context_packer.chunker.regex import RegexChunker
+from ws_ctx_engine.chunker.regex import RegexChunker
 
 
 class TestRegexChunkerEdgeCases:

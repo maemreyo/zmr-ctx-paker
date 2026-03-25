@@ -1,4 +1,4 @@
-"""Performance benchmark tests for Context Packer.
+"""Performance benchmark tests for ws-ctx-engine.
 
 These tests verify that the system meets performance targets for indexing
 and querying operations with large repositories.
@@ -12,8 +12,8 @@ from pathlib import Path
 
 import pytest
 
-from context_packer.workflow import index_repository, query_and_pack
-from context_packer.config import Config
+from ws_ctx_engine.workflow import index_repository, query_and_pack
+from ws_ctx_engine.config import Config
 
 
 # Mark all tests in this module as benchmarks

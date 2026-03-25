@@ -1,14 +1,14 @@
 """
-Demo script showing ContextPackerLogger usage.
+Demo script showing WsCtxEngineLogger usage.
 """
 
-from context_packer import get_logger
+from ws_ctx_engine import get_logger
 
 # Get logger instance
 logger = get_logger()
 
 # Basic logging
-logger.info("Starting context packer")
+logger.info("Starting ws-ctx-engine")
 logger.debug("Debug information (only in file)")
 logger.warning("This is a warning")
 logger.error("This is an error")
@@ -38,6 +38,6 @@ except ValueError as e:
         context={"file_path": "example.py", "line_number": 42}
     )
 
-print("\nLogs written to .context-pack/logs/")
+print("\nLogs written to .ws-ctx-engine/logs/")
 print("Console shows INFO and above")
 print("File contains DEBUG and above")

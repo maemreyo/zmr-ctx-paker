@@ -12,11 +12,11 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
-from context_packer.config import Config
-from context_packer.mcp.config import MCPConfig
-from context_packer.mcp.tools import MCPToolService
-from context_packer.secret_scanner import SecretScanner
-from context_packer.workflow import index_repository
+from ws_ctx_engine.config import Config
+from ws_ctx_engine.mcp.config import MCPConfig
+from ws_ctx_engine.mcp.tools import MCPToolService
+from ws_ctx_engine.secret_scanner import SecretScanner
+from ws_ctx_engine.workflow import index_repository
 
 pytestmark = [pytest.mark.benchmark, pytest.mark.integration]
 
@@ -105,7 +105,7 @@ def test_search_codebase_p99_latency_under_200ms(benchmark_repo: Path) -> None:
 def test_secret_scan_cache_hit_rate_high_for_repeated_reads(tmp_path: Path) -> None:
     repo = tmp_path / "scan_cache_repo"
     repo.mkdir(parents=True, exist_ok=True)
-    (repo / ".context-pack").mkdir(parents=True, exist_ok=True)
+    (repo / ".ws-ctx-engine").mkdir(parents=True, exist_ok=True)
 
     target = repo / "config.py"
     target.write_text('API_KEY = "sk-live-secret-benchmark-token"\n', encoding="utf-8")
@@ -137,7 +137,7 @@ def test_secret_scan_cache_hit_rate_realistic_repo(tmp_path: Path) -> None:
     repo = tmp_path / "scan_cache_realistic_repo"
     src = repo / "src"
     src.mkdir(parents=True, exist_ok=True)
-    (repo / ".context-pack").mkdir(parents=True, exist_ok=True)
+    (repo / ".ws-ctx-engine").mkdir(parents=True, exist_ok=True)
 
     total_files = 120
     secret_file_count = 0

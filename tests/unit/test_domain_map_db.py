@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from context_packer.domain_map.db import DomainMapDB
+from ws_ctx_engine.domain_map.db import DomainMapDB
 
 
 class TestDomainMapDBInit:

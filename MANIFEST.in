@@ -7,7 +7,7 @@ include CODE_OF_CONDUCT.md
 include SECURITY.md
 
 # Include configuration examples
-include .context-pack.yaml.example
+include .ws-ctx-engine.yaml.example
 
 # Include package metadata
 include pyproject.toml
@@ -45,5 +45,5 @@ recursive-exclude htmlcov *
 recursive-exclude .benchmarks *
 recursive-exclude .hypothesis *
 
-# Exclude context-pack output
-recursive-exclude .context-pack *
+# Exclude ws-ctx-engine output
+recursive-exclude .ws-ctx-engine *

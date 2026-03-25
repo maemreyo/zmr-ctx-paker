@@ -1,12 +1,12 @@
-# ctx-packer MCP + Claude Desktop
+# ws-ctx-engine MCP + Claude Desktop
 
 ## Prerequisites
 
-- `ctx-packer` is installed and available in `PATH`
+- `ws-ctx-engine` is installed and available in `PATH`
 - Repository has been indexed at least once
 
 ```bash
-ctx-packer index .
+ws-ctx-engine index .
 ```
 
 ## Start MCP server
@@ -14,7 +14,7 @@ ctx-packer index .
 From your repository root:
 
 ```bash
-ctx-packer mcp --workspace .
+ws-ctx-engine mcp --workspace .
 ```
 
 ## Configure Claude Desktop
@@ -24,8 +24,8 @@ Add a server entry to Claude Desktop MCP config:
 ```json
 {
   "mcpServers": {
-    "ctx-packer": {
-      "command": "ctx-packer",
+    "ws-ctx-engine": {
+      "command": "ws-ctx-engine",
       "args": ["mcp", "--workspace", "/absolute/path/to/repo"]
     }
   }

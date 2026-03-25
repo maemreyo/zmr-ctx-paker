@@ -2,8 +2,8 @@
 
 import pytest
 
-from context_packer.chunker import ASTChunker
-from context_packer.models import CodeChunk
+from ws_ctx_engine.chunker import ASTChunker
+from ws_ctx_engine.models import CodeChunk
 
 
 class TestASTChunker:

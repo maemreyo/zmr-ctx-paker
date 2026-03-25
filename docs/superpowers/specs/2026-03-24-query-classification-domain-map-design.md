@@ -38,14 +38,14 @@ The current hybrid retrieval engine (semantic + PageRank + symbol boost + path b
 A lightweight data object built during indexing that maps domain keywords to the directories that contain them.
 
 ```
-.context-pack/
+.ws-ctx-engine/
 ├── vector.idx        # LEANN embeddings (existing)
 ├── graph.pkl         # RepoMap dependency graph (existing)
 ├── metadata.json     # Index metadata (existing)
 └── domain_map.pkl    # NEW: keyword → [directory] mapping
 ```
 
-**Location:** `src/context_packer/domain_map/domain_map.py`
+**Location:** `src/ws_ctx_engine/domain_map/domain_map.py`
 
 **Interface:**
 ```python
@@ -194,11 +194,11 @@ def _compute_domain_scores(tokens, all_files, domain_map) -> Dict[str, float]:
 
 | File | Type | Change |
 |---|---|---|
-| `src/context_packer/domain_map/__init__.py` | New | Export `DomainKeywordMap` |
-| `src/context_packer/domain_map/domain_map.py` | New | `DomainKeywordMap` class |
-| `src/context_packer/workflow/indexer.py` | Modified | Phase 6: build + save domain map |
-| `src/context_packer/workflow/query.py` | Modified | Load `domain_map.pkl` at query time |
-| `src/context_packer/retrieval/retrieval.py` | Modified | `domain_map` param, classifier, domain scorer, effective weights |
+| `src/ws_ctx_engine/domain_map/__init__.py` | New | Export `DomainKeywordMap` |
+| `src/ws_ctx_engine/domain_map/domain_map.py` | New | `DomainKeywordMap` class |
+| `src/ws_ctx_engine/workflow/indexer.py` | Modified | Phase 6: build + save domain map |
+| `src/ws_ctx_engine/workflow/query.py` | Modified | Load `domain_map.pkl` at query time |
+| `src/ws_ctx_engine/retrieval/retrieval.py` | Modified | `domain_map` param, classifier, domain scorer, effective weights |
 | `tests/unit/test_domain_map.py` | New | Unit tests for keyword extraction and map building |
 | `tests/unit/test_retrieval.py` | Modified | Tests for classifier and domain scoring integration |
 

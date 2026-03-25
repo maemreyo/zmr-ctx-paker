@@ -7,7 +7,7 @@ from typing import List, Tuple
 import pytest
 from hypothesis import given, strategies as st, assume
 
-from context_packer.budget import BudgetManager
+from ws_ctx_engine.budget import BudgetManager
 
 
 # Strategy for generating file content
@@ -45,7 +45,7 @@ def create_temp_files(
     return temp_dir, ranked_files
 
 
-# Feature: context-packer, Property 13: Greedy Selection Ordering
+# Feature: ws-ctx-engine, Property 13: Greedy Selection Ordering
 @given(
     st.lists(
         st.tuples(
@@ -98,7 +98,7 @@ def test_greedy_selection_ordering(file_data, token_budget):
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 
-# Feature: context-packer, Property 14: Budget Enforcement
+# Feature: ws-ctx-engine, Property 14: Budget Enforcement
 @given(
     st.lists(
         st.tuples(
@@ -146,7 +146,7 @@ def test_budget_enforcement(file_data, token_budget):
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 
-# Feature: context-packer, Property 15: Budget Manager Output Completeness
+# Feature: ws-ctx-engine, Property 15: Budget Manager Output Completeness
 @given(
     st.lists(
         st.tuples(
@@ -199,7 +199,7 @@ def test_budget_manager_output_completeness(file_data, token_budget):
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 
-# Feature: context-packer, Property 16: Greedy Knapsack Optimality
+# Feature: ws-ctx-engine, Property 16: Greedy Knapsack Optimality
 @given(
     st.lists(
         st.tuples(

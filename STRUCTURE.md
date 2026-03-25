@@ -1,13 +1,13 @@
 # Package Structure
 
-This document describes the Context Packer package structure created in Task 1.1.
+This document describes the ws-ctx-engine package structure created in Task 1.1.
 
 ## Directory Layout
 
 ```
-context-packer/
+ws-ctx-engine/
 ├── src/
-│   └── context_packer/          # Main package directory
+│   └── ws_ctx_engine/          # Main package directory
 │       ├── __init__.py           # Package initialization
 │       ├── cli.py                # CLI entry point (placeholder)
 │       └── py.typed              # PEP 561 type checking marker
@@ -24,7 +24,7 @@ context-packer/
 │   └── PRD.md                    # Product Requirements Document
 ├── .kiro/
 │   └── specs/
-│       └── context-packer/       # Spec files
+│       └── ws-ctx-engine/       # Spec files
 │           ├── requirements.md
 │           ├── design.md
 │           └── tasks.md
@@ -34,7 +34,7 @@ context-packer/
 ├── STRUCTURE.md                  # This file
 ├── LICENSE                       # MIT License
 ├── .gitignore                    # Git ignore patterns
-└── .context-pack.yaml.example    # Example configuration file
+└── .ws-ctx-engine.yaml.example    # Example configuration file
 ```
 
 ## Key Files
@@ -45,17 +45,17 @@ The main package configuration file following PEP 621 standards. Defines:
 - Build system (setuptools)
 - Three dependency tiers: core, fast, all
 - Development dependencies
-- CLI entry point: `context-pack`
+- CLI entry point: `ws-ctx-engine`
 - Testing configuration (pytest, coverage)
 - Code quality tools (black, ruff, mypy)
 
-### src/context_packer/__init__.py
+### src/ws_ctx_engine/__init__.py
 Package initialization file that exports the version number.
 
-### src/context_packer/cli.py
+### src/ws_ctx_engine/cli.py
 Placeholder for the CLI implementation (will be implemented in Task 17).
 
-### src/context_packer/py.typed
+### src/ws_ctx_engine/py.typed
 PEP 561 marker file indicating this package supports type checking.
 
 ## Dependency Tiers
@@ -109,10 +109,10 @@ Tests are organized into three categories:
 
 ## CLI Entry Point
 
-The package provides a `context-pack` command-line tool:
+The package provides a `ws-ctx-engine` command-line tool:
 ```toml
 [project.scripts]
-context-pack = "context_packer.cli:main"
+ws-ctx-engine = "ws_ctx_engine.cli:main"
 ```
 
 ## Code Quality Tools
@@ -133,13 +133,13 @@ context-pack = "context_packer.cli:main"
 
 ```bash
 # Core tier
-pip install context-packer
+pip install ws-ctx-engine
 
 # Fast tier (recommended)
-pip install context-packer[fast]
+pip install ws-ctx-engine[fast]
 
 # All tier (full features)
-pip install context-packer[all]
+pip install ws-ctx-engine[all]
 
 # Development
 pip install -e ".[dev]"

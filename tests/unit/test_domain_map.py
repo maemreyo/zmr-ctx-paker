@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from context_packer.domain_map import DomainKeywordMap
-from context_packer.models import CodeChunk
+from ws_ctx_engine.domain_map import DomainKeywordMap
+from ws_ctx_engine.models import CodeChunk
 
 
 class TestDomainKeywordMap:
@@ -242,7 +242,7 @@ class TestRetrievalEngineQueryClassification:
 
     def test_classify_symbol_query(self):
         """Test that PascalCase queries are classified as symbol."""
-        from context_packer.retrieval.retrieval import RetrievalEngine
+        from ws_ctx_engine.retrieval.retrieval import RetrievalEngine
 
         vector_idx = MockVectorIndex()
         graph = MockRepoMapGraph()
@@ -253,7 +253,7 @@ class TestRetrievalEngineQueryClassification:
 
     def test_classify_snake_case_query(self):
         """Test that snake_case tokens are classified as symbol."""
-        from context_packer.retrieval.retrieval import RetrievalEngine
+        from ws_ctx_engine.retrieval.retrieval import RetrievalEngine
 
         vector_idx = MockVectorIndex()
         graph = MockRepoMapGraph()
@@ -264,7 +264,7 @@ class TestRetrievalEngineQueryClassification:
 
     def test_classify_path_dominant(self):
         """Test that domain keyword queries are classified as path-dominant."""
-        from context_packer.retrieval.retrieval import RetrievalEngine, DomainKeywordMap
+        from ws_ctx_engine.retrieval.retrieval import RetrievalEngine, DomainKeywordMap
 
         vector_idx = MockVectorIndex()
         graph = MockRepoMapGraph()
@@ -279,7 +279,7 @@ class TestRetrievalEngineQueryClassification:
 
     def test_effective_weights_symbol(self):
         """Test effective weights for symbol queries."""
-        from context_packer.retrieval.retrieval import RetrievalEngine
+        from ws_ctx_engine.retrieval.retrieval import RetrievalEngine
 
         vector_idx = MockVectorIndex()
         graph = MockRepoMapGraph()
@@ -298,7 +298,7 @@ class TestRetrievalEngineQueryClassification:
 
     def test_effective_weights_path_dominant(self):
         """Test effective weights for path-dominant queries."""
-        from context_packer.retrieval.retrieval import RetrievalEngine
+        from ws_ctx_engine.retrieval.retrieval import RetrievalEngine
 
         vector_idx = MockVectorIndex()
         graph = MockRepoMapGraph()
@@ -317,7 +317,7 @@ class TestRetrievalEngineQueryClassification:
 
     def test_compute_domain_scores(self):
         """Test domain score computation."""
-        from context_packer.retrieval.retrieval import RetrievalEngine, DomainKeywordMap
+        from ws_ctx_engine.retrieval.retrieval import RetrievalEngine, DomainKeywordMap
 
         vector_idx = MockVectorIndex()
         graph = MockRepoMapGraph()

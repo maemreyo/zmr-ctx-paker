@@ -11,11 +11,11 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
-from context_packer.config import Config
-from context_packer.mcp.config import MCPConfig
-from context_packer.mcp.server import MCPStdioServer
-from context_packer.mcp.tools import MCPToolService
-from context_packer.workflow import index_repository
+from ws_ctx_engine.config import Config
+from ws_ctx_engine.mcp.config import MCPConfig
+from ws_ctx_engine.mcp.server import MCPStdioServer
+from ws_ctx_engine.mcp.tools import MCPToolService
+from ws_ctx_engine.workflow import index_repository
 
 FAISS_AVAILABLE = importlib.util.find_spec("faiss") is not None
 NETWORKX_AVAILABLE = importlib.util.find_spec("networkx") is not None

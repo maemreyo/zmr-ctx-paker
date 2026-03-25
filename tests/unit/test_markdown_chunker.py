@@ -5,9 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from context_packer.chunker.markdown import MarkdownChunker
-from context_packer.models import CodeChunk
-from context_packer.config import Config
+from ws_ctx_engine.chunker.markdown import MarkdownChunker
+from ws_ctx_engine.models import CodeChunk
+from ws_ctx_engine.config import Config
 
 
 class TestMarkdownChunker:

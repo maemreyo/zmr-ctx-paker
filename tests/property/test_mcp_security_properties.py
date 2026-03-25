@@ -8,8 +8,8 @@ from pathlib import Path
 import pytest
 from hypothesis import given, strategies as st
 
-from context_packer.mcp.security.path_guard import WorkspacePathGuard
-from context_packer.mcp.security.rade_delimiter import RADESession
+from ws_ctx_engine.mcp.security.path_guard import WorkspacePathGuard
+from ws_ctx_engine.mcp.security.rade_delimiter import RADESession
 
 
 _SEGMENT = st.sampled_from([

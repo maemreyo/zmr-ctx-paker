@@ -1,7 +1,7 @@
-# Context Packer: Chunker Issues & Improvement Report
+# ws-ctx-engine: Chunker Issues & Improvement Report
 
 **Date:** 2026-03-24
-**Component:** `src/context_packer/chunker.py`
+**Component:** `src/ws_ctx_engine/chunker.py`
 
 This report summarizes critical issues found during the evaluation of the context extraction logic, specifically regarding missing file types and limitations in the custom chunker implementations.
 

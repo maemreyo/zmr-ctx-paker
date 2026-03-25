@@ -1,6 +1,6 @@
 # Code Review Prompts for zmr-ctx-paker
 
-## Example Query Prompts (for testing context-packer on itself)
+## Example Query Prompts (for testing ws-ctx-engine on itself)
 
 | # | ID | Prompt |
 |---|-----|--------|
@@ -19,8 +19,8 @@
 
 ```bash
 cd /Users/trung.ngo/Documents/zaob-dev/zmr-ctx-paker
-chmod +x examples/context-packer-self/run_self_tests.sh
-./examples/context-packer-self/run_self_tests.sh
+chmod +x examples/ws-ctx-engine-self/run_self_tests.sh
+./examples/ws-ctx-engine-self/run_self_tests.sh
 ```
 
 ---
@@ -146,7 +146,7 @@ Show me how Chunker.parse() decides which chunker to use
 cd /Users/trung.ngo/Documents/zaob-dev/zmr-ctx-paker && python3 -m pytest tests/unit/test_resolvers.py tests/unit/test_tree_sitter_chunker.py -v
 
 # Run coverage for chunker
-cd /Users/trung.ngo/Documents/zaob-dev/zmr-ctx-paker && python3 -m pytest tests/unit/ --ignore=tests/unit/test_cli.py --cov=src/context_packer/chunker --cov-report=term
+cd /Users/trung.ngo/Documents/zaob-dev/zmr-ctx-paker && python3 -m pytest tests/unit/ --ignore=tests/unit/test_cli.py --cov=src/ws_ctx_engine/chunker --cov-report=term
 
 # Run full test suite
 cd /Users/trung.ngo/Documents/zaob-dev/zmr-ctx-paker && python3 -m pytest tests/unit/ --ignore=tests/unit/test_cli.py -v

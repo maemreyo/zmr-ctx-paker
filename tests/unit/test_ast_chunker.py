@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from context_packer.chunker import ASTChunker
-from context_packer.models import CodeChunk
+from ws_ctx_engine.chunker import ASTChunker
+from ws_ctx_engine.models import CodeChunk
 
 
 # Sample Python code for testing
@@ -98,7 +98,7 @@ class TestTreeSitterChunker:
         Requirements: 1.1, 1.2, 1.3, 1.4
         """
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitterChunker not implemented yet")
         
@@ -124,7 +124,7 @@ class TestTreeSitterChunker:
         Requirements: 1.1, 1.2, 1.3, 1.4
         """
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitterChunker not implemented yet")
         
@@ -150,7 +150,7 @@ class TestTreeSitterChunker:
         Requirements: 1.5
         """
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitterChunker not implemented yet")
         
@@ -168,7 +168,7 @@ class TestTreeSitterChunker:
         Requirements: 1.1, 1.2, 1.3, 1.4
         """
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitterChunker not implemented yet")
         
@@ -216,7 +216,7 @@ class TestRegexChunker:
         Requirements: 1.5
         """
         try:
-            from context_packer.chunker import RegexChunker
+            from ws_ctx_engine.chunker import RegexChunker
         except ImportError:
             pytest.skip("RegexChunker not implemented yet")
         
@@ -241,7 +241,7 @@ class TestRegexChunker:
         Requirements: 1.5
         """
         try:
-            from context_packer.chunker import RegexChunker
+            from ws_ctx_engine.chunker import RegexChunker
         except ImportError:
             pytest.skip("RegexChunker not implemented yet")
         
@@ -271,7 +271,7 @@ class TestFallbackLogic:
         Requirements: 1.5, 1.6, 10.1, 10.2
         """
         try:
-            from context_packer.chunker import parse_with_fallback
+            from ws_ctx_engine.chunker import parse_with_fallback
         except ImportError:
             pytest.skip("parse_with_fallback not implemented yet")
         
@@ -286,7 +286,7 @@ class TestFallbackLogic:
         Requirements: 1.6, 10.2
         """
         try:
-            from context_packer.chunker import parse_with_fallback
+            from ws_ctx_engine.chunker import parse_with_fallback
         except ImportError:
             pytest.skip("parse_with_fallback not implemented yet")
         

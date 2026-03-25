@@ -1,13 +1,13 @@
-# Context-Packer Stress Tests
+# ws-ctx-engine Stress Tests
 
 ## Overview
 
-Stress test suite for context-packer that runs multiple test scenarios with detailed logging and artifact collection.
+Stress test suite for ws-ctx-engine that runs multiple test scenarios with detailed logging and artifact collection.
 
 ## Features
 
 - **Clear test prompts**: Each test has a description of what it's testing
-- **Detailed logging**: Each test run saves stdout, stderr, and context-packer logs
+- **Detailed logging**: Each test run saves stdout, stderr, and ws-ctx-engine logs
 - **Organized artifacts**: Each test run gets its own folder with all artifacts
 - **Summary reports**: Automatic generation of markdown summary with all results
 
@@ -23,7 +23,7 @@ tests/
     │   ├── test_results.json       # Test results
     │   ├── stdout.log              # Command stdout
     │   ├── stderr.log              # Command stderr
-    │   ├── context-packer.log      # Context-packer log
+    │   ├── ws-ctx-engine.log      # ws-ctx-engine log
     │   └── artifacts/              # Copied artifacts
     │       ├── metadata.json       # Index metadata
     │       ├── vector.idx          # Vector index
@@ -126,9 +126,9 @@ Contains test execution results:
 ```
 
 ### Logs
-- `stdout.log`: Standard output from context-packer command
-- `stderr.log`: Standard error from context-packer command
-- `context-packer.log`: Detailed context-packer internal logs
+- `stdout.log`: Standard output from ws-ctx-engine command
+- `stderr.log`: Standard error from ws-ctx-engine command
+- `ws-ctx-engine.log`: Detailed ws-ctx-engine internal logs
 
 ### Artifacts
 - `metadata.json`: Index metadata (file count, backend, hashes)
@@ -166,12 +166,12 @@ results.append(runner.run_test(
 ## Tips
 
 1. **Review artifacts**: Each test run folder contains all artifacts for debugging
-2. **Check logs**: Look at `context-packer.log` for detailed execution info
+2. **Check logs**: Look at `ws-ctx-engine.log` for detailed execution info
 3. **Compare runs**: Use different output directories to compare test runs
 4. **CI/CD integration**: Script exits with code 1 on failure for CI/CD pipelines
 
 ## Requirements
 
 - Python 3.8+
-- context-packer installed and in PATH
+- ws-ctx-engine installed and in PATH
 - Write access to tests/ directory

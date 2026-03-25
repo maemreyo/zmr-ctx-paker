@@ -7,9 +7,9 @@ Tests backend fallback logic and error handling.
 import pytest
 from hypothesis import given, strategies as st
 
-from context_packer.backend_selector import BackendSelector, create_backend_selector
-from context_packer.config import Config
-from context_packer.errors import DependencyError
+from ws_ctx_engine.backend_selector import BackendSelector, create_backend_selector
+from ws_ctx_engine.config import Config
+from ws_ctx_engine.errors import DependencyError
 
 
 # Property 28: Graceful Degradation
@@ -18,7 +18,7 @@ def test_property_28_graceful_degradation_vector_index():
     """
     Property 28: Graceful Degradation (Vector Index)
     
-    For any component where all backends fail, the Context_Packer SHALL
+    For any component where all backends fail, the ws_ctx_engine SHALL
     degrade to a simpler algorithm (TF-IDF for vector index, file size
     ranking for graph) and continue execution rather than crashing.
     """
@@ -44,7 +44,7 @@ def test_property_28_graceful_degradation_graph():
     """
     Property 28: Graceful Degradation (Graph)
     
-    For any component where all backends fail, the Context_Packer SHALL
+    For any component where all backends fail, the ws_ctx_engine SHALL
     degrade to a simpler algorithm and continue execution rather than crashing.
     """
     # Create config with auto backend selection

@@ -1,4 +1,4 @@
-# Repository Review: Context Packer
+# Repository Review: ws-ctx-engine
 
 **Date:** 2026-03-25
 **Status:** In Progress (Alpha Stage)
@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-**Context Packer** là công cụ Python đóng gói codebase thành context tối ưu cho LLM, sử dụng hybrid ranking kết hợp semantic search + PageRank. Project có architecture tốt, documentation đầy đủ, và strategy cho việc handle failures (fallback systems).
+**ws-ctx-engine** là công cụ Python đóng gói codebase thành context tối ưu cho LLM, sử dụng hybrid ranking kết hợp semantic search + PageRank. Project có architecture tốt, documentation đầy đủ, và strategy cho việc handle failures (fallback systems).
 
 **Verdict:** Tiềm năng CAO - cần giải quyết một số issues trước khi production release.
 
@@ -137,7 +137,7 @@ all = [
 ## Package Structure
 
 ```
-src/context_packer/
+src/ws_ctx_engine/
 ├── chunker/           # AST parsing (tree-sitter primary, regex fallback)
 ├── graph/             # PageRank (igraph primary, NetworkX fallback)
 ├── vector_index/      # Semantic search (FAISS/scikit-learn)

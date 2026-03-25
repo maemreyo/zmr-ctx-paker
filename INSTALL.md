@@ -2,7 +2,7 @@
 
 ## Dependency Tiers
 
-Context Packer offers three installation tiers to balance functionality and dependencies:
+ws-ctx-engine offers three installation tiers to balance functionality and dependencies:
 
 ### Core (Minimal)
 The core tier includes only essential dependencies for basic functionality:
@@ -12,7 +12,7 @@ The core tier includes only essential dependencies for basic functionality:
 
 **Install:**
 ```bash
-pip install context-packer
+pip install ws-ctx-engine
 ```
 
 **Use case:** When you want minimal dependencies and are okay with basic functionality.
@@ -25,7 +25,7 @@ The fast tier adds fallback backends for improved reliability:
 
 **Install:**
 ```bash
-pip install context-packer[fast]
+pip install ws-ctx-engine[fast]
 ```
 
 **Use case:** Recommended for most users. Provides good performance with fallback strategies.
@@ -41,7 +41,7 @@ The all tier includes primary backends for optimal performance:
 
 **Install:**
 ```bash
-pip install context-packer[all]
+pip install ws-ctx-engine[all]
 ```
 
 **Use case:** When you need maximum performance and all features.
@@ -68,7 +68,7 @@ This includes:
 After installation, verify the package is working:
 
 ```bash
-python -c "import context_packer; print(context_packer.__version__)"
+python -c "import ws_ctx_engine; print(ws_ctx_engine.__version__)"
 ```
 
 You should see: `0.1.0`
@@ -86,12 +86,12 @@ If you get an error about Python version, check your Python version:
 python --version
 ```
 
-Context Packer requires Python 3.9 or higher.
+ws-ctx-engine requires Python 3.9 or higher.
 
 ### Permission Errors
 If you get permission errors during installation, try:
 ```bash
-pip install --user context-packer
+pip install --user ws-ctx-engine
 ```
 
 ### C++ Compilation Errors (All tier)
@@ -100,7 +100,7 @@ Some dependencies in the "all" tier require C++ compilation:
 - `py-tree-sitter` requires C++ compiler
 
 If you encounter compilation errors, you can:
-1. Install the "fast" tier instead: `pip install context-packer[fast]`
+1. Install the "fast" tier instead: `pip install ws-ctx-engine[fast]`
 2. Install build tools for your platform:
    - **macOS**: `xcode-select --install`
    - **Ubuntu/Debian**: `sudo apt-get install build-essential`

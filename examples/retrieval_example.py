@@ -10,10 +10,10 @@ RepoMapGraph implementations.
 """
 
 from typing import List, Tuple, Dict, Optional
-from context_packer.models import CodeChunk
-from context_packer.vector_index import VectorIndex
-from context_packer.graph import RepoMapGraph
-from context_packer.retrieval import RetrievalEngine
+from ws_ctx_engine.models import CodeChunk
+from ws_ctx_engine.vector_index import VectorIndex
+from ws_ctx_engine.graph import RepoMapGraph
+from ws_ctx_engine.retrieval import RetrievalEngine
 
 
 # Mock implementations for demonstration

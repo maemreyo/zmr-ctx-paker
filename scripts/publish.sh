@@ -2,7 +2,7 @@
 set -e
 
 echo "============================================"
-echo "  Context Packer Release & Publish Script"
+echo "  ws-ctx-engine Release & Publish Script"
 echo "============================================"
 echo
 

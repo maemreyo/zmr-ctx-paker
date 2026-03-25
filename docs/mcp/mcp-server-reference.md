@@ -1,9 +1,9 @@
-# ctx-packer MCP Server Reference
+# ws-ctx-engine MCP Server Reference
 
 ## Entry points
 
-- CLI: `ctx-packer mcp --workspace <path>`
-- Module: `python -m context_packer.mcp_server`
+- CLI: `ws-ctx-engine mcp --workspace <path>`
+- Module: `python -m ws_ctx_engine.mcp_server`
 
 ## Workspace binding
 
@@ -14,7 +14,7 @@ The server is bound to one workspace root. All file requests are resolved under 
 - Read-only tool registry (no write/exec tools)
 - Path traversal guard
 - RADE content delimiters for safe file payload boundaries
-- Secret scanning with cache (`.context-pack/secret_scan_cache.json`)
+- Secret scanning with cache (`.ws-ctx-engine/secret_scan_cache.json`)
 - Per-tool rate limiting
 
 ## Tool reference
@@ -84,7 +84,7 @@ Common error codes:
 
 ## Configuration
 
-Default config path: `.context-pack/mcp_config.json`
+Default config path: `.ws-ctx-engine/mcp_config.json`
 
 Supported fields:
 

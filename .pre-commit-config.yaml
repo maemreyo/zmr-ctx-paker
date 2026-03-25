@@ -1,4 +1,4 @@
-# Pre-commit hooks for Context Packer
+# Pre-commit hooks for ws-ctx-engine
 # Install: pre-commit install
 # Run manually: pre-commit run --all-files
 

@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import MagicMock
 
-from context_packer.chunker.resolvers import (
+from ws_ctx_engine.chunker.resolvers import (
     LanguageResolver,
     RustResolver,
     PythonResolver,

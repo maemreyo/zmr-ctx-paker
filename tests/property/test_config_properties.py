@@ -12,7 +12,7 @@ import pytest
 import yaml
 from hypothesis import given, strategies as st
 
-from context_packer.config import Config
+from ws_ctx_engine.config import Config
 
 
 # Strategy for valid configuration dictionaries
@@ -55,7 +55,7 @@ def test_property_22_configuration_loading(config_data):
     """
     Property 22: Configuration Loading
     
-    For any valid .context-pack.yaml file, the Context_Packer SHALL load
+    For any valid .ws-ctx-engine.yaml file, the ws_ctx_engine SHALL load
     and apply all configuration values (format, token_budget, weights,
     patterns, backends).
     """
@@ -114,7 +114,7 @@ def test_property_23_configuration_error_handling(invalid_format, invalid_budget
     """
     Property 23: Configuration Error Handling
     
-    For any invalid configuration value, the Context_Packer SHALL log an error
+    For any invalid configuration value, the ws_ctx_engine SHALL log an error
     and use the corresponding default value instead of crashing.
     """
     # Create configuration with invalid values
@@ -152,7 +152,7 @@ def test_property_23_missing_config_file():
     """
     Property 23: Configuration Error Handling (missing file case)
     
-    When configuration file is missing, the Context_Packer SHALL use
+    When configuration file is missing, the ws_ctx_engine SHALL use
     default configuration without crashing.
     """
     # Try to load non-existent file
@@ -170,7 +170,7 @@ def test_property_23_empty_config_file():
     """
     Property 23: Configuration Error Handling (empty file case)
     
-    When configuration file is empty, the Context_Packer SHALL use
+    When configuration file is empty, the ws_ctx_engine SHALL use
     default configuration without crashing.
     """
     # Create empty YAML file
@@ -196,7 +196,7 @@ def test_property_23_malformed_yaml():
     """
     Property 23: Configuration Error Handling (malformed YAML case)
     
-    When configuration file contains malformed YAML, the Context_Packer
+    When configuration file contains malformed YAML, the ws_ctx_engine
     SHALL use default configuration without crashing.
     """
     # Create malformed YAML file

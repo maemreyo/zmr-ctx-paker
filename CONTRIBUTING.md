@@ -1,6 +1,6 @@
-# Contributing to Context Packer
+# Contributing to ws-ctx-engine
 
-Thank you for your interest in contributing to Context Packer! This document provides guidelines and instructions for contributing to the project.
+Thank you for your interest in contributing to ws-ctx-engine! This document provides guidelines and instructions for contributing to the project.
 
 ## Table of Contents
 
@@ -65,7 +65,7 @@ This project adheres to a Code of Conduct that all contributors are expected to 
 pytest
 
 # Run with coverage
-pytest --cov=context_packer --cov-report=html
+pytest --cov=ws_ctx_engine --cov-report=html
 
 # Run specific test types
 pytest -m property  # Property-based tests
@@ -118,7 +118,7 @@ We welcome various types of contributions:
 ### Code Organization
 
 ```
-src/context_packer/
+src/ws_ctx_engine/
 ├── __init__.py
 ├── cli.py              # CLI interface
 ├── chunker/            # AST parsing
@@ -318,7 +318,7 @@ What actually happened.
 **Environment**
 - OS: [e.g., Ubuntu 22.04]
 - Python version: [e.g., 3.11.5]
-- Context Packer version: [e.g., 0.1.0]
+- ws-ctx-engine version: [e.g., 0.1.0]
 - Installation method: [pip, source]
 
 **Additional context**
@@ -358,7 +358,7 @@ Other solutions or features you've considered.
 ### Debugging
 
 - Use `--verbose` flag for detailed logging
-- Check logs in `.context-pack/logs/`
+- Check logs in `.ws-ctx-engine/logs/`
 - Use Python debugger: `import pdb; pdb.set_trace()`
 
 ### Performance Profiling
@@ -368,7 +368,7 @@ Other solutions or features you've considered.
 pytest -m benchmark --benchmark-only
 
 # Profile with cProfile
-python -m cProfile -o profile.stats -m context_packer.cli pack /path/to/repo
+python -m cProfile -o profile.stats -m ws_ctx_engine.cli pack /path/to/repo
 ```
 
 ### Working with Hypothesis
@@ -393,4 +393,4 @@ By contributing, you agree that your contributions will be licensed under the GP
 
 ---
 
-Thank you for contributing to Context Packer! 🎉
+Thank you for contributing to ws-ctx-engine! 🎉
