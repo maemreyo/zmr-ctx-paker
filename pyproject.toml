@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ctx-packer"
-version = "0.1.5"
+version = "0.1.7"
 description = "Intelligently package codebases into optimized context for Large Language Models"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -84,6 +84,7 @@ all = [
     "tree-sitter-javascript>=0.20.0,<1.0.0", # JavaScript grammar for tree-sitter
     "tree-sitter-typescript>=0.20.0,<1.0.0", # TypeScript grammar for tree-sitter
     "tree-sitter-rust>=0.20.0,<1.0.0", # Rust grammar for tree-sitter
+    "leann>=0.3.0,<1.0.0",          # LEANN vector index (97% storage savings)
 ]
 
 # LEANN tier: LEANN vector index (97% storage savings)
@@ -120,7 +121,7 @@ dev = [
 ]
 
 [project.scripts]
-context-pack = "context_packer.cli:main"
+ctx-packer = "context_packer.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/maemreyo/zmr-ctx-paker"
