@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.1.9] - 2026-03-25
+
+### Changes
+- c55dcb0 feat: rebranding
+- 0e3b6fc feat: context engine
+- ffee4f6 docs: add comprehensive implementation plan for agent integration
+- 52ea04d docs: update agent integration proposal with detailed MCP design
+- b545269 docs: add strategic proposal for AI agent integration
+
+
+
 ## [0.1.8] - 2026-03-25
 
 ### Changes
