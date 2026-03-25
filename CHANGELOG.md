@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.10] - 2026-03-25
+
+### Changes
+- 460d91d feat: merge .gitignore by default for index, search, query, and pack commands
+
+
+
 ## [0.1.9] - 2026-03-25
 
 ### Changes
