@@ -54,7 +54,7 @@ pip install ctx-packer[all]
 Build indexes for semantic search and dependency analysis:
 
 ```bash
-ctx-pack index /path/to/your/repo
+ctx-packer index /path/to/your/repo
 ```
 
 This creates a `.ctx-pack/` directory with:
@@ -69,46 +69,46 @@ Create an optimized context pack for LLM review:
 
 ```bash
 # Generate ZIP output (default)
-ctx-pack pack /path/to/your/repo
+ctx-packer pack /path/to/your/repo
 
 # Generate XML output for paste workflows
-ctx-pack pack /path/to/your/repo --format xml
+ctx-packer pack /path/to/your/repo --format xml
 
 # Specify token budget
-ctx-pack pack /path/to/your/repo --budget 50000
+ctx-packer pack /path/to/your/repo --budget 50000
 
 # Query with natural language
-ctx-pack query "authentication and user management" --format zip
+ctx-packer query "authentication and user management" --format zip
 ```
 
 ### 3. Use the Output
 
 **For XML output**: Copy the generated `repomix-output.xml` and paste into Claude.ai or ChatGPT
 
-**For ZIP output**: Upload `ctx-pack.zip` to Cursor or Claude Code. The archive includes:
+**For ZIP output**: Upload `ctx-packer.zip` to Cursor or Claude Code. The archive includes:
 - `files/` - Selected source files with preserved directory structure
 - `REVIEW_CONTEXT.md` - Manifest with importance scores and reading order
 
 ## CLI Commands
 
-### `ctx-pack index`
+### `ctx-packer index`
 
 Build and save indexes for later queries:
 
 ```bash
-ctx-pack index <repo_path> [OPTIONS]
+ctx-packer index <repo_path> [OPTIONS]
 ```
 
 **Options**:
 - `--config PATH` - Custom configuration file (default: `.ctx-pack.yaml`)
 - `--verbose` - Enable detailed logging with timing information
 
-### `ctx-pack query`
+### `ctx-packer query`
 
 Search indexed repository and generate output:
 
 ```bash
-ctx-pack query <query_text> [OPTIONS]
+ctx-packer query <query_text> [OPTIONS]
 ```
 
 **Options**:
@@ -118,12 +118,12 @@ ctx-pack query <query_text> [OPTIONS]
 - `--output PATH` - Output directory (default: ./output)
 - `--verbose` - Enable detailed logging
 
-### `ctx-pack pack`
+### `ctx-packer pack`
 
 Full workflow: index + query + pack:
 
 ```bash
-ctx-pack pack <repo_path> [OPTIONS]
+ctx-packer pack <repo_path> [OPTIONS]
 ```
 
 **Options**:
@@ -263,22 +263,22 @@ Fallback backends maintain functionality within 2x of primary performance.
 
 ```bash
 # Index your repository once
-ctx-pack index ~/projects/myapp
+ctx-packer index ~/projects/myapp
 
 # Generate context for PR review
-ctx-pack query "authentication changes" \
+ctx-packer query "authentication changes" \
   --changed-files changed.txt \
   --format zip \
   --budget 50000
 
-# Upload ctx-pack.zip to Cursor for review
+# Upload ctx-packer.zip to Cursor for review
 ```
 
 ### Bug Investigation
 
 ```bash
 # Find relevant code for a bug
-ctx-pack pack ~/projects/myapp \
+ctx-packer pack ~/projects/myapp \
   --query "database connection pooling and timeout handling" \
   --format xml \
   --budget 30000
@@ -290,7 +290,7 @@ ctx-pack pack ~/projects/myapp \
 
 ```bash
 # Select core API files
-ctx-pack pack ~/projects/myapp \
+ctx-packer pack ~/projects/myapp \
   --query "public API endpoints and data models" \
   --format zip \
   --budget 80000
@@ -375,7 +375,7 @@ Set `OPENAI_API_KEY` environment variable for API access.
 Files have changed since last index. This is automatic. To force rebuild:
 ```bash
 rm -rf .ctx-pack/
-ctx-pack index /path/to/repo
+ctx-packer index /path/to/repo
 ```
 
 ## License

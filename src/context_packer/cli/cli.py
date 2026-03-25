@@ -18,7 +18,7 @@ from ..logger import get_logger
 
 # Initialize CLI app
 app = typer.Typer(
-    name="context-pack",
+    name="ctx-packer",
     help="Intelligently package codebases into optimized context for Large Language Models",
     add_completion=False,
 )

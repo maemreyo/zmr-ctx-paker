@@ -7,26 +7,26 @@
 pip install ctx-packer
 
 # Index a repo
-context-pack index /path/to/repo
+ctx-packer index /path/to/repo
 
 # Query a repo
-context-pack query "your question" --repo /path/to/repo
+ctx-packer query "your question" --repo /path/to/repo
 ```
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `context-pack index <repo>` | Build indexes (vector, graph, domain map) |
-| `context-pack query "<question>" --repo <repo>` | Search and generate output |
-| `context-pack pack <repo> --query "<question>"` | Full workflow: index + query + pack |
-| `context-pack status <repo>` | Show index stats |
-| `context-pack vacuum <repo>` | Optimize SQLite database |
-| `context-pack reindex-domain <repo>` | Rebuild domain_map.db only (fast) |
+| `ctx-packer index <repo>` | Build indexes (vector, graph, domain map) |
+| `ctx-packer query "<question>" --repo <repo>` | Search and generate output |
+| `ctx-packer pack <repo> --query "<question>"` | Full workflow: index + query + pack |
+| `ctx-packer status <repo>` | Show index stats |
+| `ctx-packer vacuum <repo>` | Optimize SQLite database |
+| `ctx-packer reindex-domain <repo>` | Rebuild domain_map.db only (fast) |
 
 ## Output
 
-- Default output: `output/context-pack.zip`
+- Default output: `output/ctx-packer.zip`
 - Format: XML in ZIP
 - Token budget: 100,000 tokens (default)
 
