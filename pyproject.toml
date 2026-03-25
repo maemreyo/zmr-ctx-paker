@@ -122,6 +122,7 @@ dev = [
 
 [project.scripts]
 ctx-packer = "context_packer.cli:main"
+ctx-packer-init = "context_packer.init_cli:main"
 
 [project.urls]
 Homepage = "https://github.com/maemreyo/zmr-ctx-paker"
