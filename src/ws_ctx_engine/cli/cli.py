@@ -7,6 +7,7 @@ Provides CLI commands for indexing repositories, querying, and packing context.
 import json
 import os
 import sys
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, List, Optional
@@ -350,11 +351,18 @@ def main(
         "--agent-mode",
         help="Emit parseable NDJSON on stdout and send human-readable logs to stderr.",
     ),
+    quiet: bool = typer.Option(
+        True,
+        "--quiet/--no-quiet",
+        help="Suppress informational logs in terminal; only warnings/errors are shown.",
+    ),
 ):
     """
     Intelligently package codebases into optimized context for Large Language Models.
     """
     _set_agent_mode(agent_mode)
+    if quiet:
+        _set_console_log_level(logging.WARNING)
 
 
 @app.command()
