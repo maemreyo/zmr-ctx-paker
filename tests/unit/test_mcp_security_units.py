@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from context_packer.mcp.security.path_guard import WorkspacePathGuard
-from context_packer.mcp.security.rade_delimiter import RADESession
+from ws_ctx_engine.mcp.security.path_guard import WorkspacePathGuard
+from ws_ctx_engine.mcp.security.rade_delimiter import RADESession
 
 
 def test_workspace_path_guard_to_relative_posix_and_inside_absolute() -> None:

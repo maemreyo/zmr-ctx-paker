@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from context_packer.models import CodeChunk
+from ws_ctx_engine.models import CodeChunk
 
 
 PYTHON_WITH_IMPORTS = '''import os
@@ -73,7 +73,7 @@ class TestTreeSitterChunkerFileImports:
     def test_python_file_imports_in_symbols_referenced(self, temp_repo):
         """Test that Python file-level imports are included in symbols_referenced."""
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -94,7 +94,7 @@ class TestTreeSitterChunkerFileImports:
     def test_javascript_file_imports_in_symbols_referenced(self, temp_repo):
         """Test that JavaScript file-level imports are included in symbols_referenced."""
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -115,7 +115,7 @@ class TestTreeSitterChunkerFileImports:
     def test_rust_use_declarations_in_symbols_referenced(self, temp_repo):
         """Test that Rust use declarations are included in symbols_referenced."""
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -146,7 +146,7 @@ class TestTreeSitterChunkerDeduplication:
     def test_no_duplicate_chunks_same_span(self, temp_repo):
         """Test that identical chunks (same path, start_line, end_line) are deduplicated."""
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -172,7 +172,7 @@ class Bar:
     def test_nested_class_extracted_separately(self, temp_repo):
         """Test that nested classes are extracted as separate chunks."""
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -202,7 +202,7 @@ class TestTreeSitterChunkerChunkContent:
     def test_chunk_content_matches_source_lines(self, temp_repo):
         """Test that chunk content matches the source lines."""
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -227,7 +227,7 @@ def world():
     def test_chunk_symbols_defined_not_empty(self, temp_repo):
         """Test that chunks have non-empty symbols_defined."""
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -261,7 +261,7 @@ class TestRustMacroExtraction:
     def test_extract_macro_rules(self, temp_repo):
         """Test that macro_rules! is extracted as a chunk."""
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -299,7 +299,7 @@ class TestJSXTSXExtraction:
     def test_extract_jsx_element(self, temp_repo):
         """Test that JSX elements are extracted."""
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -323,7 +323,7 @@ class TestJSXTSXExtraction:
     def test_extract_tsx_component(self, temp_repo):
         """Test that TSX components are extracted."""
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -361,7 +361,7 @@ class TestPythonAsyncExtraction:
     def test_extract_async_function(self, temp_repo):
         """Test that async functions are extracted."""
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 

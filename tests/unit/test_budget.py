@@ -7,7 +7,7 @@ import shutil
 import pytest
 import tiktoken
 
-from context_packer.budget import BudgetManager
+from ws_ctx_engine.budget import BudgetManager
 
 
 @pytest.fixture

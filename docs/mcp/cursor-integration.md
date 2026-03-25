@@ -1,9 +1,9 @@
-# ctx-packer MCP + Cursor
+# ws-ctx-engine MCP + Cursor
 
 ## 1) Prepare workspace
 
 ```bash
-ctx-packer index .
+ws-ctx-engine index .
 ```
 
 ## 2) Run MCP server command
@@ -11,7 +11,7 @@ ctx-packer index .
 Cursor should launch this command for the workspace:
 
 ```bash
-ctx-packer mcp --workspace /absolute/path/to/repo
+ws-ctx-engine mcp --workspace /absolute/path/to/repo
 ```
 
 ## 3) Cursor MCP configuration
@@ -21,8 +21,8 @@ In Cursor MCP settings (or `.cursor/mcp.json`), register:
 ```json
 {
   "mcpServers": {
-    "ctx-packer": {
-      "command": "ctx-packer",
+    "ws-ctx-engine": {
+      "command": "ws-ctx-engine",
       "args": ["mcp", "--workspace", "/absolute/path/to/repo"]
     }
   }
@@ -32,4 +32,4 @@ In Cursor MCP settings (or `.cursor/mcp.json`), register:
 ## Notes
 
 - Keep one MCP server per workspace for strict path isolation.
-- Re-run `ctx-packer index .` after large code changes to improve relevance.
+- Re-run `ws-ctx-engine index .` after large code changes to improve relevance.

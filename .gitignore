@@ -41,10 +41,10 @@ htmlcov/
 *.swo
 *~
 
-# Context Packer specific
-.context-pack/
+# ws-ctx-engine specific
+.ws-ctx-engine/
 output/
-*.context-pack.zip
+*.ws-ctx-engine.zip
 repomix-output.xml
 
 # Type checking

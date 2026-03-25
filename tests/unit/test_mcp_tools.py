@@ -1,9 +1,9 @@
 import tempfile
 from pathlib import Path
 
-from context_packer.mcp.config import MCPConfig
-from context_packer.mcp.security.path_guard import WorkspacePathGuard
-from context_packer.mcp.tools import MCPToolService
+from ws_ctx_engine.mcp.config import MCPConfig
+from ws_ctx_engine.mcp.security.path_guard import WorkspacePathGuard
+from ws_ctx_engine.mcp.tools import MCPToolService
 
 
 def test_workspace_path_guard_blocks_path_traversal() -> None:
@@ -70,7 +70,7 @@ def test_get_file_context_redacts_secrets_and_writes_cache() -> None:
         assert len(payload["secrets_detected"]) >= 1
         assert "index_health" in payload
 
-        cache_path = repo / ".context-pack" / "secret_scan_cache.json"
+        cache_path = repo / ".ws-ctx-engine" / "secret_scan_cache.json"
         assert cache_path.exists()
 
 
@@ -209,7 +209,7 @@ def test_search_codebase_returns_search_failed_when_backend_raises(monkeypatch) 
         def _boom(**kwargs):
             raise RuntimeError("boom")
 
-        monkeypatch.setattr("context_packer.mcp.tools.search_codebase", _boom)
+        monkeypatch.setattr("ws_ctx_engine.mcp.tools.search_codebase", _boom)
         payload = service.call_tool("search_codebase", {"query": "auth"})
         assert payload["error"] == "SEARCH_FAILED"
 
@@ -250,7 +250,7 @@ def test_get_file_context_returns_file_read_failed_when_read_errors(monkeypatch)
 def test_load_metadata_returns_none_for_invalid_created_at() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         repo = Path(tmpdir)
-        index_dir = repo / ".context-pack"
+        index_dir = repo / ".ws-ctx-engine"
         index_dir.mkdir(parents=True, exist_ok=True)
         (index_dir / "metadata.json").write_text(
             '{"created_at": 123, "repo_path": ".", "file_count": 1, "backend": "faiss", "file_hashes": {}}',

@@ -10,9 +10,9 @@ from pathlib import Path
 import pytest
 from hypothesis import given, strategies as st, assume, settings
 
-from context_packer.chunker import TreeSitterChunker, parse_with_fallback
-from context_packer.formatters import PrettyPrinter
-from context_packer.models import CodeChunk
+from ws_ctx_engine.chunker import TreeSitterChunker, parse_with_fallback
+from ws_ctx_engine.formatters import PrettyPrinter
+from ws_ctx_engine.models import CodeChunk
 
 
 # Strategy for generating valid Python code
@@ -308,7 +308,7 @@ class TestRoundTripFailureLogging:
     """Property 41: Round-Trip Failure Logging
     
     For any round-trip operation that fails equivalence check, the
-    Context_Packer SHALL log a warning with the file path and detected
+    ws_ctx_engine SHALL log a warning with the file path and detected
     differences.
     
     **Validates: Requirements 14.5**

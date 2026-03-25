@@ -7,7 +7,7 @@ import pytest
 import tiktoken
 from hypothesis import given, strategies as st
 
-from context_packer.models import CodeChunk
+from ws_ctx_engine.models import CodeChunk
 
 
 # Custom strategies for generating test data

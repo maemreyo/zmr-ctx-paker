@@ -7,10 +7,10 @@ Tests universal properties that should hold for all retrieval operations.
 import pytest
 from hypothesis import given, strategies as st, settings, assume
 
-from context_packer.retrieval import RetrievalEngine
-from context_packer.vector_index import VectorIndex
-from context_packer.graph import RepoMapGraph
-from context_packer.models import CodeChunk
+from ws_ctx_engine.retrieval import RetrievalEngine
+from ws_ctx_engine.vector_index import VectorIndex
+from ws_ctx_engine.graph import RepoMapGraph
+from ws_ctx_engine.models import CodeChunk
 
 
 # Mock implementations for testing

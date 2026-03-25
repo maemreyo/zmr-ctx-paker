@@ -6,9 +6,9 @@ Tests specific examples and edge cases for hybrid retrieval.
 
 import pytest
 
-from context_packer.retrieval import RetrievalEngine
-from context_packer.vector_index import VectorIndex
-from context_packer.graph import RepoMapGraph
+from ws_ctx_engine.retrieval import RetrievalEngine
+from ws_ctx_engine.vector_index import VectorIndex
+from ws_ctx_engine.graph import RepoMapGraph
 
 
 # Mock implementations for testing

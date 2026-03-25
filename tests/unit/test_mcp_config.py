@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from context_packer.mcp.config import DEFAULT_RATE_LIMITS, MCPConfig, MCPConfigValidationError
+from ws_ctx_engine.mcp.config import DEFAULT_RATE_LIMITS, MCPConfig, MCPConfigValidationError
 
 
 def test_mcp_config_loads_defaults_without_file() -> None:
@@ -18,7 +18,7 @@ def test_mcp_config_loads_defaults_without_file() -> None:
 def test_mcp_config_loads_file_values_and_applies_overrides() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         workspace = Path(tmpdir)
-        mcp_dir = workspace / ".context-pack"
+        mcp_dir = workspace / ".ws-ctx-engine"
         mcp_dir.mkdir(parents=True, exist_ok=True)
         cfg_path = mcp_dir / "mcp_config.json"
         cfg_path.write_text(
@@ -53,7 +53,7 @@ def test_mcp_config_loads_file_values_and_applies_overrides() -> None:
 def test_mcp_config_ignores_invalid_values() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         workspace = Path(tmpdir)
-        mcp_dir = workspace / ".context-pack"
+        mcp_dir = workspace / ".ws-ctx-engine"
         mcp_dir.mkdir(parents=True, exist_ok=True)
         cfg_path = mcp_dir / "mcp_config.json"
         cfg_path.write_text(

@@ -26,7 +26,7 @@ const add = (a: number, b: number): number => a + b;
         (temp_repo / "arrow.ts").write_text(code)
 
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -48,7 +48,7 @@ const y = "hello";
         (temp_repo / "vars.ts").write_text(code)
 
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -65,7 +65,7 @@ const y = "hello";
         (temp_repo / "export_type.ts").write_text(code)
 
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -89,7 +89,7 @@ const y = "hello";
         (temp_repo / "export_enum.ts").write_text(code)
 
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -112,7 +112,7 @@ const y = "hello";
         (temp_repo / "abstract.ts").write_text(code)
 
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -133,7 +133,7 @@ const y = "hello";
         (temp_repo / "generic_type.ts").write_text(code)
 
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -156,7 +156,7 @@ const y = "hello";
         (temp_repo / "export_abstract.ts").write_text(code)
 
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 

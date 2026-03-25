@@ -8,13 +8,13 @@ import os
 import tempfile
 import pytest
 
-from context_packer.graph import (
+from ws_ctx_engine.graph import (
     create_graph,
     load_graph,
     IGraphRepoMap,
     NetworkXRepoMap,
 )
-from context_packer.models import CodeChunk
+from ws_ctx_engine.models import CodeChunk
 
 
 @pytest.fixture

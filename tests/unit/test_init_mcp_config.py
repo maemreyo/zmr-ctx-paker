@@ -7,7 +7,7 @@ import pytest
 
 
 def _run_emit_mcp_config(target: Path, force: bool) -> subprocess.CompletedProcess[str]:
-    script_dir = Path(__file__).resolve().parents[2] / "src" / "context_packer" / "scripts"
+    script_dir = Path(__file__).resolve().parents[2] / "src" / "ws_ctx_engine" / "scripts"
     force_value = "true" if force else "false"
     command = (
         "set -euo pipefail; "
@@ -29,7 +29,7 @@ def test_emit_mcp_config_creates_default_file(tmp_path: Path) -> None:
     result = _run_emit_mcp_config(target=target, force=False)
     assert result.returncode == 0, result.stderr
 
-    config_path = target / ".context-pack" / "mcp_config.json"
+    config_path = target / ".ws-ctx-engine" / "mcp_config.json"
     assert config_path.exists()
 
     payload = json.loads(config_path.read_text(encoding="utf-8"))
@@ -48,7 +48,7 @@ def test_emit_mcp_config_creates_default_file(tmp_path: Path) -> None:
 @pytest.mark.skipif(shutil.which("envsubst") is None, reason="envsubst is required for init template rendering")
 def test_emit_mcp_config_does_not_overwrite_without_force(tmp_path: Path) -> None:
     target = tmp_path / "repo"
-    config_dir = target / ".context-pack"
+    config_dir = target / ".ws-ctx-engine"
     config_dir.mkdir(parents=True, exist_ok=True)
     config_path = config_dir / "mcp_config.json"
     original = '{"cache_ttl_seconds": 999}'
@@ -62,7 +62,7 @@ def test_emit_mcp_config_does_not_overwrite_without_force(tmp_path: Path) -> Non
 @pytest.mark.skipif(shutil.which("envsubst") is None, reason="envsubst is required for init template rendering")
 def test_emit_mcp_config_overwrites_with_force(tmp_path: Path) -> None:
     target = tmp_path / "repo"
-    config_dir = target / ".context-pack"
+    config_dir = target / ".ws-ctx-engine"
     config_dir.mkdir(parents=True, exist_ok=True)
     config_path = config_dir / "mcp_config.json"
     config_path.write_text('{"cache_ttl_seconds": 999}', encoding="utf-8")

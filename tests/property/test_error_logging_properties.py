@@ -12,15 +12,15 @@ from pathlib import Path
 import pytest
 from hypothesis import given, strategies as st
 
-from context_packer.errors import (
+from ws_ctx_engine.errors import (
     BudgetError,
     ConfigurationError,
-    ContextPackerError,
+    WsCtxEngineError,
     DependencyError,
     IndexError,
     ParsingError,
 )
-from context_packer.logger import ContextPackerLogger, get_logger
+from ws_ctx_engine.logger import WsCtxEngineLogger, get_logger
 
 
 # Property 34: Comprehensive Error Logging
@@ -35,12 +35,12 @@ def test_property_34_comprehensive_error_logging_fallback(component, primary, fa
     """
     Property 34: Comprehensive Error Logging (Fallback)
     
-    For any error that occurs, the Context_Packer SHALL log it with
+    For any error that occurs, the ws_ctx_engine SHALL log it with
     file path, line number, stack trace, and an actionable suggestion
     for fixing the issue.
     """
     with tempfile.TemporaryDirectory() as tmp_dir:
-        logger = ContextPackerLogger(log_dir=tmp_dir)
+        logger = WsCtxEngineLogger(log_dir=tmp_dir)
         
         # Log fallback - should not crash
         logger.log_fallback(
@@ -68,7 +68,7 @@ def test_property_34_error_with_context():
     be included in the log.
     """
     with tempfile.TemporaryDirectory() as tmp_dir:
-        logger = ContextPackerLogger(log_dir=tmp_dir)
+        logger = WsCtxEngineLogger(log_dir=tmp_dir)
         
         # Create an error with context
         error = ValueError("Test error")
@@ -123,7 +123,7 @@ def test_property_34_configuration_error_suggestions():
     assert hasattr(error, 'suggestion')
     assert "semantic_weight" in error.message
     assert "1.5" in error.message
-    assert ".context-pack.yaml" in error.suggestion
+    assert ".ws-ctx-engine.yaml" in error.suggestion
 
 
 # Property 35: Dual Output Logging
@@ -134,10 +134,10 @@ def test_property_35_dual_output_logging(message):
     Property 35: Dual Output Logging
     
     For any log message, it SHALL appear in both the console output
-    and the log file in .context-pack/logs/.
+    and the log file in .ws-ctx-engine/logs/.
     """
     with tempfile.TemporaryDirectory() as tmp_dir:
-        logger = ContextPackerLogger(log_dir=tmp_dir)
+        logger = WsCtxEngineLogger(log_dir=tmp_dir)
         
         # Log a message
         logger.info(message)
@@ -161,7 +161,7 @@ def test_property_35_dual_output_all_levels():
     All log levels should be written to the log file.
     """
     with tempfile.TemporaryDirectory() as tmp_dir:
-        logger = ContextPackerLogger(log_dir=tmp_dir)
+        logger = WsCtxEngineLogger(log_dir=tmp_dir)
         
         # Log messages at different levels
         logger.debug("Debug message")
@@ -190,7 +190,7 @@ def test_property_36_log_level_filtering():
     SHALL be displayed (DEBUG < INFO < WARNING < ERROR).
     """
     with tempfile.TemporaryDirectory() as tmp_dir:
-        logger = ContextPackerLogger(log_dir=tmp_dir)
+        logger = WsCtxEngineLogger(log_dir=tmp_dir)
         
         # Console handler should be INFO and above
         console_handler = None
@@ -234,11 +234,11 @@ def test_property_37_verbose_mode_timing(phase, duration):
     """
     Property 37: Verbose Mode Timing
     
-    For any operation running in verbose mode, the Context_Packer SHALL
+    For any operation running in verbose mode, the ws_ctx_engine SHALL
     log detailed timing information for each phase.
     """
     with tempfile.TemporaryDirectory() as tmp_dir:
-        logger = ContextPackerLogger(log_dir=tmp_dir)
+        logger = WsCtxEngineLogger(log_dir=tmp_dir)
         
         # Log phase completion with timing
         logger.log_phase(phase, duration)
@@ -266,7 +266,7 @@ def test_property_37_verbose_mode_timing_with_metrics(phase, duration, files_pro
     Phase logging should support additional metrics beyond timing.
     """
     with tempfile.TemporaryDirectory() as tmp_dir:
-        logger = ContextPackerLogger(log_dir=tmp_dir)
+        logger = WsCtxEngineLogger(log_dir=tmp_dir)
         
         # Log phase with metrics
         logger.log_phase(
@@ -288,12 +288,12 @@ def test_property_37_verbose_mode_timing_with_metrics(phase, duration, files_pro
 
 
 def test_error_classes_inheritance():
-    """Test that all error classes inherit from ContextPackerError."""
-    assert issubclass(DependencyError, ContextPackerError)
-    assert issubclass(ConfigurationError, ContextPackerError)
-    assert issubclass(ParsingError, ContextPackerError)
-    assert issubclass(IndexError, ContextPackerError)
-    assert issubclass(BudgetError, ContextPackerError)
+    """Test that all error classes inherit from WsCtxEngineError."""
+    assert issubclass(DependencyError, WsCtxEngineError)
+    assert issubclass(ConfigurationError, WsCtxEngineError)
+    assert issubclass(ParsingError, WsCtxEngineError)
+    assert issubclass(IndexError, WsCtxEngineError)
+    assert issubclass(BudgetError, WsCtxEngineError)
 
 
 def test_error_classes_have_suggestions():
@@ -306,7 +306,7 @@ def test_error_classes_have_suggestions():
     # ConfigurationError
     config_error = ConfigurationError.invalid_value("test", "value", "expected")
     assert hasattr(config_error, 'suggestion')
-    assert ".context-pack.yaml" in config_error.suggestion
+    assert ".ws-ctx-engine.yaml" in config_error.suggestion
     
     # ParsingError
     parse_error = ParsingError.syntax_error("test.py", 1, "error")
@@ -316,7 +316,7 @@ def test_error_classes_have_suggestions():
     # IndexError
     index_error = IndexError.corrupted_index("test.idx")
     assert hasattr(index_error, 'suggestion')
-    assert "context-pack index" in index_error.suggestion
+    assert "ws-ctx-engine index" in index_error.suggestion
     
     # BudgetError
     budget_error = BudgetError.budget_exceeded(1000, 500)

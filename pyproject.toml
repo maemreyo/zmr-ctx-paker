@@ -3,7 +3,7 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ctx-packer"
+name = "ws-ctx-engine"
 version = "0.1.8"
 description = "Intelligently package codebases into optimized context for Large Language Models"
 readme = "README.md"
@@ -61,6 +61,7 @@ dependencies = [
     "typer>=0.9.0,<1.0.0",          # CLI framework with rich support
     "rich>=13.0.0,<14.0.0",         # Rich terminal output for CLI
     "psutil>=5.9.0,<6.0.0",         # Memory detection for embeddings fallback
+    "numpy>=1.24.0,<3.0.0",         # Numerical ops for vector indexing
 ]
 
 [project.optional-dependencies]
@@ -121,8 +122,10 @@ dev = [
 ]
 
 [project.scripts]
-ctx-packer = "context_packer.cli:main"
-ctx-packer-init = "context_packer.init_cli:main"
+wsctx = "ws_ctx_engine.cli:main"
+wsctx-init = "ws_ctx_engine.init_cli:main"
+ws-ctx-engine = "ws_ctx_engine.cli:main"
+ws-ctx-engine-init = "ws_ctx_engine.init_cli:main"
 
 [project.urls]
 Homepage = "https://github.com/maemreyo/zmr-ctx-paker"
@@ -134,10 +137,10 @@ Changelog = "https://github.com/maemreyo/zmr-ctx-paker/blob/main/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["context_packer*"]
+include = ["ws_ctx_engine*"]
 
 [tool.setuptools.package-data]
-context_packer = [
+ws_ctx_engine = [
     "py.typed",
     "scripts/init.sh",
     "scripts/lib/*.sh",
@@ -153,7 +156,7 @@ python_functions = ["test_*"]
 addopts = [
     "--strict-markers",
     "--strict-config",
-    "--cov=context_packer",
+    "--cov=ws_ctx_engine",
     "--cov-report=term-missing",
     "--cov-report=html",
 ]

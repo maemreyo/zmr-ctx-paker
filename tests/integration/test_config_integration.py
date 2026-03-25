@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from context_packer import Config
+from ws_ctx_engine import Config
 
 
 class TestConfigIntegration:
@@ -19,8 +19,8 @@ class TestConfigIntegration:
     
     def test_load_example_config(self):
         """Test loading the example configuration file."""
-        if os.path.exists(".context-pack.yaml.example"):
-            config = Config.load(".context-pack.yaml.example")
+        if os.path.exists(".ws-ctx-engine.yaml.example"):
+            config = Config.load(".ws-ctx-engine.yaml.example")
             assert config.format in ["xml", "zip"]
             assert config.token_budget > 0
             assert 0.0 <= config.semantic_weight <= 1.0

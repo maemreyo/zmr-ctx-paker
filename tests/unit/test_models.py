@@ -8,7 +8,7 @@ from datetime import datetime
 import pytest
 import tiktoken
 
-from context_packer.models import CodeChunk, IndexMetadata
+from ws_ctx_engine.models import CodeChunk, IndexMetadata
 
 
 class TestCodeChunk:

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Stress test script for context-packer.
+Stress test script for ws-ctx-engine.
 
 This script runs multiple test scenarios with different configurations
 and repositories, logging detailed results for each test run.
@@ -19,7 +19,7 @@ from typing import Dict, List, Optional
 
 
 class StressTestRunner:
-    """Run stress tests on context-packer with detailed logging."""
+    """Run stress tests on ws-ctx-engine with detailed logging."""
 
     def __init__(self, output_dir: str = "tests/stress_results"):
         """Initialize stress test runner.
@@ -98,7 +98,7 @@ class StressTestRunner:
             json.dump(test_metadata, f, indent=2)
 
         # Build command
-        cmd = [sys.executable, "-m", "context_packer.cli", "index", repo_path]
+        cmd = [sys.executable, "-m", "ws_ctx_engine.cli", "index", repo_path]
         if config_path:
             cmd.extend(["--config", config_path])
 
@@ -132,8 +132,8 @@ class StressTestRunner:
             with open(run_dir / "stderr.log", "w") as f:
                 f.write(result.stderr)
 
-        # Copy artifacts from .context-pack
-        context_pack_dir = Path(repo_path) / ".context-pack"
+        # Copy artifacts from .ws-ctx-engine
+        context_pack_dir = Path(repo_path) / ".ws-ctx-engine"
         if context_pack_dir.exists():
             artifacts_dir = run_dir / "artifacts"
             artifacts_dir.mkdir(exist_ok=True)
@@ -168,12 +168,12 @@ class StressTestRunner:
                 actual_files = metadata.get("file_count")
 
         # Find the latest log file
-        log_dir = Path(".context-pack/logs")
+        log_dir = Path(".ws-ctx-engine/logs")
         if log_dir.exists():
             log_files = sorted(log_dir.glob("*.log"), key=lambda p: p.stat().st_mtime)
             if log_files:
                 latest_log = log_files[-1]
-                shutil.copy2(latest_log, run_dir / "context-packer.log")
+                shutil.copy2(latest_log, run_dir / "ws-ctx-engine.log")
 
                 # Parse chunks from log
                 with open(latest_log) as f:
@@ -225,7 +225,7 @@ class StressTestRunner:
         summary_path = self.output_dir / "summary_report.md"
 
         with open(summary_path, "w") as f:
-            f.write("# Context-Packer Stress Test Summary\n\n")
+            f.write("# ws-ctx-engine Stress Test Summary\n\n")
             f.write(f"**Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
             f.write(f"**Total Tests**: {len(results)}\n")
             f.write(f"**Passed**: {sum(1 for r in results if r['success'])}\n")
@@ -267,7 +267,7 @@ class StressTestRunner:
 
 def main():
     """Main entry point for stress testing."""
-    parser = argparse.ArgumentParser(description="Stress test context-packer")
+    parser = argparse.ArgumentParser(description="Stress test ws-ctx-engine")
     parser.add_argument(
         "--output-dir",
         default="tests/stress_results",
@@ -284,7 +284,7 @@ def main():
     results = []
 
     print("\n" + "="*80)
-    print("CONTEXT-PACKER STRESS TEST SUITE")
+    print("WS-CTX-ENGINE STRESS TEST SUITE")
     print("="*80)
 
     # Test 1: zmr-koe with default config

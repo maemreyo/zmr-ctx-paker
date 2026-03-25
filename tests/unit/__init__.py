@@ -1,1 +1,1 @@
-"""Unit tests for Context Packer components."""
+"""Unit tests for ws-ctx-engine components."""

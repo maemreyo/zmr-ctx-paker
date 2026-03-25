@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Query test script for context-packer.
+Query test script for ws-ctx-engine.
 
-Tests real-world user queries to verify context-packer can answer practical questions.
+Tests real-world user queries to verify ws-ctx-engine can answer practical questions.
 """
 
 import json
@@ -79,7 +79,7 @@ class QueryTestRunner:
             json.dump(test_metadata, f, indent=2)
 
         # Build command
-        cmd = [sys.executable, "-m", "context_packer.cli", "query", query, "--repo", repo_path]
+        cmd = [sys.executable, "-m", "ws_ctx_engine.cli", "query", query, "--repo", repo_path]
         if config_path:
             cmd.extend(["--config", config_path])
 
@@ -110,13 +110,13 @@ class QueryTestRunner:
                 f.write(result.stderr)
 
         # Extract and analyze output
-        output_zip = Path("output/context-pack.zip")
+        output_zip = Path("output/ws-ctx-engine.zip")
         actual_files = []
         review_context = None
 
         if output_zip.exists():
             # Copy output zip
-            shutil.copy2(output_zip, run_dir / "context-pack.zip")
+            shutil.copy2(output_zip, run_dir / "ws-ctx-engine.zip")
 
             # Extract and analyze
             extract_dir = run_dir / "extracted"
@@ -141,11 +141,11 @@ class QueryTestRunner:
                     f.write(review_context)
 
         # Copy latest log
-        log_dir = Path(".context-pack/logs")
+        log_dir = Path(".ws-ctx-engine/logs")
         if log_dir.exists():
             log_files = sorted(log_dir.glob("*.log"), key=lambda p: p.stat().st_mtime)
             if log_files:
-                shutil.copy2(log_files[-1], run_dir / "context-packer.log")
+                shutil.copy2(log_files[-1], run_dir / "ws-ctx-engine.log")
 
         # Analyze results
         files_match = None
@@ -191,7 +191,7 @@ class QueryTestRunner:
         summary_path = self.output_dir / "query_test_summary.md"
 
         with open(summary_path, "w") as f:
-            f.write("# Context-Packer Query Test Summary\n\n")
+            f.write("# ws-ctx-engine Query Test Summary\n\n")
             f.write(f"**Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
             f.write(f"**Total Tests**: {len(results)}\n")
             f.write(f"**Passed**: {sum(1 for r in results if r['success'])}\n")
@@ -231,7 +231,7 @@ def main():
     results = []
 
     print("\n" + "="*80)
-    print("CONTEXT-PACKER QUERY TEST SUITE")
+    print("WS-CTX-ENGINE QUERY TEST SUITE")
     print("="*80)
 
     # Test 1: Voice management query (TS/JS only)

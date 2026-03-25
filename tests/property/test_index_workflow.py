@@ -16,9 +16,9 @@ import pytest
 from hypothesis import given, settings, HealthCheck
 from hypothesis import strategies as st
 
-from context_packer.config import Config
-from context_packer.workflow import index_repository, load_indexes
-from context_packer.models import IndexMetadata
+from ws_ctx_engine.config import Config
+from ws_ctx_engine.workflow import index_repository, load_indexes
+from ws_ctx_engine.models import IndexMetadata
 
 
 # Check if sentence-transformers is available
@@ -213,7 +213,7 @@ def test_property_26_index_staleness_detection(temp_repo):
     index_repository(temp_repo, config=config)
     
     # Load metadata
-    metadata_path = Path(temp_repo) / ".context-pack" / "metadata.json"
+    metadata_path = Path(temp_repo) / ".ws-ctx-engine" / "metadata.json"
     with open(metadata_path, 'r') as f:
         metadata_dict = json.load(f)
     
@@ -268,7 +268,7 @@ def test_property_27_automatic_index_rebuild(temp_repo):
     index_repository(temp_repo, config=config)
     
     # Record original metadata timestamp
-    metadata_path = Path(temp_repo) / ".context-pack" / "metadata.json"
+    metadata_path = Path(temp_repo) / ".ws-ctx-engine" / "metadata.json"
     with open(metadata_path, 'r') as f:
         original_metadata = json.load(f)
     original_timestamp = datetime.fromisoformat(original_metadata['created_at'])
@@ -335,7 +335,7 @@ def test_index_workflow_integration(temp_repo):
     index_repository(temp_repo, config=config)
     
     # Verify index files exist
-    index_dir = Path(temp_repo) / ".context-pack"
+    index_dir = Path(temp_repo) / ".ws-ctx-engine"
     assert (index_dir / "vector.idx").exists(), "Vector index should exist"
     assert (index_dir / "graph.pkl").exists(), "Graph should exist"
     assert (index_dir / "metadata.json").exists(), "Metadata should exist"

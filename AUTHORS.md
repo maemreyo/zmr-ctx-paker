@@ -1,6 +1,6 @@
 # Authors
 
-This file lists the contributors to Context Packer.
+This file lists the contributors to ws-ctx-engine.
 
 ## Creator and Lead Maintainer
 

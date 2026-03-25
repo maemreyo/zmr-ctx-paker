@@ -2,7 +2,7 @@
 """Demo script showing CodeChunk usage."""
 
 import tiktoken
-from context_packer.models import CodeChunk
+from ws_ctx_engine.models import CodeChunk
 
 
 def main():

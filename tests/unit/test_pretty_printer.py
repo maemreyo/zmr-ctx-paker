@@ -9,9 +9,9 @@ from pathlib import Path
 
 import pytest
 
-from context_packer.chunker import TreeSitterChunker
-from context_packer.formatters import PrettyPrinter
-from context_packer.models import CodeChunk
+from ws_ctx_engine.chunker import TreeSitterChunker
+from ws_ctx_engine.formatters import PrettyPrinter
+from ws_ctx_engine.models import CodeChunk
 
 
 class TestPrettyPrinterBasics:

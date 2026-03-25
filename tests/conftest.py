@@ -1,4 +1,4 @@
-"""Pytest configuration and fixtures for context-packer tests."""
+"""Pytest configuration and fixtures for ws-ctx-engine tests."""
 
 from hypothesis import settings, Verbosity
 

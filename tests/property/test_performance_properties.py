@@ -10,9 +10,9 @@ from pathlib import Path
 import pytest
 from hypothesis import given, strategies as st
 
-from context_packer.workflow import index_repository, query_and_pack
-from context_packer.config import Config
-from context_packer.monitoring import PerformanceTracker, PerformanceMetrics
+from ws_ctx_engine.workflow import index_repository, query_and_pack
+from ws_ctx_engine.config import Config
+from ws_ctx_engine.monitoring import PerformanceTracker, PerformanceMetrics
 
 
 class TestPerformanceMetricsProperties:
@@ -23,7 +23,7 @@ class TestPerformanceMetricsProperties:
         
         **Validates: Requirements 13.1, 13.2, 13.3**
         
-        For any completed indexing operation, the Context_Packer SHALL report
+        For any completed indexing operation, the ws_ctx_engine SHALL report
         total time, files processed, and index size.
         """
         # Create a minimal test repository
@@ -69,7 +69,7 @@ class TestClass:
         
         **Validates: Requirements 13.1, 13.2, 13.3**
         
-        For any completed query operation, the Context_Packer SHALL report
+        For any completed query operation, the ws_ctx_engine SHALL report
         query time, files selected, and total tokens.
         """
         # Create a minimal test repository

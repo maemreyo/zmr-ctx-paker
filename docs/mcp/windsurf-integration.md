@@ -1,17 +1,17 @@
-# ctx-packer MCP + Windsurf
+# ws-ctx-engine MCP + Windsurf
 
 ## Quick setup
 
 1. Build index once:
 
 ```bash
-ctx-packer index .
+ws-ctx-engine index .
 ```
 
 2. Register MCP server in Windsurf with this command:
 
 ```bash
-ctx-packer mcp --workspace /absolute/path/to/repo
+ws-ctx-engine mcp --workspace /absolute/path/to/repo
 ```
 
 ## Example MCP server block
@@ -19,8 +19,8 @@ ctx-packer mcp --workspace /absolute/path/to/repo
 ```json
 {
   "mcpServers": {
-    "ctx-packer": {
-      "command": "ctx-packer",
+    "ws-ctx-engine": {
+      "command": "ws-ctx-engine",
       "args": ["mcp", "--workspace", "/absolute/path/to/repo"]
     }
   }

@@ -1,4 +1,4 @@
-# ctx-packer MCP Security Audit (Tooling Layer)
+# ws-ctx-engine MCP Security Audit (Tooling Layer)
 
 _Date:_ 2026-03-25
 
@@ -24,7 +24,7 @@ Audit of the four exposed MCP tools:
 3. **Secret handling in file context**
    - Secret scan runs before file content return.
    - Secret-bearing files return `content: null` + `secrets_detected`.
-   - Scan cache persisted at `.context-pack/secret_scan_cache.json`.
+   - Scan cache persisted at `.ws-ctx-engine/secret_scan_cache.json`.
 
 4. **RADE data-boundary wrapping**
    - Safe file content is wrapped with start/end delimiters.

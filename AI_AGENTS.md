@@ -1,32 +1,32 @@
-# AI AGENTS - ctx-packer
+# AI AGENTS - ws-ctx-engine
 
 ## Quick Start
 
 ```bash
 # Install
-pip install ctx-packer
+pip install ws-ctx-engine
 
 # Index a repo
-ctx-packer index /path/to/repo
+ws-ctx-engine index /path/to/repo
 
 # Query a repo
-ctx-packer query "your question" --repo /path/to/repo
+ws-ctx-engine query "your question" --repo /path/to/repo
 ```
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `ctx-packer index <repo>` | Build indexes (vector, graph, domain map) |
-| `ctx-packer query "<question>" --repo <repo>` | Search and generate output |
-| `ctx-packer pack <repo> --query "<question>"` | Full workflow: index + query + pack |
-| `ctx-packer status <repo>` | Show index stats |
-| `ctx-packer vacuum <repo>` | Optimize SQLite database |
-| `ctx-packer reindex-domain <repo>` | Rebuild domain_map.db only (fast) |
+| `ws-ctx-engine index <repo>` | Build indexes (vector, graph, domain map) |
+| `ws-ctx-engine query "<question>" --repo <repo>` | Search and generate output |
+| `ws-ctx-engine pack <repo> --query "<question>"` | Full workflow: index + query + pack |
+| `ws-ctx-engine status <repo>` | Show index stats |
+| `ws-ctx-engine vacuum <repo>` | Optimize SQLite database |
+| `ws-ctx-engine reindex-domain <repo>` | Rebuild domain_map.db only (fast) |
 
 ## Output
 
-- Default output: `output/ctx-packer.zip`
+- Default output: `output/ws-ctx-engine.zip`
 - Format: XML in ZIP
 - Token budget: 100,000 tokens (default)
 

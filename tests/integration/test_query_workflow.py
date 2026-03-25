@@ -1,7 +1,7 @@
 """
 Integration tests for query phase workflow.
 
-Tests the complete index → query → pack workflow for Context Packer.
+Tests the complete index → query → pack workflow for ws-ctx-engine.
 """
 
 import os
@@ -13,8 +13,8 @@ from pathlib import Path
 import pytest
 from lxml import etree
 
-from context_packer.config import Config
-from context_packer.workflow import index_repository, query_and_pack
+from ws_ctx_engine.config import Config
+from ws_ctx_engine.workflow import index_repository, query_and_pack
 
 # Check if required dependencies are available
 try:
@@ -182,7 +182,7 @@ class TestQueryWorkflow:
         )
         
         # Verify indexes were created
-        index_dir = small_repo / ".context-pack"
+        index_dir = small_repo / ".ws-ctx-engine"
         assert (index_dir / "vector.idx").exists()
         assert (index_dir / "graph.pkl").exists()
         assert (index_dir / "metadata.json").exists()
@@ -269,7 +269,7 @@ class TestQueryWorkflow:
         )
         
         # Verify indexes were created
-        index_dir = small_repo / ".context-pack"
+        index_dir = small_repo / ".ws-ctx-engine"
         assert (index_dir / "vector.idx").exists()
         assert (index_dir / "graph.pkl").exists()
         assert (index_dir / "metadata.json").exists()

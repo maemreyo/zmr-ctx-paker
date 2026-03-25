@@ -4,8 +4,8 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
-from context_packer.mcp.config import MCPConfig
-from context_packer.mcp.tools import MCPToolService
+from ws_ctx_engine.mcp.config import MCPConfig
+from ws_ctx_engine.mcp.tools import MCPToolService
 
 
 def _config() -> MCPConfig:
@@ -94,7 +94,7 @@ def test_search_codebase_maps_file_not_found_to_index_not_found(monkeypatch) -> 
         def _raise_not_found(**kwargs):
             raise FileNotFoundError("index missing")
 
-        monkeypatch.setattr("context_packer.mcp.tools.search_codebase", _raise_not_found)
+        monkeypatch.setattr("ws_ctx_engine.mcp.tools.search_codebase", _raise_not_found)
         payload = service.call_tool("search_codebase", {"query": "auth"})
 
     assert payload["error"] == "INDEX_NOT_FOUND"
@@ -115,7 +115,7 @@ def test_get_domain_map_success_path_with_ranked_domains(monkeypatch) -> None:
         service = MCPToolService(workspace=tmpdir, config=_config())
         metadata = _FakeMetadata(file_hashes={"src/a.py": "h1", "src/b.py": "h2", "src/c.py": "h3"})
         monkeypatch.setattr(service, "_load_metadata", lambda: metadata)
-        monkeypatch.setattr("context_packer.mcp.tools.load_indexes", lambda *args, **kwargs: (None, _FakeNXGraph(), None))
+        monkeypatch.setattr("ws_ctx_engine.mcp.tools.load_indexes", lambda *args, **kwargs: (None, _FakeNXGraph(), None))
 
         class _FakeDB:
             def __init__(self, path: str):
@@ -129,7 +129,7 @@ def test_get_domain_map_success_path_with_ranked_domains(monkeypatch) -> None:
             def close(self):
                 return None
 
-        monkeypatch.setattr("context_packer.mcp.tools.DomainMapDB", _FakeDB)
+        monkeypatch.setattr("ws_ctx_engine.mcp.tools.DomainMapDB", _FakeDB)
 
         payload = service.call_tool("get_domain_map", {})
 
@@ -153,8 +153,8 @@ def test_get_domain_map_handles_index_and_db_failures(monkeypatch) -> None:
             def __init__(self, path: str):
                 raise RuntimeError("db unavailable")
 
-        monkeypatch.setattr("context_packer.mcp.tools.load_indexes", _raise_load_indexes)
-        monkeypatch.setattr("context_packer.mcp.tools.DomainMapDB", _BadDB)
+        monkeypatch.setattr("ws_ctx_engine.mcp.tools.load_indexes", _raise_load_indexes)
+        monkeypatch.setattr("ws_ctx_engine.mcp.tools.DomainMapDB", _BadDB)
 
         payload = service.call_tool("get_domain_map", {})
 
@@ -204,10 +204,10 @@ def test_load_neighbors_supports_nx_and_igraph_shapes(monkeypatch) -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         service = MCPToolService(workspace=tmpdir, config=_config())
 
-        monkeypatch.setattr("context_packer.mcp.tools.load_indexes", lambda *args, **kwargs: (None, _FakeNXGraph(), None))
+        monkeypatch.setattr("ws_ctx_engine.mcp.tools.load_indexes", lambda *args, **kwargs: (None, _FakeNXGraph(), None))
         deps_nx, dents_nx = service._load_neighbors("src/a.py")
 
-        monkeypatch.setattr("context_packer.mcp.tools.load_indexes", lambda *args, **kwargs: (None, _FakeIGraph(), None))
+        monkeypatch.setattr("ws_ctx_engine.mcp.tools.load_indexes", lambda *args, **kwargs: (None, _FakeIGraph(), None))
         deps_ig, dents_ig = service._load_neighbors("src/a.py")
 
     assert deps_nx == ["src/b.py"]
@@ -259,7 +259,7 @@ def test_get_index_status_returns_index_not_found_when_metadata_missing(monkeypa
 def test_load_metadata_reads_valid_metadata_payload() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         repo = Path(tmpdir)
-        index_dir = repo / ".context-pack"
+        index_dir = repo / ".ws-ctx-engine"
         index_dir.mkdir(parents=True, exist_ok=True)
         (index_dir / "metadata.json").write_text(
             '{"created_at": "2026-01-01T00:00:00", "repo_path": "/repo", "file_count": 2, "backend": "faiss", "file_hashes": {"a.py": "h1"}}',

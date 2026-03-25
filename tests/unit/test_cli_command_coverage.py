@@ -5,7 +5,7 @@ import pytest
 import typer
 from typer.testing import CliRunner
 
-from context_packer.cli.cli import _load_config, app
+from ws_ctx_engine.cli.cli import _load_config, app
 
 
 runner = CliRunner()
@@ -46,9 +46,9 @@ def test_search_command_repo_not_directory() -> None:
 
 
 def test_search_command_agent_mode_outputs_ndjson(monkeypatch) -> None:
-    monkeypatch.setattr("context_packer.cli.cli._load_config", lambda config, repo_path=None: _cfg())
+    monkeypatch.setattr("ws_ctx_engine.cli.cli._load_config", lambda config, repo_path=None: _cfg())
     monkeypatch.setattr(
-        "context_packer.cli.cli.search_codebase",
+        "ws_ctx_engine.cli.cli.search_codebase",
         lambda **kwargs: (
             [{"path": "src/a.py", "score": 0.9, "domain": "auth", "summary": "ok"}],
             {"index_built_at": "2026-01-01T00:00:00Z", "files_indexed": 1},
@@ -66,12 +66,12 @@ def test_search_command_agent_mode_outputs_ndjson(monkeypatch) -> None:
 
 
 def test_search_command_handles_filenotfound(monkeypatch) -> None:
-    monkeypatch.setattr("context_packer.cli.cli._load_config", lambda config, repo_path=None: _cfg())
+    monkeypatch.setattr("ws_ctx_engine.cli.cli._load_config", lambda config, repo_path=None: _cfg())
 
     def _raise_not_found(**kwargs):
         raise FileNotFoundError("index missing")
 
-    monkeypatch.setattr("context_packer.cli.cli.search_codebase", _raise_not_found)
+    monkeypatch.setattr("ws_ctx_engine.cli.cli.search_codebase", _raise_not_found)
 
     with runner.isolated_filesystem():
         result = runner.invoke(app, ["search", "auth", "--repo", "."])
@@ -81,12 +81,12 @@ def test_search_command_handles_filenotfound(monkeypatch) -> None:
 
 
 def test_search_command_handles_generic_error(monkeypatch) -> None:
-    monkeypatch.setattr("context_packer.cli.cli._load_config", lambda config, repo_path=None: _cfg())
+    monkeypatch.setattr("ws_ctx_engine.cli.cli._load_config", lambda config, repo_path=None: _cfg())
 
     def _raise_error(**kwargs):
         raise RuntimeError("boom")
 
-    monkeypatch.setattr("context_packer.cli.cli.search_codebase", _raise_error)
+    monkeypatch.setattr("ws_ctx_engine.cli.cli.search_codebase", _raise_error)
 
     with runner.isolated_filesystem():
         result = runner.invoke(app, ["search", "auth", "--repo", "."])
@@ -96,7 +96,7 @@ def test_search_command_handles_generic_error(monkeypatch) -> None:
 
 
 def test_query_command_rejects_invalid_format(monkeypatch) -> None:
-    monkeypatch.setattr("context_packer.cli.cli._load_config", lambda config, repo_path=None: _cfg())
+    monkeypatch.setattr("ws_ctx_engine.cli.cli._load_config", lambda config, repo_path=None: _cfg())
 
     with runner.isolated_filesystem():
         result = runner.invoke(app, ["query", "auth", "--repo", ".", "--format", "txt"])
@@ -106,7 +106,7 @@ def test_query_command_rejects_invalid_format(monkeypatch) -> None:
 
 
 def test_query_command_rejects_non_positive_budget(monkeypatch) -> None:
-    monkeypatch.setattr("context_packer.cli.cli._load_config", lambda config, repo_path=None: _cfg())
+    monkeypatch.setattr("ws_ctx_engine.cli.cli._load_config", lambda config, repo_path=None: _cfg())
 
     with runner.isolated_filesystem():
         result = runner.invoke(app, ["query", "auth", "--repo", ".", "--budget", "0"])
@@ -116,8 +116,8 @@ def test_query_command_rejects_non_positive_budget(monkeypatch) -> None:
 
 
 def test_query_command_success_path(monkeypatch) -> None:
-    monkeypatch.setattr("context_packer.cli.cli._load_config", lambda config, repo_path=None: _cfg())
-    monkeypatch.setattr("context_packer.cli.cli.query_and_pack", lambda **kwargs: (Path("output.xml"), {}))
+    monkeypatch.setattr("ws_ctx_engine.cli.cli._load_config", lambda config, repo_path=None: _cfg())
+    monkeypatch.setattr("ws_ctx_engine.cli.cli.query_and_pack", lambda **kwargs: (Path("output.xml"), {}))
 
     with runner.isolated_filesystem():
         result = runner.invoke(app, ["query", "auth", "--repo", "."])
@@ -127,7 +127,7 @@ def test_query_command_success_path(monkeypatch) -> None:
 
 
 def test_pack_command_rejects_invalid_format(monkeypatch) -> None:
-    monkeypatch.setattr("context_packer.cli.cli._load_config", lambda config, repo_path=None: _cfg())
+    monkeypatch.setattr("ws_ctx_engine.cli.cli._load_config", lambda config, repo_path=None: _cfg())
 
     with runner.isolated_filesystem():
         result = runner.invoke(app, ["pack", ".", "--format", "txt"])
@@ -137,7 +137,7 @@ def test_pack_command_rejects_invalid_format(monkeypatch) -> None:
 
 
 def test_pack_command_rejects_non_positive_budget(monkeypatch) -> None:
-    monkeypatch.setattr("context_packer.cli.cli._load_config", lambda config, repo_path=None: _cfg())
+    monkeypatch.setattr("ws_ctx_engine.cli.cli._load_config", lambda config, repo_path=None: _cfg())
 
     with runner.isolated_filesystem():
         result = runner.invoke(app, ["pack", ".", "--budget", "0"])
@@ -147,7 +147,7 @@ def test_pack_command_rejects_non_positive_budget(monkeypatch) -> None:
 
 
 def test_pack_command_success_path_calls_index_and_query(monkeypatch) -> None:
-    monkeypatch.setattr("context_packer.cli.cli._load_config", lambda config, repo_path=None: _cfg())
+    monkeypatch.setattr("ws_ctx_engine.cli.cli._load_config", lambda config, repo_path=None: _cfg())
 
     called = {"index": 0, "query": 0}
 
@@ -156,10 +156,10 @@ def test_pack_command_success_path_calls_index_and_query(monkeypatch) -> None:
 
     def _fake_query_and_pack(**kwargs):
         called["query"] += 1
-        return Path("context-pack.zip"), {}
+        return Path("ws-ctx-engine.zip"), {}
 
-    monkeypatch.setattr("context_packer.cli.cli.index_repository", _fake_index_repository)
-    monkeypatch.setattr("context_packer.cli.cli.query_and_pack", _fake_query_and_pack)
+    monkeypatch.setattr("ws_ctx_engine.cli.cli.index_repository", _fake_index_repository)
+    monkeypatch.setattr("ws_ctx_engine.cli.cli.query_and_pack", _fake_query_and_pack)
 
     with runner.isolated_filesystem():
         result = runner.invoke(app, ["pack", ".", "--query", "auth"])
@@ -184,14 +184,14 @@ def test_load_config_prefers_repo_local_config(monkeypatch) -> None:
         loaded["path"] = path
         return _cfg()
 
-    monkeypatch.setattr("context_packer.cli.cli.Config.load", _fake_load)
+    monkeypatch.setattr("ws_ctx_engine.cli.cli.Config.load", _fake_load)
 
     with runner.isolated_filesystem():
-        Path(".context-pack.yaml").write_text("format: xml\n", encoding="utf-8")
+        Path(".ws-ctx-engine.yaml").write_text("format: xml\n", encoding="utf-8")
         cfg = _load_config(None, repo_path=".")
 
     assert cfg.format == "xml"
-    assert loaded["path"] == str(Path(".") / ".context-pack.yaml")
+    assert loaded["path"] == str(Path(".") / ".ws-ctx-engine.yaml")
 
 
 def test_version_flag_falls_back_to_unknown(monkeypatch) -> None:
@@ -208,13 +208,13 @@ def test_version_flag_falls_back_to_unknown(monkeypatch) -> None:
 
 
 def test_index_command_success_path(monkeypatch) -> None:
-    monkeypatch.setattr("context_packer.cli.cli._load_config", lambda config, repo_path=None: _cfg())
+    monkeypatch.setattr("ws_ctx_engine.cli.cli._load_config", lambda config, repo_path=None: _cfg())
     called = {"count": 0}
 
     def _fake_index_repository(**kwargs):
         called["count"] += 1
 
-    monkeypatch.setattr("context_packer.cli.cli.index_repository", _fake_index_repository)
+    monkeypatch.setattr("ws_ctx_engine.cli.cli.index_repository", _fake_index_repository)
 
     with runner.isolated_filesystem():
         Path("repo").mkdir()
@@ -225,12 +225,12 @@ def test_index_command_success_path(monkeypatch) -> None:
 
 
 def test_index_command_handles_generic_error(monkeypatch) -> None:
-    monkeypatch.setattr("context_packer.cli.cli._load_config", lambda config, repo_path=None: _cfg())
+    monkeypatch.setattr("ws_ctx_engine.cli.cli._load_config", lambda config, repo_path=None: _cfg())
 
     def _raise_index_error(**kwargs):
         raise RuntimeError("index failed")
 
-    monkeypatch.setattr("context_packer.cli.cli.index_repository", _raise_index_error)
+    monkeypatch.setattr("ws_ctx_engine.cli.cli.index_repository", _raise_index_error)
 
     with runner.isolated_filesystem():
         Path("repo").mkdir()
@@ -241,9 +241,9 @@ def test_index_command_handles_generic_error(monkeypatch) -> None:
 
 
 def test_search_command_non_agent_mode_no_results(monkeypatch) -> None:
-    monkeypatch.setattr("context_packer.cli.cli._load_config", lambda config, repo_path=None: _cfg())
+    monkeypatch.setattr("ws_ctx_engine.cli.cli._load_config", lambda config, repo_path=None: _cfg())
     monkeypatch.setattr(
-        "context_packer.cli.cli.search_codebase",
+        "ws_ctx_engine.cli.cli.search_codebase",
         lambda **kwargs: ([], {"index_built_at": "2026-01-01T00:00:00Z", "files_indexed": 0}),
     )
 
@@ -264,7 +264,7 @@ def test_mcp_command_keyboard_interrupt_exits_zero(monkeypatch) -> None:
     def _raise_interrupt(**kwargs):
         raise KeyboardInterrupt
 
-    monkeypatch.setattr("context_packer.cli.cli.run_mcp_server", _raise_interrupt)
+    monkeypatch.setattr("ws_ctx_engine.cli.cli.run_mcp_server", _raise_interrupt)
 
     with runner.isolated_filesystem():
         result = runner.invoke(app, ["mcp"])
@@ -273,12 +273,12 @@ def test_mcp_command_keyboard_interrupt_exits_zero(monkeypatch) -> None:
 
 
 def test_query_command_handles_file_not_found(monkeypatch) -> None:
-    monkeypatch.setattr("context_packer.cli.cli._load_config", lambda config, repo_path=None: _cfg())
+    monkeypatch.setattr("ws_ctx_engine.cli.cli._load_config", lambda config, repo_path=None: _cfg())
 
     def _raise_not_found(**kwargs):
         raise FileNotFoundError("missing index")
 
-    monkeypatch.setattr("context_packer.cli.cli.query_and_pack", _raise_not_found)
+    monkeypatch.setattr("ws_ctx_engine.cli.cli.query_and_pack", _raise_not_found)
 
     with runner.isolated_filesystem():
         result = runner.invoke(app, ["query", "auth", "--repo", ".", "--format", "md", "--budget", "100"])
@@ -288,12 +288,12 @@ def test_query_command_handles_file_not_found(monkeypatch) -> None:
 
 
 def test_query_command_handles_generic_error(monkeypatch) -> None:
-    monkeypatch.setattr("context_packer.cli.cli._load_config", lambda config, repo_path=None: _cfg())
+    monkeypatch.setattr("ws_ctx_engine.cli.cli._load_config", lambda config, repo_path=None: _cfg())
 
     def _raise_error(**kwargs):
         raise RuntimeError("query boom")
 
-    monkeypatch.setattr("context_packer.cli.cli.query_and_pack", _raise_error)
+    monkeypatch.setattr("ws_ctx_engine.cli.cli.query_and_pack", _raise_error)
 
     with runner.isolated_filesystem():
         result = runner.invoke(app, ["query", "auth", "--repo", "."])
@@ -303,17 +303,17 @@ def test_query_command_handles_generic_error(monkeypatch) -> None:
 
 
 def test_pack_command_handles_generic_error(monkeypatch) -> None:
-    monkeypatch.setattr("context_packer.cli.cli._load_config", lambda config, repo_path=None: _cfg())
+    monkeypatch.setattr("ws_ctx_engine.cli.cli._load_config", lambda config, repo_path=None: _cfg())
 
     def _raise_error(**kwargs):
         raise RuntimeError("pack boom")
 
-    monkeypatch.setattr("context_packer.cli.cli.query_and_pack", _raise_error)
+    monkeypatch.setattr("ws_ctx_engine.cli.cli.query_and_pack", _raise_error)
 
     with runner.isolated_filesystem():
         Path("repo").mkdir()
-        Path("repo/.context-pack").mkdir(parents=True, exist_ok=True)
-        Path("repo/.context-pack/metadata.json").write_text("{}", encoding="utf-8")
+        Path("repo/.ws-ctx-engine").mkdir(parents=True, exist_ok=True)
+        Path("repo/.ws-ctx-engine/metadata.json").write_text("{}", encoding="utf-8")
         result = runner.invoke(app, ["pack", "repo", "--query", "auth"])
 
     assert result.exit_code == 1
@@ -331,11 +331,11 @@ def test_status_command_success_path(monkeypatch) -> None:
         def close(self):
             return None
 
-    monkeypatch.setattr("context_packer.domain_map.DomainMapDB", _FakeDB)
+    monkeypatch.setattr("ws_ctx_engine.domain_map.DomainMapDB", _FakeDB)
 
     with runner.isolated_filesystem():
         repo = Path("repo")
-        index_dir = repo / ".context-pack"
+        index_dir = repo / ".ws-ctx-engine"
         index_dir.mkdir(parents=True, exist_ok=True)
         (index_dir / "metadata.json").write_text('{"file_count": 3, "backend": "faiss"}', encoding="utf-8")
         (index_dir / "vector.idx").write_bytes(b"x")
@@ -351,7 +351,7 @@ def test_status_command_success_path(monkeypatch) -> None:
 def test_status_command_handles_unexpected_error() -> None:
     with runner.isolated_filesystem():
         repo = Path("repo")
-        index_dir = repo / ".context-pack"
+        index_dir = repo / ".ws-ctx-engine"
         index_dir.mkdir(parents=True, exist_ok=True)
         (index_dir / "metadata.json").write_text("{invalid json", encoding="utf-8")
 
@@ -379,11 +379,11 @@ def test_vacuum_command_success_path(monkeypatch) -> None:
         def close(self):
             calls["close"] += 1
 
-    monkeypatch.setattr("context_packer.domain_map.DomainMapDB", _FakeDB)
+    monkeypatch.setattr("ws_ctx_engine.domain_map.DomainMapDB", _FakeDB)
 
     with runner.isolated_filesystem():
         repo = Path("repo")
-        db_path = repo / ".context-pack" / "domain_map.db"
+        db_path = repo / ".ws-ctx-engine" / "domain_map.db"
         db_path.parent.mkdir(parents=True, exist_ok=True)
         db_path.write_bytes(b"x")
 
@@ -399,11 +399,11 @@ def test_vacuum_command_handles_unexpected_error(monkeypatch) -> None:
         def __init__(self, path: str):
             raise RuntimeError("db down")
 
-    monkeypatch.setattr("context_packer.domain_map.DomainMapDB", _BadDB)
+    monkeypatch.setattr("ws_ctx_engine.domain_map.DomainMapDB", _BadDB)
 
     with runner.isolated_filesystem():
         repo = Path("repo")
-        db_path = repo / ".context-pack" / "domain_map.db"
+        db_path = repo / ".ws-ctx-engine" / "domain_map.db"
         db_path.parent.mkdir(parents=True, exist_ok=True)
         db_path.write_bytes(b"x")
 
@@ -418,12 +418,12 @@ def test_reindex_domain_success_path(monkeypatch) -> None:
         def format_metrics(self, kind: str) -> str:
             return f"{kind}-ok"
 
-    monkeypatch.setattr("context_packer.workflow.indexer.index_repository", lambda **kwargs: _Tracker())
-    monkeypatch.setattr("context_packer.cli.cli._load_config", lambda config, repo_path=None: _cfg())
+    monkeypatch.setattr("ws_ctx_engine.workflow.indexer.index_repository", lambda **kwargs: _Tracker())
+    monkeypatch.setattr("ws_ctx_engine.cli.cli._load_config", lambda config, repo_path=None: _cfg())
 
     with runner.isolated_filesystem():
         repo = Path("repo")
-        index_dir = repo / ".context-pack"
+        index_dir = repo / ".ws-ctx-engine"
         index_dir.mkdir(parents=True, exist_ok=True)
         (index_dir / "metadata.json").write_text("{}", encoding="utf-8")
 
@@ -437,12 +437,12 @@ def test_reindex_domain_handles_unexpected_error(monkeypatch) -> None:
     def _raise_error(**kwargs):
         raise RuntimeError("cannot reindex")
 
-    monkeypatch.setattr("context_packer.workflow.indexer.index_repository", _raise_error)
-    monkeypatch.setattr("context_packer.cli.cli._load_config", lambda config, repo_path=None: _cfg())
+    monkeypatch.setattr("ws_ctx_engine.workflow.indexer.index_repository", _raise_error)
+    monkeypatch.setattr("ws_ctx_engine.cli.cli._load_config", lambda config, repo_path=None: _cfg())
 
     with runner.isolated_filesystem():
         repo = Path("repo")
-        index_dir = repo / ".context-pack"
+        index_dir = repo / ".ws-ctx-engine"
         index_dir.mkdir(parents=True, exist_ok=True)
         (index_dir / "metadata.json").write_text("{}", encoding="utf-8")
 
@@ -453,7 +453,7 @@ def test_reindex_domain_handles_unexpected_error(monkeypatch) -> None:
 
 
 def test_cli_entrypoint_maps_keyboard_interrupt_to_130(monkeypatch) -> None:
-    import context_packer.cli.cli as cli_module
+    import ws_ctx_engine.cli.cli as cli_module
 
     def _raise_interrupt() -> None:
         raise KeyboardInterrupt
@@ -467,7 +467,7 @@ def test_cli_entrypoint_maps_keyboard_interrupt_to_130(monkeypatch) -> None:
 
 
 def test_cli_entrypoint_maps_unexpected_error_to_1(monkeypatch) -> None:
-    import context_packer.cli.cli as cli_module
+    import ws_ctx_engine.cli.cli as cli_module
 
     def _raise_error() -> None:
         raise RuntimeError("unexpected")
@@ -481,9 +481,9 @@ def test_cli_entrypoint_maps_unexpected_error_to_1(monkeypatch) -> None:
 
 
 def test_search_command_non_agent_mode_prints_ranked_results(monkeypatch) -> None:
-    monkeypatch.setattr("context_packer.cli.cli._load_config", lambda config, repo_path=None: _cfg())
+    monkeypatch.setattr("ws_ctx_engine.cli.cli._load_config", lambda config, repo_path=None: _cfg())
     monkeypatch.setattr(
-        "context_packer.cli.cli.search_codebase",
+        "ws_ctx_engine.cli.cli.search_codebase",
         lambda **kwargs: (
             [{"path": "src/a.py", "score": 0.9, "domain": "auth", "summary": "ok"}],
             {"index_built_at": "2026-01-01T00:00:00Z", "files_indexed": 1},
@@ -504,9 +504,9 @@ def test_query_command_repo_not_found() -> None:
 
 
 def test_pack_command_success_with_valid_overrides(monkeypatch) -> None:
-    monkeypatch.setattr("context_packer.cli.cli._load_config", lambda config, repo_path=None: _cfg())
-    monkeypatch.setattr("context_packer.cli.cli.index_repository", lambda **kwargs: None)
-    monkeypatch.setattr("context_packer.cli.cli.query_and_pack", lambda **kwargs: (Path("out.zip"), {}))
+    monkeypatch.setattr("ws_ctx_engine.cli.cli._load_config", lambda config, repo_path=None: _cfg())
+    monkeypatch.setattr("ws_ctx_engine.cli.cli.index_repository", lambda **kwargs: None)
+    monkeypatch.setattr("ws_ctx_engine.cli.cli.query_and_pack", lambda **kwargs: (Path("out.zip"), {}))
 
     with runner.isolated_filesystem():
         repo = Path("repo")
@@ -541,7 +541,7 @@ def test_status_command_fails_for_missing_repo_no_index_and_incomplete_index() -
         assert no_index.exit_code == 1
         assert "No index found" in no_index.stdout
 
-        index_dir = Path("repo/.context-pack")
+        index_dir = Path("repo/.ws-ctx-engine")
         index_dir.mkdir(parents=True, exist_ok=True)
         incomplete = runner.invoke(app, ["status", "repo"])
 
@@ -560,7 +560,7 @@ def test_vacuum_command_fails_for_missing_repo_no_index_and_no_db() -> None:
         assert no_index.exit_code == 1
         assert "No index found" in no_index.stdout
 
-        index_dir = Path("repo/.context-pack")
+        index_dir = Path("repo/.ws-ctx-engine")
         index_dir.mkdir(parents=True, exist_ok=True)
         no_db = runner.invoke(app, ["vacuum", "repo"])
 
@@ -579,7 +579,7 @@ def test_reindex_domain_fails_for_missing_repo_no_index_and_missing_metadata() -
         assert no_index.exit_code == 1
         assert "No index found" in no_index.stdout
 
-        index_dir = Path("repo/.context-pack")
+        index_dir = Path("repo/.ws-ctx-engine")
         index_dir.mkdir(parents=True, exist_ok=True)
         missing_metadata = runner.invoke(app, ["reindex-domain", "repo"])
 
@@ -594,7 +594,7 @@ def test_load_config_explicit_existing_file(monkeypatch) -> None:
         loaded["path"] = path
         return _cfg()
 
-    monkeypatch.setattr("context_packer.cli.cli.Config.load", _fake_load)
+    monkeypatch.setattr("ws_ctx_engine.cli.cli.Config.load", _fake_load)
 
     with runner.isolated_filesystem():
         cfg_file = Path("cfg.yaml")

@@ -7,8 +7,8 @@ Tests universal properties that should hold for all graph implementations.
 import pytest
 from hypothesis import given, strategies as st, settings
 
-from context_packer.graph import create_graph, IGraphRepoMap, NetworkXRepoMap
-from context_packer.models import CodeChunk
+from ws_ctx_engine.graph import create_graph, IGraphRepoMap, NetworkXRepoMap
+from ws_ctx_engine.models import CodeChunk
 
 
 # Strategy for generating valid CodeChunks

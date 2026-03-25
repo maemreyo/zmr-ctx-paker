@@ -26,7 +26,7 @@ def hello():
         (temp_repo / "test.py").write_text(code)
 
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -51,7 +51,7 @@ def func():
         (temp_repo / "multi_import.py").write_text(code)
 
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -76,7 +76,7 @@ fn main() {
         (temp_repo / "use_braces.rs").write_text(code)
 
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -105,7 +105,7 @@ class TestTreeSitterNonCodeExtensions:
         (temp_repo / "data.json").write_text('{"key": "value"}')
 
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -120,7 +120,7 @@ class TestTreeSitterNonCodeExtensions:
         (temp_repo / "config.yaml").write_text('key: value')
 
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -135,7 +135,7 @@ class TestTreeSitterNonCodeExtensions:
         (temp_repo / "notes.txt").write_text('Some notes here.')
 
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -160,7 +160,7 @@ class TestTreeSitterReadError:
         (temp_repo / "binary.bin").write_bytes(b'\x00\x01\x02\x03')
 
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -175,7 +175,7 @@ class TestTreeSitterReadError:
         (temp_repo / "bad.py").write_text("def func():\n    " + "x" * 10000)
 
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -201,7 +201,7 @@ class TestTreeSitterMultipleFiles:
         (temp_repo / "c.py").write_text("def c(): pass")
 
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -218,7 +218,7 @@ class TestTreeSitterMultipleFiles:
         (temp_repo / "lib.rs").write_text("fn lib() {}")
 
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -234,7 +234,7 @@ class TestTreeSitterMultipleFiles:
         (nested / "Button.tsx").write_text("function Button() {}")
 
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -266,7 +266,7 @@ def second():
         (temp_repo / "lines.py").write_text(code)
 
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -286,7 +286,7 @@ def second():
         (temp_repo / "span.py").write_text(code)
 
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -322,7 +322,7 @@ class TestTreeSitterResolverCoverage:
         (temp_repo / "methods.py").write_text(code)
 
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -350,7 +350,7 @@ class TestTreeSitterResolverCoverage:
         (temp_repo / "methods.js").write_text(code)
 
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 
@@ -375,7 +375,7 @@ class TestTreeSitterResolverCoverage:
         (temp_repo / "methods.ts").write_text(code)
 
         try:
-            from context_packer.chunker import TreeSitterChunker
+            from ws_ctx_engine.chunker import TreeSitterChunker
         except ImportError:
             pytest.skip("TreeSitter not available")
 

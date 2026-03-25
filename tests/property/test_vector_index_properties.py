@@ -11,8 +11,8 @@ import numpy as np
 import pytest
 from hypothesis import given, strategies as st, settings, assume
 
-from context_packer.models import CodeChunk
-from context_packer.vector_index import (
+from ws_ctx_engine.models import CodeChunk
+from ws_ctx_engine.vector_index import (
     LEANNIndex,
     FAISSIndex,
     create_vector_index,
@@ -237,7 +237,7 @@ class TestEmbeddingFallbackChain:
     @given(texts=st.lists(st.text(min_size=10, max_size=100), min_size=1, max_size=5))
     def test_embedding_fallback_on_oom(self, texts):
         """Test that embedding generation falls back to API on OOM."""
-        from context_packer.vector_index import EmbeddingGenerator
+        from ws_ctx_engine.vector_index import EmbeddingGenerator
         
         # Mock sentence_transformers to raise MemoryError
         mock_st_module = Mock()
@@ -258,7 +258,7 @@ class TestEmbeddingFallbackChain:
             'openai': mock_openai
         }), \
              patch.dict('os.environ', {'OPENAI_API_KEY': 'test-key'}), \
-             patch('context_packer.vector_index.psutil.virtual_memory') as mock_mem:
+             patch('ws_ctx_engine.vector_index.psutil.virtual_memory') as mock_mem:
             
             mock_mem.return_value.available = 1024 * 1024 * 1024  # 1GB
             
@@ -279,10 +279,10 @@ class TestEmbeddingFallbackChain:
     @given(texts=st.lists(st.text(min_size=10, max_size=100), min_size=1, max_size=5))
     def test_embedding_fallback_on_low_memory(self, texts):
         """Test that embedding generation falls back to API on low memory."""
-        from context_packer.vector_index import EmbeddingGenerator
+        from ws_ctx_engine.vector_index import EmbeddingGenerator
         
         # Mock low memory condition
-        with patch('context_packer.vector_index.psutil.virtual_memory') as mock_mem:
+        with patch('ws_ctx_engine.vector_index.psutil.virtual_memory') as mock_mem:
             mock_mem.return_value.available = 100 * 1024 * 1024  # 100MB (below threshold)
             
             gen = EmbeddingGenerator()

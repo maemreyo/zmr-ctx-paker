@@ -1,1 +1,1 @@
-"""Test suite for Context Packer."""
+"""Test suite for ws-ctx-engine."""
