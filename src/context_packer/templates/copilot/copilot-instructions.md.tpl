@@ -8,7 +8,7 @@ This project uses **ctx-packer** for intelligent code context packaging.
 
 ```bash
 ${CTX_CMD_INDEX}           # Build index (run once)
-${CTX_CMD_QUERY}  # Find relevant files
+${CTX_CMD_SEARCH} # Find relevant files
 ${CTX_CMD_FULL_ZIP}  # Full context bundle
 ```
 

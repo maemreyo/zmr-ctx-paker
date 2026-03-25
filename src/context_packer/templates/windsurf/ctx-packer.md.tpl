@@ -13,8 +13,8 @@ Creates vector index, dependency graph, and domain map.
 
 ### Query Code
 ```bash
-${CTX_CMD_QUERY} --format zip
-${CTX_CMD_QUERY} --format xml
+${CTX_CMD_SEARCH}
+${CTX_CMD_FULL_XML}
 ```
 
 ### Pack for AI Context
@@ -34,7 +34,7 @@ ${CTX_CMD_STATUS}
 | Code Review | `${CTX_CMD_FULL_ZIP}` |
 | Bug Investigation | `${CTX_CMD_FULL_XML}` |
 | Feature Context | `${CTX_CMD_FULL_ZIP} --budget 80000` |
-| Documentation | `${CTX_CMD_QUERY} --format zip` |
+| Documentation | `${CTX_CMD_SEARCH}` |
 
 ## Tips
 

@@ -55,3 +55,4 @@ dmypy.json
 # Ruff
 .ruff_cache/
 tests/query_resultsexamples/zmr-koe/source
+.coverage.*

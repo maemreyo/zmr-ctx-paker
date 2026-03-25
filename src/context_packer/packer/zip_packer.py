@@ -7,7 +7,7 @@ Generates ZIP archive with preserved directory structure and REVIEW_CONTEXT.md m
 import io
 import os
 import zipfile
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import tiktoken
 
@@ -51,7 +51,8 @@ class ZIPPacker:
         selected_files: List[str],
         repo_path: str,
         metadata: Dict[str, Any],
-        importance_scores: Dict[str, float]
+        importance_scores: Dict[str, float],
+        secret_scanner: Optional[Any] = None,
     ) -> bytes:
         """
         Generate ZIP archive from selected files.
@@ -77,7 +78,7 @@ class ZIPPacker:
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
             # Add all selected files under files/ directory
             for file_path in selected_files:
-                self._add_file_to_zip(zip_file, file_path, repo_path)
+                self._add_file_to_zip(zip_file, file_path, repo_path, secret_scanner=secret_scanner)
             
             # Generate and add REVIEW_CONTEXT.md manifest
             manifest_content = self._generate_manifest(
@@ -95,7 +96,8 @@ class ZIPPacker:
         self,
         zip_file: zipfile.ZipFile,
         file_path: str,
-        repo_path: str
+        repo_path: str,
+        secret_scanner: Optional[Any] = None,
     ) -> None:
         """
         Add a file to the ZIP archive under files/ directory.
@@ -114,16 +116,22 @@ class ZIPPacker:
         try:
             with open(full_path, 'r', encoding='utf-8') as f:
                 content = f.read()
-            zip_file.writestr(zip_path, content)
         except UnicodeDecodeError:
             # Try with latin-1 encoding as fallback
             self.logger.warning(f"UTF-8 decode failed for {file_path}, trying latin-1")
             with open(full_path, 'r', encoding='latin-1') as f:
                 content = f.read()
-            zip_file.writestr(zip_path, content)
         except Exception as e:
             self.logger.error(f"Failed to add {file_path} to ZIP: {e}")
             raise
+
+        if secret_scanner is not None:
+            scan_result = secret_scanner.scan(file_path)
+            if scan_result.secrets_detected:
+                detected = ", ".join(scan_result.secrets_detected)
+                content = f"[REDACTED: detected secrets ({detected})]"
+
+        zip_file.writestr(zip_path, content)
     
     def _generate_manifest(
         self,
@@ -164,6 +172,18 @@ class ZIPPacker:
         # Optional changed files
         if metadata.get('changed_files'):
             lines.append(f"- **Changed Files**: {', '.join(metadata['changed_files'])}")
+
+        index_health = metadata.get("index_health")
+        if isinstance(index_health, dict):
+            lines.append(f"- **Index Status**: {index_health.get('status', 'unknown')}")
+            if index_health.get("stale_reason"):
+                lines.append(f"- **Index Stale Reason**: {index_health['stale_reason']}")
+            if index_health.get("files_indexed") is not None:
+                lines.append(f"- **Files Indexed**: {index_health['files_indexed']}")
+            if index_health.get("index_built_at"):
+                lines.append(f"- **Index Built At**: {index_health['index_built_at']}")
+            if index_health.get("vcs"):
+                lines.append(f"- **VCS**: {index_health['vcs']}")
         
         lines.append("")
         
@@ -237,7 +257,6 @@ class ZIPPacker:
         # Low scores (<0.3) typically indicate transitive dependencies
         if score > 0.7:
             return "Semantic match"
-        elif score > 0.3:
+        if score > 0.3:
             return "Dependency"
-        else:
-            return "Transitive dependency"
+        return "Transitive dependency"

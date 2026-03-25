@@ -35,13 +35,15 @@ _render_template() {
   export CTX_PACKER_VERSION
   export CTX_DATE
   export CTX_TARGET_NAME
+  export CTX_TARGET
 
   envsubst '
     ${CTX_DATE}
     ${CTX_PACKER_VERSION}
     ${CTX_TARGET_NAME}
+    ${CTX_TARGET}
     ${CTX_CMD_INDEX}
-    ${CTX_CMD_QUERY}
+    ${CTX_CMD_SEARCH}
     ${CTX_CMD_PACK}
     ${CTX_CMD_STATUS}
     ${CTX_CMD_VACUUM}

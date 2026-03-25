@@ -8,6 +8,7 @@ source "$SCRIPT_DIR/lib/selector.sh"
 source "$SCRIPT_DIR/lib/commands.sh"
 source "$SCRIPT_DIR/lib/install.sh"
 source "$SCRIPT_DIR/lib/index.sh"
+source "$SCRIPT_DIR/lib/mcp.sh"
 source "$SCRIPT_DIR/agents/_registry.sh"
 
 TARGET_PATH="$(pwd)"
@@ -71,6 +72,7 @@ log_ok "Agents: ${SELECTED_AGENTS[*]}"
 check_git
 install_ctx_packer
 _discover_commands
+emit_mcp_config
 
 for agent_id in "${SELECTED_AGENTS[@]}"; do
   source "$SCRIPT_DIR/agents/${agent_id}.sh"

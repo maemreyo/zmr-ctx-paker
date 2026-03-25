@@ -68,7 +68,13 @@ class TestXMLPacker:
                 "file_count": 42,
                 "total_tokens": 95000,
                 "query": "find authentication code",
-                "changed_files": ["auth.py", "login.py"]
+                "changed_files": ["auth.py", "login.py"],
+                "index_health": {
+                    "status": "current",
+                    "files_indexed": 42,
+                    "index_built_at": "2026-03-25T10:30:00Z",
+                    "vcs": "git",
+                },
             }
             xml_output = packer.pack(["test.py"], tmpdir, metadata)
             
@@ -84,6 +90,13 @@ class TestXMLPacker:
             # Check optional fields
             assert metadata_elem.find("query").text == "find authentication code"
             assert metadata_elem.find("changed_files").text == "auth.py, login.py"
+
+            index_health = metadata_elem.find("index_health")
+            assert index_health is not None
+            assert index_health.find("status").text == "current"
+            assert index_health.find("files_indexed").text == "42"
+            assert index_health.find("index_built_at").text == "2026-03-25T10:30:00Z"
+            assert index_health.find("vcs").text == "git"
     
     def test_file_tags_include_paths_and_token_counts(self):
         """Test that file tags include paths and token counts.

@@ -19,7 +19,7 @@ class Config:
     """System configuration loaded from .context-pack.yaml"""
     
     # Output settings
-    format: str = "zip"  # "xml" | "zip"
+    format: str = "zip"  # "xml" | "zip" | "json" | "md"
     token_budget: int = 100000
     output_path: str = "./output"
     
@@ -162,8 +162,8 @@ class Config:
             return "zip"
         
         value = value.lower()
-        if value not in ["xml", "zip"]:
-            logger.error(f"Invalid format: {value}, must be 'xml' or 'zip'")
+        if value not in ["xml", "zip", "json", "md"]:
+            logger.error(f"Invalid format: {value}, must be 'xml', 'zip', 'json', or 'md'")
             return "zip"
         
         return value

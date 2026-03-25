@@ -15,7 +15,7 @@ ctx-packer indexes your codebase and builds context bundles for AI agents.
 
 ```bash
 ${CTX_CMD_INDEX}          # Build/update index for current dir
-${CTX_CMD_QUERY}          # Search indexed codebase
+${CTX_CMD_SEARCH}         # Search indexed codebase
 ${CTX_CMD_PACK}           # Full workflow: index + query + pack
 ${CTX_CMD_STATUS}         # Show index status
 ${CTX_CMD_VACUUM}         # Optimize SQLite database
@@ -32,7 +32,7 @@ ${CTX_CMD_VACUUM}         # Optimize SQLite database
 ## Workflow
 
 1. Run `${CTX_CMD_INDEX}` if index is stale or missing (check with `${CTX_CMD_STATUS}`)
-2. Run `${CTX_CMD_QUERY}` to find relevant files
+2. Run `${CTX_CMD_SEARCH}` to find relevant files
 3. Use results to inform your next action
 4. For full context bundle: `${CTX_CMD_FULL_ZIP}`
 

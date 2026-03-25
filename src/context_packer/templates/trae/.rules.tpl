@@ -9,7 +9,7 @@ This project uses ctx-packer to build optimized code context for AI agents.
 | Command | Description |
 |---------|-------------|
 | `${CTX_CMD_INDEX}` | Build indexes (vector, graph, domain) |
-| `${CTX_CMD_QUERY}` | Search and output |
+| `${CTX_CMD_SEARCH}` | Search codebase |
 | `${CTX_CMD_PACK}` | Full workflow |
 | `${CTX_CMD_STATUS}` | Show index stats |
 
@@ -20,7 +20,7 @@ This project uses ctx-packer to build optimized code context for AI agents.
 ${CTX_CMD_INDEX}
 
 # Search for context
-${CTX_CMD_QUERY} --format zip
+${CTX_CMD_SEARCH}
 
 # Pack for AI context
 ${CTX_CMD_PACK}

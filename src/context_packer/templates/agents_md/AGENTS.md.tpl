@@ -24,8 +24,8 @@ pip install "ctx-packer[all]"
 # 1. Index the repository (one time)
 ${CTX_CMD_INDEX}
 
-# 2. Query for context
-${CTX_CMD_QUERY} --format zip
+# 2. Search for context
+${CTX_CMD_SEARCH}
 
 # 3. Use output in your AI tool
 ```
@@ -35,7 +35,7 @@ ${CTX_CMD_QUERY} --format zip
 | Command | Description |
 |---------|-------------|
 | `${CTX_CMD_INDEX}` | Build semantic, graph, and domain indexes |
-| `${CTX_CMD_QUERY} [opts]` | Search and generate output |
+| `${CTX_CMD_SEARCH}` | Search indexed codebase |
 | `${CTX_CMD_PACK}` | Full workflow (index + query + pack) |
 | `${CTX_CMD_STATUS}` | Show index statistics |
 | `${CTX_CMD_VACUUM}` | Optimize SQLite database |
@@ -62,7 +62,8 @@ ${CTX_CMD_FULL_XML} --budget 30000
 
 ### Feature Development
 ```bash
-${CTX_CMD_QUERY} --format zip --budget 80000
+${CTX_CMD_SEARCH}
+${CTX_CMD_FULL_ZIP} --budget 80000
 ```
 
 ### PR Context
@@ -95,7 +96,7 @@ Example workflow:
 ${CTX_CMD_INDEX}
 
 # Query relevant code
-${CTX_CMD_QUERY} --format zip
+${CTX_CMD_SEARCH}
 
 # The ZIP contains relevant files ranked by semantic similarity
 ```
