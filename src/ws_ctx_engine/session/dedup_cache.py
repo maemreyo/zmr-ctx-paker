@@ -45,7 +45,17 @@ class SessionDeduplicationCache:
     def __init__(self, session_id: str, cache_dir: Path) -> None:
         self.session_id = session_id
         cache_dir.mkdir(parents=True, exist_ok=True)
-        self.cache_file = cache_dir / f".ws-ctx-engine-session-{session_id}.json"
+        cache_file = cache_dir / f".ws-ctx-engine-session-{session_id}.json"
+        # Confine the resolved path to cache_dir to prevent path traversal via
+        # session_id values that embed directory separators (e.g. "../../etc/x").
+        resolved = cache_file.resolve()
+        resolved_dir = cache_dir.resolve()
+        if not str(resolved).startswith(str(resolved_dir) + os.sep) and resolved != resolved_dir:
+            raise PermissionError(
+                f"SESSION_ID_TRAVERSAL: session cache path '{resolved}' "
+                f"is outside the permitted directory '{resolved_dir}'"
+            )
+        self.cache_file = cache_file
         self.seen_hashes: dict[str, str] = self._load()
 
     # ------------------------------------------------------------------
@@ -78,11 +88,17 @@ class SessionDeduplicationCache:
         self._save()
         return False, content
 
-    def clear(self) -> None:
-        """Delete the on-disk cache and reset in-memory state."""
+    def clear(self) -> int:
+        """Delete the on-disk cache and reset in-memory state.
+
+        Returns:
+            1 if the cache file existed and was deleted, 0 otherwise.
+        """
         self.seen_hashes = {}
         if self.cache_file.exists():
             self.cache_file.unlink()
+            return 1
+        return 0
 
     @property
     def size(self) -> int:

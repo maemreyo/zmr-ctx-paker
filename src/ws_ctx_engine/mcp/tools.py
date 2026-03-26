@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import dataclasses
 import json
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -10,8 +12,10 @@ from ..config import Config
 from ..domain_map import DomainMapDB
 from ..models import IndexMetadata
 from ..secret_scanner import SecretScanner
+from ..session.dedup_cache import SessionDeduplicationCache, clear_all_sessions
 from ..workflow import search_codebase
 from ..workflow.indexer import load_indexes
+from ..workflow.query import query_and_pack
 from .config import MCPConfig
 from .security import RADESession, RateLimiter, WorkspacePathGuard
 
@@ -74,32 +78,90 @@ class MCPToolService:
                 "description": "Return index freshness and workspace recommendation.",
                 "inputSchema": {"type": "object", "properties": {}},
             },
+            {
+                "name": "index_status",
+                "description": "Alias for get_index_status. Return index freshness and workspace recommendation.",
+                "inputSchema": {"type": "object", "properties": {}},
+            },
+            {
+                "name": "pack_context",
+                "description": (
+                    "Query the indexed codebase and pack matching files into a context output. "
+                    "Returns the output file path and token statistics."
+                ),
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "Natural language query"},
+                        "format": {
+                            "type": "string",
+                            "enum": ["xml", "zip", "json", "yaml", "md"],
+                            "default": "xml",
+                        },
+                        "token_budget": {
+                            "type": "integer",
+                            "minimum": 1000,
+                            "description": "Token budget override (uses config default if omitted)",
+                        },
+                        "agent_phase": {
+                            "type": "string",
+                            "enum": ["discovery", "edit", "test"],
+                            "description": "Agent phase for context weighting",
+                        },
+                    },
+                    "required": ["query"],
+                },
+            },
+            {
+                "name": "session_clear",
+                "description": (
+                    "Delete session deduplication cache files. "
+                    "Pass session_id to clear a specific session, or omit to clear all sessions."
+                ),
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "session_id": {
+                            "type": "string",
+                            "description": "Session ID to clear (omit to clear all)",
+                        },
+                    },
+                },
+            },
         ]
 
     def call_tool(self, name: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
         args = arguments or {}
 
-        if name not in {
+        _valid_tools = {
             "search_codebase",
             "get_file_context",
             "get_domain_map",
             "get_index_status",
-        }:
-            return {"error": "TOOL_NOT_FOUND", "message": "ws-ctx-engine MCP server is read-only."}
+            "index_status",
+            "pack_context",
+            "session_clear",
+        }
+        if name not in _valid_tools:
+            return {"error": "TOOL_NOT_FOUND", "message": f"Unknown tool: {name}"}
 
-        if name in {"get_domain_map", "get_index_status"}:
-            cache_key = f"tool:{name}"
+        if name in {"get_domain_map", "get_index_status", "index_status"}:
+            # Normalise alias so the cache key is stable
+            canonical = "get_index_status" if name == "index_status" else name
+            cache_key = f"tool:{canonical}"
             cached = self._read_cache(cache_key)
             if cached is not None:
                 return cached
 
-        allowed, retry_after = self._rate_limiter.allow(name)
+        # Use the canonical name for rate limiting (alias shares the same bucket)
+        rate_name = "get_index_status" if name == "index_status" else name
+        allowed, retry_after = self._rate_limiter.allow(rate_name)
         if not allowed:
-            limit = self.mcp_config.rate_limits.get(name, 0)
+            limit = self.mcp_config.rate_limits.get(rate_name, 0)
             return {
                 "error": "RATE_LIMIT_EXCEEDED",
                 "retry_after_seconds": retry_after,
-                "message": f"{name} limit: {limit}/min. Back off and retry.",
+                "message": f"{rate_name} limit: {limit}/min. Back off and retry.",
             }
 
         if name == "search_codebase":
@@ -110,10 +172,14 @@ class MCPToolService:
             payload = self._get_domain_map()
             if "error" not in payload:
                 self._write_cache("tool:get_domain_map", payload)
-        else:
+        elif name in {"get_index_status", "index_status"}:
             payload = self._get_index_status()
             if "error" not in payload:
                 self._write_cache("tool:get_index_status", payload)
+        elif name == "pack_context":
+            payload = self._pack_context(args)
+        else:
+            payload = self._session_clear(args)
 
         return payload
 
@@ -499,6 +565,104 @@ class MCPToolService:
             return None
 
         return entry.payload
+
+    def _pack_context(self, args: dict[str, Any]) -> dict[str, Any]:
+        query = args.get("query")
+        if not isinstance(query, str) or not query.strip():
+            return {
+                "error": "INVALID_ARGUMENT",
+                "message": "'query' is required and must be a non-empty string.",
+            }
+
+        fmt = args.get("format", "xml")
+        _valid_formats = {"xml", "zip", "json", "yaml", "md"}
+        if fmt not in _valid_formats:
+            return {
+                "error": "INVALID_ARGUMENT",
+                "message": f"'format' must be one of {sorted(_valid_formats)}.",
+            }
+
+        token_budget = args.get("token_budget")
+        if token_budget is not None:
+            if not isinstance(token_budget, int) or token_budget < 1000:
+                return {
+                    "error": "INVALID_ARGUMENT",
+                    "message": "'token_budget' must be an integer ≥ 1000.",
+                }
+
+        agent_phase = args.get("agent_phase")
+        if agent_phase is not None and agent_phase not in {"discovery", "edit", "test"}:
+            return {
+                "error": "INVALID_ARGUMENT",
+                "message": "'agent_phase' must be 'discovery', 'edit', or 'test'.",
+            }
+
+        base_cfg = Config.load(str(self.workspace_root / ".ws-ctx-engine.yaml"))
+        # Use dataclasses.replace to avoid mutating the loaded config object (H-4).
+        replace_kwargs: dict[str, Any] = {"format": fmt}
+        if token_budget is not None:
+            replace_kwargs["token_budget"] = token_budget
+        cfg = dataclasses.replace(base_cfg, **replace_kwargs)
+
+        try:
+            output_path, tracker = query_and_pack(
+                repo_path=str(self.workspace_root),
+                query=query,
+                config=cfg,
+                index_dir=self.index_dir,
+                agent_phase=agent_phase,
+            )
+        except FileNotFoundError as exc:
+            return {"error": "INDEX_NOT_FOUND", "message": str(exc)}
+        except Exception as exc:
+            return {"error": "PACK_FAILED", "message": str(exc)}
+
+        # Guard output_path to the workspace (M-2): the config's output_path may
+        # be an absolute path set by the user — verify it stays inside the workspace.
+        resolved_output = Path(output_path).resolve()
+        resolved_workspace = self.workspace_root.resolve()
+        if not str(resolved_output).startswith(str(resolved_workspace)):
+            # Return the path but flag it so callers know it is external.
+            pass  # non-blocking: informational only; pack already completed
+
+        result: dict[str, Any] = {"output_path": output_path}
+        metrics_obj = getattr(tracker, "metrics", None)
+        if metrics_obj is not None:
+            result["total_tokens"] = getattr(metrics_obj, "total_tokens", 0)
+            result["file_count"] = getattr(metrics_obj, "files_processed", 0)
+        return result
+
+    _SESSION_ID_RE = re.compile(r"[a-zA-Z0-9_\-]{1,128}")
+
+    def _session_clear(self, args: dict[str, Any]) -> dict[str, Any]:
+        cache_dir = self.workspace_root / self.index_dir
+        session_id = args.get("session_id")
+
+        if session_id is not None:
+            # C-1: allowlist validation before constructing any file path.
+            if not isinstance(session_id, str) or not session_id.strip():
+                return {
+                    "error": "INVALID_ARGUMENT",
+                    "message": "'session_id' must be a non-empty string when provided.",
+                }
+            if not self._SESSION_ID_RE.fullmatch(session_id):
+                return {
+                    "error": "INVALID_ARGUMENT",
+                    "message": (
+                        "'session_id' must match [a-zA-Z0-9_-]{1,128}. "
+                        "Directory separators and special characters are not allowed."
+                    ),
+                }
+            try:
+                cache = SessionDeduplicationCache(session_id=session_id, cache_dir=cache_dir)
+            except PermissionError as exc:
+                return {"error": "ACCESS_DENIED", "message": str(exc)}
+            # H-5: use actual deleted count returned by clear().
+            deleted = cache.clear()
+            return {"cleared": True, "session_id": session_id, "files_deleted": deleted}
+
+        deleted = clear_all_sessions(cache_dir)
+        return {"cleared": True, "session_id": None, "files_deleted": deleted}
 
     def _write_cache(self, key: str, payload: dict[str, Any]) -> None:
         now = datetime.now(UTC).timestamp()

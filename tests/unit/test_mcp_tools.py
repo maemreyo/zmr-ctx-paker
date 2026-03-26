@@ -204,6 +204,9 @@ def test_tool_registry_exposes_expected_tools() -> None:
             "get_file_context",
             "get_domain_map",
             "get_index_status",
+            "index_status",
+            "pack_context",
+            "session_clear",
         }
 
 
@@ -285,3 +288,197 @@ def test_load_metadata_returns_none_for_invalid_created_at() -> None:
 
         service = MCPToolService(workspace=str(repo), config=MCPConfig())
         assert service._load_metadata() is None
+
+
+# ---------------------------------------------------------------------------
+# index_status alias
+# ---------------------------------------------------------------------------
+
+
+def test_index_status_alias_returns_same_payload_as_get_index_status() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        service = MCPToolService(workspace=tmpdir, config=MCPConfig())
+
+        # Stub the underlying handler
+        service._get_index_status = lambda: {  # type: ignore[method-assign]
+            "index_health": {"status": "unknown"},
+            "recommendation": "Build first.",
+            "workspace": tmpdir,
+        }
+
+        via_alias = service.call_tool("index_status", {})
+        assert via_alias["index_health"]["status"] == "unknown"
+        assert "recommendation" in via_alias
+
+
+def test_index_status_alias_shares_rate_limit_bucket_with_get_index_status() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        config = MCPConfig(
+            rate_limits={
+                "search_codebase": 60,
+                "get_file_context": 60,
+                "get_domain_map": 10,
+                "get_index_status": 1,
+            }
+        )
+        service = MCPToolService(workspace=tmpdir, config=config)
+        service._get_index_status = lambda: {"index_health": {}, "recommendation": "", "workspace": tmpdir}  # type: ignore[method-assign]
+
+        first = service.call_tool("get_index_status", {})
+        assert "error" not in first
+
+        # Expire the cache so the rate limiter is exercised on the alias call
+        service._cache["tool:get_index_status"].expires_at = 0
+
+        second = service.call_tool("index_status", {})
+        assert second["error"] == "RATE_LIMIT_EXCEEDED"
+
+
+# ---------------------------------------------------------------------------
+# pack_context
+# ---------------------------------------------------------------------------
+
+
+def test_pack_context_requires_query() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        service = MCPToolService(workspace=tmpdir, config=MCPConfig())
+        payload = service.call_tool("pack_context", {})
+        assert payload["error"] == "INVALID_ARGUMENT"
+        assert "'query'" in payload["message"]
+
+
+def test_pack_context_rejects_invalid_format() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        service = MCPToolService(workspace=tmpdir, config=MCPConfig())
+        payload = service.call_tool("pack_context", {"query": "auth", "format": "pdf"})
+        assert payload["error"] == "INVALID_ARGUMENT"
+        assert "'format'" in payload["message"]
+
+
+def test_pack_context_rejects_low_token_budget() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        service = MCPToolService(workspace=tmpdir, config=MCPConfig())
+        payload = service.call_tool("pack_context", {"query": "auth", "token_budget": 500})
+        assert payload["error"] == "INVALID_ARGUMENT"
+        assert "'token_budget'" in payload["message"]
+
+
+def test_pack_context_rejects_invalid_agent_phase() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        service = MCPToolService(workspace=tmpdir, config=MCPConfig())
+        payload = service.call_tool("pack_context", {"query": "auth", "agent_phase": "deploy"})
+        assert payload["error"] == "INVALID_ARGUMENT"
+        assert "'agent_phase'" in payload["message"]
+
+
+def test_pack_context_returns_index_not_found_when_no_index(monkeypatch) -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        service = MCPToolService(workspace=tmpdir, config=MCPConfig())
+
+        def _boom(**kwargs):
+            raise FileNotFoundError("Index not found")
+
+        monkeypatch.setattr("ws_ctx_engine.mcp.tools.query_and_pack", _boom)
+        payload = service.call_tool("pack_context", {"query": "auth"})
+        assert payload["error"] == "INDEX_NOT_FOUND"
+
+
+def test_pack_context_returns_pack_failed_on_runtime_error(monkeypatch) -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        service = MCPToolService(workspace=tmpdir, config=MCPConfig())
+
+        def _boom(**kwargs):
+            raise RuntimeError("something exploded")
+
+        monkeypatch.setattr("ws_ctx_engine.mcp.tools.query_and_pack", _boom)
+        payload = service.call_tool("pack_context", {"query": "auth"})
+        assert payload["error"] == "PACK_FAILED"
+
+
+def test_pack_context_returns_output_path_on_success(monkeypatch) -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        service = MCPToolService(workspace=tmpdir, config=MCPConfig())
+        expected_output = str(Path(tmpdir) / "output.xml")
+
+        class _FakeTracker:
+            class metrics:
+                total_tokens = 1234
+                files_processed = 7
+
+        monkeypatch.setattr(
+            "ws_ctx_engine.mcp.tools.query_and_pack",
+            lambda **kwargs: (expected_output, _FakeTracker()),
+        )
+        payload = service.call_tool("pack_context", {"query": "auth", "format": "xml"})
+        assert payload["output_path"] == expected_output
+        assert payload["total_tokens"] == 1234
+        assert payload["file_count"] == 7
+
+
+# ---------------------------------------------------------------------------
+# session_clear
+# ---------------------------------------------------------------------------
+
+
+def test_session_clear_all_deletes_session_files() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        repo = Path(tmpdir)
+        index_dir = repo / ".ws-ctx-engine"
+        index_dir.mkdir(parents=True, exist_ok=True)
+
+        # Create two fake session cache files
+        (index_dir / ".ws-ctx-engine-session-abc.json").write_text("{}", encoding="utf-8")
+        (index_dir / ".ws-ctx-engine-session-xyz.json").write_text("{}", encoding="utf-8")
+
+        service = MCPToolService(workspace=str(repo), config=MCPConfig())
+        payload = service.call_tool("session_clear", {})
+
+        assert payload["cleared"] is True
+        assert payload["session_id"] is None
+        assert payload["files_deleted"] == 2
+        assert not list(index_dir.glob(".ws-ctx-engine-session-*.json"))
+
+
+def test_session_clear_specific_session() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        repo = Path(tmpdir)
+        index_dir = repo / ".ws-ctx-engine"
+        index_dir.mkdir(parents=True, exist_ok=True)
+
+        (index_dir / ".ws-ctx-engine-session-abc.json").write_text("{}", encoding="utf-8")
+        (index_dir / ".ws-ctx-engine-session-xyz.json").write_text("{}", encoding="utf-8")
+
+        service = MCPToolService(workspace=str(repo), config=MCPConfig())
+        payload = service.call_tool("session_clear", {"session_id": "abc"})
+
+        assert payload["cleared"] is True
+        assert payload["session_id"] == "abc"
+        assert payload["files_deleted"] == 1
+        # xyz must survive
+        assert (index_dir / ".ws-ctx-engine-session-xyz.json").exists()
+        assert not (index_dir / ".ws-ctx-engine-session-abc.json").exists()
+
+
+def test_session_clear_rejects_empty_session_id() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        service = MCPToolService(workspace=tmpdir, config=MCPConfig())
+        payload = service.call_tool("session_clear", {"session_id": "   "})
+        assert payload["error"] == "INVALID_ARGUMENT"
+
+
+def test_session_clear_rejects_path_traversal_session_id() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        service = MCPToolService(workspace=tmpdir, config=MCPConfig())
+        # Slash in session_id must be rejected by the allowlist regex (C-1)
+        for bad_id in ["../../etc/passwd", "foo/bar", "foo\\bar", "a" * 129]:
+            payload = service.call_tool("session_clear", {"session_id": bad_id})
+            assert payload["error"] == "INVALID_ARGUMENT", f"Expected rejection for: {bad_id!r}"
+
+
+def test_session_clear_reports_zero_when_file_missing() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        service = MCPToolService(workspace=tmpdir, config=MCPConfig())
+        # Session file does not exist — files_deleted must be 0, not 1 (H-5)
+        payload = service.call_tool("session_clear", {"session_id": "nonexistent-session"})
+        assert payload["cleared"] is True
+        assert payload["files_deleted"] == 0

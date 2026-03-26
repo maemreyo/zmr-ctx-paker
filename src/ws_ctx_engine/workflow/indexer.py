@@ -136,6 +136,13 @@ def index_repository(
     _deleted_paths: list[str] = []
     _incremental_mode_active = False
 
+    # Respect performance.incremental_index config flag — if the user has
+    # explicitly disabled it, treat the call as a full rebuild regardless of
+    # the function parameter.
+    if incremental and not config.performance.get("incremental_index", True):
+        logger.info("Incremental indexing disabled via config (performance.incremental_index=false)")
+        incremental = False
+
     if incremental:
         _incremental_mode_active, _changed_paths, _deleted_paths = _detect_incremental_changes(
             repo_path, index_path
@@ -187,15 +194,18 @@ def index_repository(
                 index_path=str(index_path / "leann_index"),
             )
 
-            # Load and use embedding cache when available
+            # Load embedding cache when enabled in config (performance.cache_embeddings).
+            # Skipped when False to conserve disk space or ensure deterministic builds.
             embedding_cache = None
-            try:
-                from ..vector_index.embedding_cache import EmbeddingCache
+            cache_embeddings_enabled = config.performance.get("cache_embeddings", True)
+            if cache_embeddings_enabled:
+                try:
+                    from ..vector_index.embedding_cache import EmbeddingCache
 
-                embedding_cache = EmbeddingCache(cache_dir=index_path)
-                embedding_cache.load()
-            except Exception:
-                embedding_cache = None
+                    embedding_cache = EmbeddingCache(cache_dir=index_path)
+                    embedding_cache.load()
+                except Exception:
+                    embedding_cache = None
 
             if _incremental_mode_active and embedding_cache is not None:
                 # Only rebuild changed files; use cache for unchanged
@@ -219,7 +229,9 @@ def index_repository(
                     )
                     vector_index.build(chunks)
             else:
-                vector_index.build(chunks)
+                # Pass embedding_cache to build() so full rebuilds also skip
+                # re-embedding unchanged files (H-3).
+                vector_index.build(chunks, embedding_cache=embedding_cache)
 
             if embedding_cache is not None:
                 embedding_cache.save()

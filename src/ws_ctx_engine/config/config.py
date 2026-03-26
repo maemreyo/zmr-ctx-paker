@@ -18,9 +18,9 @@ class Config:
     """
     System configuration loaded from .ws-ctx-engine.yaml.
 
-    Fields are grouped by subsystem.  Fields marked **PLANNED** are parsed and
-    stored but not yet acted upon by the engine — they are reserved for future
-    milestones so that user configs remain forward-compatible.
+    Fields are grouped by subsystem. Fields marked *experimental* are parsed
+    and stored but not yet acted upon — they are reserved for future milestones
+    so that user configs remain forward-compatible.
 
     All list/dict fields use factory defaults to avoid mutable-default pitfalls.
     """
@@ -91,12 +91,12 @@ class Config:
         }
     )
 
-    # Performance tuning — fields are parsed but not yet active (PLANNED)
+    # Performance tuning
     performance: dict[str, Any] = field(
         default_factory=lambda: {
-            "max_workers": 4,  # PLANNED — not active
-            "cache_embeddings": True,  # PLANNED — not active
-            "incremental_index": True,  # PLANNED — not active (see M6)
+            "max_workers": 4,  # not yet active — reserved for future parallel processing
+            "cache_embeddings": True,  # active: persists embeddings to embeddings.npy
+            "incremental_index": True,  # active: gates --incremental flag
         }
     )
 
@@ -296,6 +296,10 @@ class Config:
             "embeddings": ["auto", "local", "api"],
         }
 
+        # L-1: use a static default dict instead of instantiating Config() just
+        # to read its default field values.
+        _default_backends = {"vector_index": "auto", "graph": "auto", "embeddings": "auto"}
+
         backends = {}
         for key, valid_values in valid_backends.items():
             if key in value:
@@ -307,9 +311,9 @@ class Config:
                         f"Invalid backends.{key}: {backend_value}, "
                         f"must be one of {valid_values}"
                     )
-                    backends[key] = Config().backends[key]
+                    backends[key] = _default_backends[key]
             else:
-                backends[key] = Config().backends[key]
+                backends[key] = _default_backends[key]
 
         return backends
 

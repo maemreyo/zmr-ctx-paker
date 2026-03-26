@@ -10,6 +10,8 @@ DEFAULT_RATE_LIMITS: dict[str, int] = {
     "get_file_context": 120,
     "get_domain_map": 10,
     "get_index_status": 10,
+    "pack_context": 5,
+    "session_clear": 10,
 }
 
 

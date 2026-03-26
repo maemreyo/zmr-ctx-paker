@@ -106,7 +106,7 @@ backends:
   # - auto: Try NativeLEANN first (97% storage savings), fall back to FAISS
   # - native-leann: Use NativeLEANN only (requires `pip install leann`)
   # - leann: Use LEANNIndex (cosine similarity, no external dependency)
-  # - faiss: Use FAISS only (battle-tested HNSW index)
+  # - faiss: Use FAISS only (IndexFlatL2 + IndexIDMap2, supports incremental updates)
   vector_index: auto
 
   # Graph backend for PageRank computation
@@ -165,14 +165,18 @@ embeddings:
 # ==============================================================================
 
 performance:
-  # PLANNED — not active: Maximum number of worker threads for parallel processing
+  # Not yet active — reserved for future parallel processing.
   # max_workers: 4
 
-  # PLANNED — not active: Cache embeddings to disk for faster subsequent runs
-  # cache_embeddings: true
+  # Cache embeddings to disk so unchanged files are not re-embedded on the
+  # next indexing run. Persists vectors to .ws-ctx-engine/embeddings.npy.
+  # Set to false to disable and always recompute embeddings (deterministic builds).
+  cache_embeddings: true
 
-  # PLANNED — not active: Enable incremental indexing (see M6 milestone)
-  # incremental_index: true
+  # Enable incremental indexing via --incremental flag.
+  # When true, only changed/deleted files are re-indexed.
+  # Set to false to always perform full rebuilds.
+  incremental_index: true
 
 # ==============================================================================
 # LOGGING CONFIGURATION

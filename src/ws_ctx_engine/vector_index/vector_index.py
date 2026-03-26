@@ -3,7 +3,7 @@ Vector Index implementation for semantic search over code chunks.
 
 Provides abstract base class and concrete implementations:
 - LEANNIndex: Primary backend with 97% storage savings (graph-based)
-- FAISSIndex: Fallback backend using HNSW index (faiss-cpu)
+- FAISSIndex: Fallback backend using IndexFlatL2 + IndexIDMap2 (faiss-cpu)
 """
 
 import os
@@ -501,8 +501,10 @@ class LEANNIndex(VectorIndex):
 
 
 class FAISSIndex(VectorIndex):
-    """FAISS-based vector index using HNSW algorithm.
+    """FAISS-based vector index using IndexFlatL2 wrapped in IndexIDMap2.
 
+    IndexIDMap2 is used as the default so that incremental updates
+    (remove_ids + add_with_ids) work without migrating legacy indexes.
     Fallback implementation using faiss-cpu library.
     """
 
@@ -523,15 +525,50 @@ class FAISSIndex(VectorIndex):
 
         self._embedding_generator: EmbeddingGenerator | None = None
         self._file_paths: list[str] = []
+        # H-1: authoritative ID mapping — FAISS integer IDs are not assumed to
+        # equal _file_paths list positions after any deletion cycle.
+        self._id_to_path: dict[int, str] = {}
+        self._next_id: int = 0
         self._index: Any = None
         self._embedding_dim: int | None = None
         self._file_symbols: dict[str, list[str]] = {}
 
-    def build(self, chunks: list[CodeChunk]) -> None:
+    def _build_embeddings_with_cache(
+        self, texts: list[str], embedding_cache: "EmbeddingCache"
+    ) -> "np.ndarray":
+        """Return embeddings for *texts*, consulting *embedding_cache* first (H-3)."""
+        assert self._embedding_generator is not None
+        result: list[np.ndarray] = [None] * len(texts)  # type: ignore[list-item]
+        need_embed: list[int] = []
+
+        for i, text in enumerate(texts):
+            h = EmbeddingCache.content_hash(text)
+            cached = embedding_cache.lookup(h)
+            if cached is not None:
+                result[i] = cached
+            else:
+                need_embed.append(i)
+
+        if need_embed:
+            new_vecs = self._embedding_generator.encode([texts[i] for i in need_embed])
+            for j, i in enumerate(need_embed):
+                vec = new_vecs[j]
+                result[i] = vec
+                embedding_cache.store(EmbeddingCache.content_hash(texts[i]), vec)
+
+        return np.vstack(result)
+
+    def build(
+        self,
+        chunks: list[CodeChunk],
+        embedding_cache: Optional["EmbeddingCache"] = None,
+    ) -> None:
         """Build FAISS index from code chunks.
 
         Args:
             chunks: List of CodeChunk objects to index
+            embedding_cache: Optional cache to avoid re-embedding unchanged files
+                on successive full rebuilds (H-3).
 
         Raises:
             RuntimeError: If index building fails
@@ -560,30 +597,41 @@ class FAISSIndex(VectorIndex):
                 file_to_chunks2[chunk.path] = []
             file_to_chunks2[chunk.path].append(chunk)
 
-        # Generate embeddings for each file
+        # Generate embeddings for each file (consulting cache when available)
         self._file_paths = list(file_to_chunks2.keys())
-        texts = []
+        texts: list[str] = []
         self._file_symbols = {}
         for file_path in self._file_paths:
             file_chunks = file_to_chunks2[file_path]
             combined_text = "\n".join(chunk.content for chunk in file_chunks)
             texts.append(combined_text)
-            # Collect all symbols defined in this file
             symbols: list[str] = []
             for chunk in file_chunks:
                 symbols.extend(chunk.symbols_defined)
             self._file_symbols[file_path] = symbols
 
-        # Generate embeddings
+        # Generate embeddings — use cache to skip unchanged files (H-3).
         try:
             assert self._embedding_generator is not None
-            embeddings = self._embedding_generator.encode(texts)
+            if embedding_cache is not None:
+                embeddings = self._build_embeddings_with_cache(texts, embedding_cache)
+            else:
+                embeddings = self._embedding_generator.encode(texts)
             self._embedding_dim = embeddings.shape[1]
 
-            # Build FAISS HNSW index
-            self._index = faiss.IndexHNSWFlat(self._embedding_dim, 32)  # 32 = M parameter
-            self._index.hnsw.efConstruction = 40  # Construction time parameter
-            self._index.add(embeddings.astype("float32"))
+            # Build FAISS flat index wrapped in IndexIDMap2.
+            # IndexFlatL2 is exact-search (brute-force), which is accurate and
+            # fast enough for repos up to ~50k files. IndexIDMap2 enables
+            # incremental removal via remove_ids() without rebuilding the index.
+            # IDs are managed via _id_to_path / _next_id so that deletions never
+            # corrupt the mapping (H-1).
+            base = faiss.IndexFlatL2(self._embedding_dim)
+            self._index = faiss.IndexIDMap2(base)
+            n = len(self._file_paths)
+            ids = np.arange(n, dtype=np.int64)
+            self._index.add_with_ids(embeddings.astype("float32"), ids)
+            self._id_to_path = {int(i): self._file_paths[i] for i in range(n)}
+            self._next_id = n
 
             self.logger.info(
                 f"FAISS index built successfully: {len(self._file_paths)} files, "
@@ -627,10 +675,13 @@ class FAISSIndex(VectorIndex):
             # For normalized vectors: similarity = 1 - (distance^2 / 2)
             similarities = 1 - (distances[0] ** 2 / 2)
 
-            results = [
-                (self._file_paths[idx], float(sim))
-                for idx, sim in zip(indices[0], similarities, strict=True)
-            ]
+            # Use _id_to_path for ID→path lookup (H-1): IDs may not equal list
+            # positions after incremental deletions.
+            results = []
+            for idx, sim in zip(indices[0], similarities, strict=True):
+                path = self._id_to_path.get(int(idx))
+                if path is not None:
+                    results.append((path, float(sim)))
 
             return results
 
@@ -672,6 +723,8 @@ class FAISSIndex(VectorIndex):
                 "file_paths": self._file_paths,
                 "embedding_dim": self._embedding_dim,
                 "file_symbols": self._file_symbols,
+                "id_to_path": self._id_to_path,
+                "next_id": self._next_id,
             }
 
             with open(path, "wb") as f:
@@ -728,6 +781,22 @@ class FAISSIndex(VectorIndex):
                 device=metadata["device"],
                 batch_size=metadata["batch_size"],
             )
+            # Restore H-1 ID mapping. For indexes saved before v0.3.0 the keys
+            # will be absent; derive from _file_paths as a safe fallback.
+            raw_id_to_path = metadata.get("id_to_path")
+            if raw_id_to_path is not None:
+                # JSON round-trips dict keys as strings; re-cast to int.
+                index._id_to_path = {int(k): v for k, v in raw_id_to_path.items()}
+                index._next_id = int(metadata.get("next_id", len(index._file_paths)))
+            else:
+                index._id_to_path = {i: p for i, p in enumerate(index._file_paths)}
+                index._next_id = len(index._file_paths)
+
+            # Auto-migrate legacy indexes (e.g. IndexHNSWFlat from v0.2.x) to
+            # IndexIDMap2 so incremental updates work on existing installs.
+            # _ensure_idmap2() is a no-op when the index is already wrapped.
+            if not isinstance(index._index, faiss.IndexIDMap2):
+                index._ensure_idmap2()
 
             logger.info(f"FAISS index loaded from {path}")
             return index
@@ -809,16 +878,20 @@ class FAISSIndex(VectorIndex):
                 batch_size=self.batch_size,
             )
 
-        # 1. Remove deleted/changed paths
+        # 1. Remove deleted/changed paths using the authoritative _id_to_path map
+        # (H-1): reverse the map once for O(1) path→ID lookups.
+        path_to_id = {v: k for k, v in self._id_to_path.items()}
         ids_to_remove: list[int] = []
         for path in deleted_paths:
+            fid = path_to_id.pop(path, None)
+            if fid is not None:
+                ids_to_remove.append(fid)
+                self._id_to_path.pop(fid, None)
             try:
-                idx = self._file_paths.index(path)
-                ids_to_remove.append(idx)
-                self._file_paths.pop(idx)
-                self._file_symbols.pop(path, None)
+                self._file_paths.remove(path)
             except ValueError:
                 pass
+            self._file_symbols.pop(path, None)
 
         if ids_to_remove and isinstance(self._index, faiss.IndexIDMap2):
             self._index.remove_ids(np.array(ids_to_remove, dtype=np.int64))
@@ -861,15 +934,20 @@ class FAISSIndex(VectorIndex):
                     h = EmbeddingCache.content_hash(texts[i])
                     embedding_cache.store(h, vec)
 
-        # 3. Add new vectors with IDs starting after current file_paths
-        start_id = len(self._file_paths)
+        # 3. Add new vectors using monotonically increasing _next_id so IDs
+        # never collide with deleted-but-not-yet-reused entries (H-1).
         new_vecs = np.vstack([all_vecs[i] for i in range(len(new_paths))]).astype(np.float32)
-        new_ids = np.arange(start_id, start_id + len(new_paths), dtype=np.int64)
+        new_ids = np.arange(self._next_id, self._next_id + len(new_paths), dtype=np.int64)
 
         if isinstance(self._index, faiss.IndexIDMap2):
             self._index.add_with_ids(new_vecs, new_ids)
         else:
             self._index.add(new_vecs)
+
+        for i, fp in enumerate(new_paths):
+            fid = int(new_ids[i])
+            self._id_to_path[fid] = fp
+        self._next_id += len(new_paths)
 
         self._file_paths.extend(new_paths)
         for fp, chunks_list in file_to_chunks.items():
@@ -900,7 +978,7 @@ def create_vector_index(
     Backend priority in 'auto' mode:
     1. NativeLEANNIndex (LEANN library - 97% storage savings)
     2. LEANNIndex (cosine similarity fallback)
-    3. FAISSIndex (HNSW fallback)
+    3. FAISSIndex (IndexFlatL2 + IndexIDMap2 fallback)
 
     Args:
         backend: Backend to use ('auto', 'native-leann', 'leann', 'faiss')
@@ -980,12 +1058,12 @@ def create_vector_index(
             logger.log_fallback(
                 component="vector_index",
                 primary="LEANNIndex (cosine similarity)",
-                fallback="FAISSIndex (HNSW)",
+                fallback="FAISSIndex (IndexFlatL2+IDMap2)",
                 reason=str(e),
             )
 
         try:
-            logger.info("Attempting to create FAISS index (HNSW fallback)")
+            logger.info("Attempting to create FAISS index (IndexFlatL2+IDMap2 fallback)")
             return FAISSIndex(model_name, device, batch_size)
         except Exception as e:
             logger.error(f"FAISS fallback also failed: {e}")

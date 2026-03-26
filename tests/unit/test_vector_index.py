@@ -238,21 +238,29 @@ class TestFAISSIndex:
 
     @patch.object(EmbeddingGenerator, "encode")
     def test_build_success(self, mock_encode, sample_chunks, mock_embeddings):
-        """Test successful FAISS index building."""
+        """Test successful FAISS index building creates IndexIDMap2 wrapping IndexFlatL2."""
         mock_encode.return_value = mock_embeddings[:2]
 
-        # Mock faiss module
         mock_faiss = Mock()
-        mock_index = MagicMock()
-        mock_faiss.IndexHNSWFlat.return_value = mock_index
+        mock_flat = MagicMock()
+        mock_idmap = MagicMock()
+        mock_faiss.IndexFlatL2.return_value = mock_flat
+        mock_faiss.IndexIDMap2.return_value = mock_idmap
 
         with patch.dict("sys.modules", {"faiss": mock_faiss}):
             index = FAISSIndex()
             index.build(sample_chunks)
 
+            # H-2: verify IndexFlatL2 + IndexIDMap2 are used, not IndexHNSWFlat
+            mock_faiss.IndexFlatL2.assert_called_once_with(384)
+            mock_faiss.IndexIDMap2.assert_called_once_with(mock_flat)
+            mock_idmap.add_with_ids.assert_called_once()
+
             assert len(index._file_paths) == 2
             assert index._embedding_dim == 384
-            mock_index.add.assert_called_once()
+            # _id_to_path and _next_id must be populated
+            assert len(index._id_to_path) == 2
+            assert index._next_id == 2
 
     def test_build_faiss_not_available(self, sample_chunks):
         """Test building when FAISS not available."""
@@ -263,25 +271,24 @@ class TestFAISSIndex:
 
     @patch.object(EmbeddingGenerator, "encode")
     def test_search_success(self, mock_encode, sample_chunks, mock_embeddings):
-        """Test successful FAISS search."""
-        # Mock build
+        """Test successful FAISS search using _id_to_path for result resolution."""
         mock_encode.return_value = mock_embeddings[:2]
 
-        # Mock faiss module
         mock_faiss = Mock()
-        mock_index = MagicMock()
-        mock_faiss.IndexHNSWFlat.return_value = mock_index
+        mock_flat = MagicMock()
+        mock_idmap = MagicMock()
+        mock_faiss.IndexFlatL2.return_value = mock_flat
+        mock_faiss.IndexIDMap2.return_value = mock_idmap
 
         with patch.dict("sys.modules", {"faiss": mock_faiss}):
             index = FAISSIndex()
             index.build(sample_chunks)
 
-            # Mock search
             query_embedding = np.array([0.5] * 384)
             mock_encode.return_value = np.array([query_embedding])
-            mock_index.search.return_value = (
+            mock_idmap.search.return_value = (
                 np.array([[0.1, 0.2]]),  # distances
-                np.array([[0, 1]]),  # indices
+                np.array([[0, 1]]),       # IDs
             )
 
             results = index.search("authentication", top_k=2)
@@ -298,35 +305,119 @@ class TestFAISSIndex:
 
     @patch.object(EmbeddingGenerator, "encode")
     def test_save_and_load(self, mock_encode, sample_chunks, mock_embeddings):
-        """Test saving and loading FAISS index."""
+        """Test saving and loading FAISS index preserves _id_to_path and _next_id."""
         mock_encode.return_value = mock_embeddings[:2]
 
-        # Mock faiss module
         mock_faiss = Mock()
-        mock_index = MagicMock()
-        mock_faiss.IndexHNSWFlat.return_value = mock_index
+        mock_flat = MagicMock()
+        mock_idmap = MagicMock()
+        mock_faiss.IndexFlatL2.return_value = mock_flat
+        mock_faiss.IndexIDMap2.return_value = mock_idmap
 
         with patch.dict("sys.modules", {"faiss": mock_faiss}):
-            # Build and save
             index = FAISSIndex(model_name="test-model")
             index.build(sample_chunks)
 
             with tempfile.TemporaryDirectory() as tmpdir:
                 path = os.path.join(tmpdir, "test_index.pkl")
                 index.save(path)
-
-                # Verify save was called
                 mock_faiss.write_index.assert_called_once()
 
-                # Mock load
-                mock_faiss.read_index.return_value = mock_index
+                mock_faiss.read_index.return_value = mock_idmap
+                # Make the loaded index look like IndexIDMap2 so _ensure_idmap2 is a no-op
+                mock_faiss.IndexIDMap2 = type(mock_idmap)
 
-                # Load
                 loaded_index = FAISSIndex.load(path)
 
                 assert loaded_index.model_name == "test-model"
                 assert loaded_index._file_paths == index._file_paths
                 assert loaded_index._embedding_dim == index._embedding_dim
+                # H-1: id mapping must survive round-trip
+                assert loaded_index._id_to_path == index._id_to_path
+                assert loaded_index._next_id == index._next_id
+
+    @patch.object(EmbeddingGenerator, "encode")
+    def test_incremental_update_uses_monotonic_ids(self, mock_encode, sample_chunks, mock_embeddings):
+        """After deletion+addition, new IDs must not collide with deleted IDs (H-1)."""
+        mock_encode.return_value = mock_embeddings[:2]
+
+        mock_faiss = Mock()
+        mock_flat = MagicMock()
+        mock_idmap = MagicMock()
+        mock_faiss.IndexFlatL2.return_value = mock_flat
+        mock_faiss.IndexIDMap2.return_value = mock_idmap  # used by build()
+
+        with patch.dict("sys.modules", {"faiss": mock_faiss}):
+            index = FAISSIndex()
+            index.build(sample_chunks)
+            original_next_id = index._next_id  # == 2 after building 2 files
+
+            # Switch IndexIDMap2 to a real type *after* build so that the
+            # isinstance() checks in _ensure_idmap2() and update_incremental()
+            # don't raise TypeError (Mock is not a valid type for isinstance).
+            mock_faiss.IndexIDMap2 = type(mock_idmap)
+
+            # Simulate deleting the first file and adding a new one
+            deleted_path = index._file_paths[0]
+            new_chunk = sample_chunks[0].__class__(
+                path="src/new_file.py",
+                content="new content",
+                language="python",
+                symbols_defined=[],
+                symbols_referenced=[],
+                start_line=1,
+                end_line=5,
+            )
+            mock_encode.return_value = mock_embeddings[:1]
+
+            index.update_incremental(
+                deleted_paths=[deleted_path],
+                new_chunks=[new_chunk],
+            )
+
+            # New ID must be >= original _next_id, never reusing the deleted ID
+            added_ids = [k for k, v in index._id_to_path.items() if v == "src/new_file.py"]
+            assert len(added_ids) == 1
+            assert added_ids[0] >= original_next_id
+            assert added_ids[0] not in [0, 1]  # not a recycled ID
+
+    @patch.object(EmbeddingGenerator, "encode")
+    def test_load_legacy_index_derives_id_to_path(self, mock_encode, sample_chunks, mock_embeddings):
+        """Loading an index saved without id_to_path derives it from _file_paths (H-1 backcompat)."""
+        mock_encode.return_value = mock_embeddings[:2]
+
+        mock_faiss = Mock()
+        mock_flat = MagicMock()
+        mock_idmap = MagicMock()
+        mock_faiss.IndexFlatL2.return_value = mock_flat
+        mock_faiss.IndexIDMap2.return_value = mock_idmap
+
+        with patch.dict("sys.modules", {"faiss": mock_faiss}):
+            index = FAISSIndex(model_name="test-model")
+            index.build(sample_chunks)
+
+            with tempfile.TemporaryDirectory() as tmpdir:
+                path = os.path.join(tmpdir, "legacy_index.pkl")
+                index.save(path)
+
+                # Simulate a legacy file: strip id_to_path / next_id from the pickle
+                import pickle
+                with open(path, "rb") as f:
+                    meta = pickle.load(f)
+                meta.pop("id_to_path", None)
+                meta.pop("next_id", None)
+                with open(path, "wb") as f:
+                    pickle.dump(meta, f)
+
+                mock_faiss.read_index.return_value = mock_idmap
+                mock_faiss.IndexIDMap2 = type(mock_idmap)
+
+                loaded = FAISSIndex.load(path)
+
+                # Must reconstruct _id_to_path from _file_paths
+                expected = {i: p for i, p in enumerate(loaded._file_paths)}
+                assert loaded._id_to_path == expected
+                assert loaded._next_id == len(loaded._file_paths)
 
 
 class TestGetFileSymbols:
@@ -456,10 +547,13 @@ class TestBackendSelection:
         """Test loading FAISS index."""
         mock_encode.return_value = mock_embeddings[:2]
 
-        # Mock faiss module
+        # Mock faiss module. IndexIDMap2 stays as Mock during build() so that
+        # .return_value works. It is switched to a real type before load() so
+        # that isinstance() checks in load()/_ensure_idmap2() don't raise TypeError.
         mock_faiss = Mock()
-        mock_index = MagicMock()
-        mock_faiss.IndexHNSWFlat.return_value = mock_index
+        mock_idmap = MagicMock()
+        mock_faiss.IndexFlatL2.return_value = MagicMock()
+        mock_faiss.IndexIDMap2.return_value = mock_idmap  # used by build()
 
         with patch.dict("sys.modules", {"faiss": mock_faiss}):
             index = FAISSIndex()
@@ -469,6 +563,8 @@ class TestBackendSelection:
                 path = os.path.join(tmpdir, "test_index.pkl")
                 index.save(path)
 
-                mock_faiss.read_index.return_value = mock_index
+                mock_faiss.read_index.return_value = mock_idmap
+                # Switch to a real type so isinstance(loaded._index, faiss.IndexIDMap2) works
+                mock_faiss.IndexIDMap2 = type(mock_idmap)
                 loaded_index = load_vector_index(path)
                 assert isinstance(loaded_index, FAISSIndex)
