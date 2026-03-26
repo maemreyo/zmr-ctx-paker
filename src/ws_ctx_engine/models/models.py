@@ -32,6 +32,31 @@ class CodeChunk:
     symbols_referenced: List[str]
     language: str
     
+    def to_dict(self) -> dict:
+        """Serialise to a JSON-compatible dict for incremental index caching."""
+        return {
+            "path": self.path,
+            "start_line": self.start_line,
+            "end_line": self.end_line,
+            "content": self.content,
+            "symbols_defined": self.symbols_defined,
+            "symbols_referenced": self.symbols_referenced,
+            "language": self.language,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "CodeChunk":
+        """Deserialise from a dict produced by :meth:`to_dict`."""
+        return cls(
+            path=data["path"],
+            start_line=data["start_line"],
+            end_line=data["end_line"],
+            content=data["content"],
+            symbols_defined=data.get("symbols_defined", []),
+            symbols_referenced=data.get("symbols_referenced", []),
+            language=data.get("language", ""),
+        )
+
     def token_count(self, encoding) -> int:
         """Count tokens using tiktoken encoding.
         

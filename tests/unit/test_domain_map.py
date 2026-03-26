@@ -313,7 +313,7 @@ class TestRetrievalEngineQueryClassification:
 
         assert eff_symbol == pytest.approx(0.3 * 0.5)   # 0.15
         assert eff_path == pytest.approx(0.2 * 1.5)    # 0.30
-        assert eff_domain == pytest.approx(0.4 * 1.0)  # 0.40
+        assert eff_domain == pytest.approx(0.4 * 0.5)  # 0.20
 
     def test_compute_domain_scores(self):
         """Test domain score computation."""

@@ -12,7 +12,11 @@ from ws_ctx_engine.logger import WsCtxEngineLogger, get_logger
 from ws_ctx_engine.models import CodeChunk
 from ws_ctx_engine.retrieval import RetrievalEngine
 
-__version__ = "0.1.0"
+try:
+    from importlib.metadata import version, PackageNotFoundError
+    __version__ = version("ws-ctx-engine")
+except PackageNotFoundError:
+    __version__ = "0.0.0+dev"
 
 __all__ = [
     "__version__",

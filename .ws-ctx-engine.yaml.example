@@ -165,83 +165,39 @@ embeddings:
 # ==============================================================================
 
 performance:
-  # Maximum number of worker threads for parallel processing
-  # Set to 0 to use all available CPU cores
-  # Recommended: 4 for most systems
-  max_workers: 4
+  # PLANNED — not active: Maximum number of worker threads for parallel processing
+  # max_workers: 4
 
-  # Cache embeddings to disk for faster subsequent runs
-  # Embeddings are stored in .ws-ctx-engine/embeddings.cache
-  # Set to false to disable caching (saves disk space)
-  cache_embeddings: true
+  # PLANNED — not active: Cache embeddings to disk for faster subsequent runs
+  # cache_embeddings: true
 
-  # Enable incremental indexing
-  # Only re-index files that have changed since last run
-  # Set to false to force full re-indexing every time
-  incremental_index: true
+  # PLANNED — not active: Enable incremental indexing (see M6 milestone)
+  # incremental_index: true
 
 # ==============================================================================
 # LOGGING CONFIGURATION
 # ==============================================================================
 
-logging:
-  # Log level for console output
-  # Options: "DEBUG" | "INFO" | "WARNING" | "ERROR"
-  # - DEBUG: All messages including detailed timing
-  # - INFO: Progress messages and warnings
-  # - WARNING: Warnings and errors only
-  # - ERROR: Errors only
-  console_level: INFO
-
-  # Log level for file output
-  # File logs are always written to .ws-ctx-engine/logs/
-  # Recommended: DEBUG for troubleshooting
-  file_level: DEBUG
-
-  # Enable verbose mode for detailed timing information
-  # Logs execution time for each phase
-  verbose: false
+# NOT YET IMPLEMENTED — logging config fields are parsed but not applied.
+# Use --quiet / --no-quiet CLI flags to control log verbosity instead.
+# logging:
+#   console_level: INFO
+#   file_level: DEBUG
+#   verbose: false
 
 # ==============================================================================
 # ADVANCED OPTIONS
 # ==============================================================================
 
-advanced:
-  # PageRank damping factor (0.0 to 1.0)
-  # Higher values give more weight to incoming links
-  # Standard value: 0.85
-  pagerank_damping: 0.85
-
-  # PageRank boost factor for changed files (1.0 to 10.0)
-  # Multiplier applied to PageRank scores of changed files
-  # Higher values prioritize changed files more strongly
-  # Recommended: 2.0 for PR reviews
-  changed_file_boost: 2.0
-
-  # Maximum number of iterations for PageRank convergence
-  # Higher values improve accuracy but increase computation time
-  pagerank_max_iterations: 100
-
-  # Convergence tolerance for PageRank
-  # Stop iterating when score changes are below this threshold
-  pagerank_tolerance: 0.0001
-
-  # Minimum file size in bytes to include
-  # Files smaller than this are excluded
-  # Set to 0 to include all files
-  min_file_size: 0
-
-  # Maximum file size in bytes to include
-  # Files larger than this are excluded
-  # Set to 0 for no limit
-  # Recommended: 1000000 (1 MB) to exclude large generated files
-  max_file_size: 1000000
-
-  # Enable AST parsing round-trip validation
-  # Verifies that parse → print → parse produces equivalent structure
-  # Useful for debugging parser issues
-  # Warning: Significantly slows down indexing
-  validate_roundtrip: false
+# NOT YET IMPLEMENTED — advanced fields are accepted but silently ignored.
+# advanced:
+#   pagerank_damping: 0.85         # NOT YET IMPLEMENTED
+#   changed_file_boost: 2.0        # NOT YET IMPLEMENTED
+#   pagerank_max_iterations: 100   # NOT YET IMPLEMENTED
+#   pagerank_tolerance: 0.0001     # NOT YET IMPLEMENTED
+#   min_file_size: 0               # NOT YET IMPLEMENTED
+#   max_file_size: 1000000         # NOT YET IMPLEMENTED
+#   validate_roundtrip: false      # NOT YET IMPLEMENTED
 
 # ==============================================================================
 # EXAMPLE CONFIGURATIONS

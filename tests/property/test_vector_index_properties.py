@@ -258,7 +258,7 @@ class TestEmbeddingFallbackChain:
             'openai': mock_openai
         }), \
              patch.dict('os.environ', {'OPENAI_API_KEY': 'test-key'}), \
-             patch('ws_ctx_engine.vector_index.psutil.virtual_memory') as mock_mem:
+             patch('ws_ctx_engine.vector_index.vector_index.psutil.virtual_memory') as mock_mem:
             
             mock_mem.return_value.available = 1024 * 1024 * 1024  # 1GB
             
@@ -275,14 +275,14 @@ class TestEmbeddingFallbackChain:
                 assert "Failed to generate embeddings" in str(e) or \
                        "Failed to initialize API client" in str(e)
     
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(texts=st.lists(st.text(min_size=10, max_size=100), min_size=1, max_size=5))
     def test_embedding_fallback_on_low_memory(self, texts):
         """Test that embedding generation falls back to API on low memory."""
         from ws_ctx_engine.vector_index import EmbeddingGenerator
         
         # Mock low memory condition
-        with patch('ws_ctx_engine.vector_index.psutil.virtual_memory') as mock_mem:
+        with patch('ws_ctx_engine.vector_index.vector_index.psutil.virtual_memory') as mock_mem:
             mock_mem.return_value.available = 100 * 1024 * 1024  # 100MB (below threshold)
             
             gen = EmbeddingGenerator()

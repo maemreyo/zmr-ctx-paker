@@ -47,6 +47,20 @@ pip install "ws-ctx-engine[fast]"
 
 **Adds**: faiss-cpu (vector search), networkx (graph analysis)
 
+### Rust Extension (Optional, 8–20× speedup)
+
+An optional Rust extension accelerates hot-path operations (file walking, hashing, token counting).
+Requires the Rust toolchain (`rustup`) and `maturin`:
+
+```bash
+pip install maturin
+cd _rust && maturin develop --release
+python -c "from ws_ctx_engine._rust import walk_files; print('Rust OK')"
+```
+
+The engine falls back to pure-Python implementations automatically when the extension is not installed.
+See [`docs/performance.md`](docs/performance.md) for benchmark details.
+
 ## Quick Start
 
 ### 1. Check Dependencies (Recommended)
@@ -132,11 +146,18 @@ ws-ctx-engine query <query_text> [OPTIONS]
 ```
 
 **Options**:
-- `--format {xml|zip}` - Output format (default: zip)
+- `--format {xml|zip|json|yaml|md}` - Output format (default: zip)
 - `--budget INT` - Token budget (default: 100000)
 - `--config PATH` - Custom configuration file
 - `--output PATH` - Output directory (default: ./output)
 - `--verbose` - Enable detailed logging
+- `--compress` - Apply smart compression (signatures for low-relevance files)
+- `--shuffle/--no-shuffle` - Reorder files to combat "Lost in the Middle" (default: on)
+- `--mode {discovery|edit|test}` - Agent phase for adjusted ranking weights
+- `--session-id STR` - Session name for semantic deduplication
+- `--no-dedup` - Disable session-level deduplication
+- `--stdout` - Write output to stdout instead of file
+- `--copy` - Copy output to clipboard
 
 ### `ws-ctx-engine pack`
 
@@ -148,12 +169,19 @@ ws-ctx-engine pack <repo_path> [OPTIONS]
 
 **Options**:
 - `--query TEXT` - Natural language query for semantic search
-- `--changed-files PATH` - File with list of changed files (one per line)
-- `--format {xml|zip}` - Output format (default: zip)
+- `--changed-files PATH` - File with list of changed files (one per line) for PageRank boosting
+- `--format {xml|zip|json|yaml|md}` - Output format (default: zip)
 - `--budget INT` - Token budget (default: 100000)
 - `--config PATH` - Custom configuration file
 - `--output PATH` - Output directory (default: ./output)
 - `--verbose` - Enable detailed logging
+- `--compress` - Apply smart compression (signatures for low-relevance files)
+- `--shuffle/--no-shuffle` - Reorder files to combat "Lost in the Middle" (default: on)
+- `--mode {discovery|edit|test}` - Agent phase for adjusted ranking weights
+- `--session-id STR` - Session name for semantic deduplication
+- `--no-dedup` - Disable session-level deduplication
+- `--stdout` - Write output to stdout instead of file
+- `--copy` - Copy output to clipboard
 
 ## Configuration
 
@@ -161,7 +189,7 @@ Create a `.ws-ctx-engine.yaml` file in your repository root to customize behavio
 
 ```yaml
 # Output settings
-format: zip  # xml | zip
+format: zip  # xml | zip | json | yaml | md
 token_budget: 100000
 output_path: ./output
 

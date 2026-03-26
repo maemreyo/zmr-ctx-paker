@@ -127,6 +127,7 @@ def test_query_command_success_path(monkeypatch) -> None:
     monkeypatch.setattr("ws_ctx_engine.cli.cli.query_and_pack", lambda **kwargs: (Path("output.xml"), {}))
 
     with runner.isolated_filesystem():
+        Path("output.xml").write_text("<context/>", encoding="utf-8")
         result = runner.invoke(app, ["query", "auth", "--repo", "."])
 
     assert result.exit_code == 0
@@ -163,12 +164,13 @@ def test_pack_command_success_path_calls_index_and_query(monkeypatch) -> None:
 
     def _fake_query_and_pack(**kwargs):
         called["query"] += 1
-        return Path("ws-ctx-engine.zip"), {}
+        return Path("output.xml"), {}
 
     monkeypatch.setattr("ws_ctx_engine.cli.cli.index_repository", _fake_index_repository)
     monkeypatch.setattr("ws_ctx_engine.cli.cli.query_and_pack", _fake_query_and_pack)
 
     with runner.isolated_filesystem():
+        Path("output.xml").write_text("<context/>", encoding="utf-8")
         result = runner.invoke(app, ["pack", ".", "--query", "auth"])
 
     assert result.exit_code == 0
@@ -603,6 +605,7 @@ def test_pack_command_success_with_valid_overrides(monkeypatch) -> None:
     with runner.isolated_filesystem():
         repo = Path("repo")
         repo.mkdir()
+        # ZIP is binary — no read_text attempted, no file needed
         result = runner.invoke(app, ["pack", "repo", "--format", "zip", "--budget", "123", "--verbose"])
 
     assert result.exit_code == 0

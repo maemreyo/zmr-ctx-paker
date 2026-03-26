@@ -1,0 +1,83 @@
+name: Build Rust Extension
+
+on:
+  push:
+    branches: [main]
+    paths: ["_rust/**"]
+  pull_request:
+    paths: ["_rust/**"]
+
+jobs:
+  build-linux:
+    name: Build manylinux wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build manylinux wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          args: --release --manifest-path _rust/Cargo.toml -o dist/rust
+          manylinux: auto
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-linux
+          path: dist/rust
+
+  build-macos:
+    name: Build macOS universal2 wheel
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust targets
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+      - name: Build universal2 wheel
+        uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          args: >
+            --release
+            --manifest-path _rust/Cargo.toml
+            --target universal2-apple-darwin
+            -o dist/rust
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-macos
+          path: dist/rust
+
+  build-windows:
+    name: Build Windows wheel
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build wheel
+        uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          args: --release --manifest-path _rust/Cargo.toml -o dist/rust
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-windows
+          path: dist/rust
+
+  benchmark:
+    name: Verify correctness (non-regression)
+    runs-on: ubuntu-latest
+    needs: build-linux
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: wheels-linux
+          path: dist/rust
+      - name: Install built wheel
+        run: pip install dist/rust/*.whl
+      - name: Smoke test
+        run: |
+          python -c "
+          from ws_ctx_engine._rust import walk_files, hash_content, count_tokens
+          assert isinstance(walk_files('.', True), list)
+          assert len(hash_content('hello')) == 64
+          assert count_tokens('def hello():') > 0
+          print('Rust extension OK')
+          "

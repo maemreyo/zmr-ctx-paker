@@ -96,30 +96,30 @@ def test_property_28_fallback_level_ordering():
     
     The fallback level should correctly reflect the degradation hierarchy.
     """
-    # Level 1: Optimal (igraph + LEANN + local)
+    # Level 1: Optimal (igraph + NativeLEANN + local)
     config1 = Config()
     config1.backends = {
-        "vector_index": "leann",
+        "vector_index": "native-leann",
         "graph": "igraph",
         "embeddings": "local"
     }
     selector1 = BackendSelector(config1)
     assert selector1.get_fallback_level() == 1
-    
-    # Level 2: NetworkX + LEANN + local
+
+    # Level 2: NetworkX + NativeLEANN + local
     config2 = Config()
     config2.backends = {
-        "vector_index": "leann",
+        "vector_index": "native-leann",
         "graph": "networkx",
         "embeddings": "local"
     }
     selector2 = BackendSelector(config2)
     assert selector2.get_fallback_level() == 2
-    
-    # Level 3: NetworkX + FAISS + local
+
+    # Level 3: NetworkX + LEANN + local
     config3 = Config()
     config3.backends = {
-        "vector_index": "faiss",
+        "vector_index": "leann",
         "graph": "networkx",
         "embeddings": "local"
     }

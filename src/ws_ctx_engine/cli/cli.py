@@ -37,6 +37,10 @@ logger = get_logger()
 AGENT_MODE = False
 
 
+def _set_console_log_level(level: int) -> None:
+    logging.getLogger("ws_ctx_engine").setLevel(level)
+
+
 def _set_agent_mode(enabled: bool) -> None:
     global AGENT_MODE, console
     AGENT_MODE = enabled
@@ -55,6 +59,30 @@ def _enable_command_agent_mode(command_agent_mode: bool) -> None:
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _copy_to_clipboard(text: str) -> None:
+    """Copy *text* to the system clipboard (macOS / Linux / Windows)."""
+    import subprocess
+    candidates = [
+        (["pbcopy"], {}),                                    # macOS
+        (["clip"], {}),                                      # Windows
+        (["xclip", "-selection", "clipboard"], {}),          # Linux (xclip)
+        (["xsel", "--clipboard", "--input"], {}),             # Linux (xsel)
+    ]
+    for cmd, kwargs in candidates:
+        try:
+            proc = subprocess.run(cmd, input=text.encode(), check=False, **kwargs)
+            if proc.returncode == 0:
+                if not AGENT_MODE:
+                    console.print("[green]✓ Copied to clipboard[/green]")
+                return
+        except FileNotFoundError:
+            continue
+    console.print(
+        "[yellow]Warning:[/yellow] Could not copy to clipboard (no clipboard tool found)",
+        file=sys.stderr,
+    )
 
 
 def _extract_gitignore_patterns(repo_path: Path) -> list[str]:
@@ -383,13 +411,18 @@ def index(
         "-v",
         help="Enable verbose logging with detailed timing information",
     ),
+    incremental: bool = typer.Option(
+        False,
+        "--incremental",
+        help="Only re-index files that have changed since last build (M6).",
+    ),
 ) -> None:
     """
     Build and save indexes for a repository.
-    
+
     This command parses the codebase, builds vector and graph indexes,
     and saves them to .ws-ctx-engine/ for later queries.
-    
+
     Requirements: 11.2
     """
     try:
@@ -421,7 +454,7 @@ def index(
         ))
         
         # Run indexing
-        index_repository(repo_path=repo_path, config=cfg)
+        index_repository(repo_path=repo_path, config=cfg, incremental=incremental)
         
         # Display success message
         console.print("[bold green]✓[/bold green] Indexing complete!")
@@ -639,7 +672,7 @@ def query(
         None,
         "--format",
         "-f",
-        help="Output format: 'xml', 'zip', 'json', or 'md'",
+        help="Output format: 'xml', 'zip', 'json', 'yaml', 'md', or 'toon' (experimental)",
     ),
     budget: Optional[int] = typer.Option(
         None,
@@ -669,13 +702,48 @@ def query(
         "--agent-mode",
         help="Emit parseable NDJSON on stdout and send human-readable logs to stderr.",
     ),
+    stdout: bool = typer.Option(
+        False,
+        "--stdout",
+        help="Write output content to stdout instead of saving to file.",
+    ),
+    copy: bool = typer.Option(
+        False,
+        "--copy",
+        help="Copy output to clipboard after packing.",
+    ),
+    compress: bool = typer.Option(
+        False,
+        "--compress",
+        help="Apply smart compression: full content for high-relevance files, signatures for others.",
+    ),
+    shuffle: bool = typer.Option(
+        True,
+        "--shuffle/--no-shuffle",
+        help="Reorder files to combat 'Lost in the Middle' (default: on).",
+    ),
+    mode: Optional[str] = typer.Option(
+        None,
+        "--mode",
+        help="Agent phase mode: 'discovery', 'edit', or 'test'. Adjusts ranking weights.",
+    ),
+    session_id: str = typer.Option(
+        "default",
+        "--session-id",
+        help="Session identifier for semantic deduplication cache.",
+    ),
+    no_dedup: bool = typer.Option(
+        False,
+        "--no-dedup",
+        help="Disable session-level semantic deduplication.",
+    ),
 ) -> None:
     """
     Search indexes and generate output.
-    
+
     This command loads pre-built indexes, performs semantic search,
     and generates output in the configured format.
-    
+
     Requirements: 11.3
     """
     try:
@@ -683,15 +751,15 @@ def query(
 
         # Load configuration
         cfg = _load_config(config, repo_path=repo_path)
-        
+
         # Override config with CLI flags
         if format is not None:
-            if format not in ["xml", "zip", "json", "md"]:
-                console.print(f"[red]Error:[/red] Invalid format '{format}'. Must be 'xml', 'zip', 'json', or 'md'")
+            if format not in ["xml", "zip", "json", "yaml", "md", "toon"]:
+                console.print(f"[red]Error:[/red] Invalid format '{format}'. Must be 'xml', 'zip', 'json', 'yaml', 'md', or 'toon'")
                 _emit_ndjson({"type": "error", "command": "query", "error": "invalid_format", "format": format})
                 raise typer.Exit(code=1)
             cfg.format = format
-        
+
         if budget is not None:
             if budget <= 0:
                 console.print(f"[red]Error:[/red] Budget must be positive, got {budget}")
@@ -702,7 +770,7 @@ def query(
         # Set verbose mode
         if verbose:
             logger.logger.setLevel("DEBUG")
-        
+
         # Validate repo path
         repo_path_obj = Path(repo_path)
         if not repo_path_obj.exists():
@@ -717,10 +785,17 @@ def query(
 
         cfg = _preflight_runtime_dependencies(cfg, "query")
 
-        json_stdout_mode = cfg.format == "json" and not AGENT_MODE
+        _stdout_formats = {"json", "xml", "yaml", "md"}
+        stdout_mode = stdout or (cfg.format in _stdout_formats and not AGENT_MODE)
+        json_stdout_mode = cfg.format == "json" and not AGENT_MODE and not stdout
+
+        # Validate mode flag
+        if mode is not None and mode not in ("discovery", "edit", "test"):
+            console.print(f"[red]Error:[/red] Invalid --mode '{mode}'. Must be 'discovery', 'edit', or 'test'")
+            raise typer.Exit(code=1)
 
         # Display start message
-        if not AGENT_MODE and not json_stdout_mode:
+        if not AGENT_MODE and not json_stdout_mode and not stdout:
             console.print(Panel.fit(
                 f"[bold cyan]Querying:[/bold cyan] {query_text}\n"
                 f"[bold cyan]Repository:[/bold cyan] {repo_path}\n"
@@ -728,27 +803,46 @@ def query(
                 f"[bold cyan]Budget:[/bold cyan] {cfg.token_budget:,} tokens",
                 border_style="cyan"
             ))
-        
+
         # Run query
-        output_path, _ = query_and_pack(
+        output_path, query_meta = query_and_pack(
             repo_path=repo_path,
             query=query_text,
             config=cfg,
             secrets_scan=secrets_scan,
+            compress=compress,
+            shuffle=shuffle,
+            agent_phase=mode,
+            session_id=None if no_dedup else session_id,
         )
-        
+
+        is_binary_format = cfg.format == "zip"
+        output_content = (
+            None if is_binary_format
+            else Path(output_path).read_text(encoding="utf-8")
+        )
+        total_tokens = query_meta.get("total_tokens", 0) if isinstance(query_meta, dict) else 0
+
         # Display success message
-        if json_stdout_mode:
-            typer.echo(Path(output_path).read_text(encoding="utf-8"))
+        if stdout and output_content is not None:
+            typer.echo(output_content)
+        elif json_stdout_mode and output_content is not None:
+            typer.echo(output_content)
         elif not AGENT_MODE:
             console.print("[bold green]✓[/bold green] Query complete!")
+            if total_tokens:
+                console.print(f"[green]Context packed ({total_tokens:,} / {cfg.token_budget:,} tokens)[/green]")
             console.print(f"Output saved to: {output_path}")
+
+        if copy and output_content is not None:
+            _copy_to_clipboard(output_content)
 
         _emit_ndjson({
             "type": "status",
             "command": "query",
             "status": "success",
             "output_path": str(output_path),
+            "total_tokens": total_tokens,
             "generated_at": _utc_now(),
         })
 
@@ -780,11 +874,16 @@ def pack(
         "-q",
         help="Optional natural language query for semantic search",
     ),
+    changed_files_path: Optional[str] = typer.Option(
+        None,
+        "--changed-files",
+        help="Path to a file listing changed files (one per line) for PageRank boosting.",
+    ),
     format: Optional[str] = typer.Option(
         None,
         "--format",
         "-f",
-        help="Output format: 'xml', 'zip', 'json', or 'md'",
+        help="Output format: 'xml', 'zip', 'json', 'yaml', 'md', or 'toon' (experimental)",
     ),
     budget: Optional[int] = typer.Option(
         None,
@@ -814,13 +913,48 @@ def pack(
         "--agent-mode",
         help="Emit parseable NDJSON on stdout and send human-readable logs to stderr.",
     ),
+    stdout: bool = typer.Option(
+        False,
+        "--stdout",
+        help="Write output content to stdout instead of saving to file.",
+    ),
+    copy: bool = typer.Option(
+        False,
+        "--copy",
+        help="Copy output to clipboard after packing.",
+    ),
+    compress: bool = typer.Option(
+        False,
+        "--compress",
+        help="Apply smart compression: full content for high-relevance files, signatures for others.",
+    ),
+    shuffle: bool = typer.Option(
+        True,
+        "--shuffle/--no-shuffle",
+        help="Reorder files to combat 'Lost in the Middle' (default: on in agent-mode).",
+    ),
+    mode: Optional[str] = typer.Option(
+        None,
+        "--mode",
+        help="Agent phase mode: 'discovery', 'edit', or 'test'. Adjusts ranking weights.",
+    ),
+    session_id: str = typer.Option(
+        "default",
+        "--session-id",
+        help="Session identifier for semantic deduplication cache.",
+    ),
+    no_dedup: bool = typer.Option(
+        False,
+        "--no-dedup",
+        help="Disable session-level semantic deduplication.",
+    ),
 ) -> None:
     """
     Execute full workflow: index, query, and pack.
-    
+
     This command performs the complete workflow: builds indexes if needed,
     performs semantic search (if query provided), and generates output.
-    
+
     Requirements: 11.4
     """
     try:
@@ -828,11 +962,11 @@ def pack(
 
         # Load configuration
         cfg = _load_config(config, repo_path=repo_path)
-        
+
         # Override config with CLI flags
         if format is not None:
-            if format not in ["xml", "zip", "json", "md"]:
-                console.print(f"[red]Error:[/red] Invalid format '{format}'. Must be 'xml', 'zip', 'json', or 'md'")
+            if format not in ["xml", "zip", "json", "yaml", "md", "toon"]:
+                console.print(f"[red]Error:[/red] Invalid format '{format}'. Must be 'xml', 'zip', 'json', 'yaml', 'md', or 'toon'")
                 _emit_ndjson({"type": "error", "command": "pack", "error": "invalid_format", "format": format})
                 raise typer.Exit(code=1)
             cfg.format = format
@@ -862,10 +996,17 @@ def pack(
 
         cfg = _preflight_runtime_dependencies(cfg, "pack")
 
-        json_stdout_mode = cfg.format == "json" and not AGENT_MODE
+        _stdout_formats = {"json", "xml", "yaml", "md"}
+        stdout_mode = stdout or (cfg.format in _stdout_formats and not AGENT_MODE)
+        json_stdout_mode = cfg.format == "json" and not AGENT_MODE and not stdout
+
+        # Validate mode flag
+        if mode is not None and mode not in ("discovery", "edit", "test"):
+            console.print(f"[red]Error:[/red] Invalid --mode '{mode}'. Must be 'discovery', 'edit', or 'test'")
+            raise typer.Exit(code=1)
 
         # Display start message
-        if not AGENT_MODE and not json_stdout_mode:
+        if not AGENT_MODE and not json_stdout_mode and not stdout:
             console.print(Panel.fit(
                 f"[bold cyan]Packing repository:[/bold cyan] {repo_path}\n"
                 f"[bold cyan]Query:[/bold cyan] {query_text or 'None (using PageRank only)'}\n"
@@ -874,41 +1015,72 @@ def pack(
                 border_style="cyan"
             ))
 
+        # Parse --changed-files file if provided
+        changed_files: Optional[List[str]] = None
+        if changed_files_path is not None:
+            cf_path = Path(changed_files_path)
+            if not cf_path.exists():
+                console.print(f"[red]Error:[/red] --changed-files path does not exist: {changed_files_path}")
+                raise typer.Exit(code=1)
+            lines = cf_path.read_text(encoding="utf-8", errors="ignore").splitlines()
+            changed_files = [ln.strip() for ln in lines if ln.strip()]
+
         # Step 1: Index (will auto-rebuild if stale)
-        if not AGENT_MODE and not json_stdout_mode:
+        if not AGENT_MODE and not json_stdout_mode and not stdout:
             console.print("\n[bold]Step 1:[/bold] Checking indexes...")
         index_path = repo_path_obj / ".ws-ctx-engine"
-        
+
         if not index_path.exists() or not (index_path / "metadata.json").exists():
-            if not AGENT_MODE and not json_stdout_mode:
+            if not AGENT_MODE and not json_stdout_mode and not stdout:
                 console.print("  → Building indexes (first time)...")
             index_repository(repo_path=repo_path, config=cfg)
         else:
-            if not AGENT_MODE and not json_stdout_mode:
+            if not AGENT_MODE and not json_stdout_mode and not stdout:
                 console.print("  → Indexes found (will auto-rebuild if stale)")
 
         # Step 2: Query and pack
-        if not AGENT_MODE and not json_stdout_mode:
+        if not AGENT_MODE and not json_stdout_mode and not stdout:
             console.print("\n[bold]Step 2:[/bold] Querying and packing...")
-        output_path, _ = query_and_pack(
+        output_path, pack_meta = query_and_pack(
             repo_path=repo_path,
             query=query_text,
+            changed_files=changed_files,
             config=cfg,
             secrets_scan=secrets_scan,
+            compress=compress,
+            shuffle=shuffle,
+            agent_phase=mode,
+            session_id=None if no_dedup else session_id,
         )
-        
+
+        is_binary_format = cfg.format == "zip"
+        output_content = (
+            None if is_binary_format
+            else Path(output_path).read_text(encoding="utf-8")
+        )
+        total_tokens = pack_meta.get("total_tokens", 0) if isinstance(pack_meta, dict) else 0
+        budget_tokens = cfg.token_budget
+
         # Display success message
-        if json_stdout_mode:
-            typer.echo(Path(output_path).read_text(encoding="utf-8"))
+        if stdout and output_content is not None:
+            typer.echo(output_content)
+        elif json_stdout_mode and output_content is not None:
+            typer.echo(output_content)
         elif not AGENT_MODE:
             console.print("\n[bold green]✓[/bold green] Packing complete!")
+            if total_tokens:
+                console.print(f"[green]Context packed ({total_tokens:,} / {budget_tokens:,} tokens)[/green]")
             console.print(f"Output saved to: {output_path}")
+
+        if copy and output_content is not None:
+            _copy_to_clipboard(output_content)
 
         _emit_ndjson({
             "type": "status",
             "command": "pack",
             "status": "success",
             "output_path": str(output_path),
+            "total_tokens": total_tokens,
             "generated_at": _utc_now(),
         })
 
@@ -1014,12 +1186,12 @@ def status(
                 "index_dir": str(index_path),
                 "file_count": metadata.get("file_count", 0),
                 "backend": metadata.get("backend", "unknown"),
-                "indexed_at": metadata.get("indexed_at", "unknown"),
+                "indexed_at": metadata.get("created_at", "unknown"),
                 "total_size_bytes": total_size,
                 "generated_at": _utc_now(),
             })
         else:
-            console.print(f"\n[bold]Last indexed:[/bold] {metadata.get('indexed_at', 'unknown')}")
+            console.print(f"\n[bold]Last indexed:[/bold] {metadata.get('created_at', 'unknown')}")
 
         raise typer.Exit(code=0)
 
@@ -1297,13 +1469,46 @@ def _load_config(config_path: Optional[str], repo_path: Optional[str] = None) ->
     return cfg
 
 
+# ---------------------------------------------------------------------------
+# session sub-app
+# ---------------------------------------------------------------------------
+
+session_app = typer.Typer(name="session", help="Manage session-level deduplication caches.")
+app.add_typer(session_app)
+
+
+@session_app.command("clear")
+def session_clear(
+    repo_path: str = typer.Argument(
+        ".",
+        help="Repository root used to locate .ws-ctx-engine/ cache directory.",
+    ),
+    session_id: Optional[str] = typer.Option(
+        None,
+        "--session-id",
+        help="Clear only this session's cache.  Omit to clear ALL session caches.",
+    ),
+) -> None:
+    """Delete session deduplication cache file(s)."""
+    from ..session.dedup_cache import SessionDeduplicationCache, clear_all_sessions
+
+    cache_dir = Path(repo_path) / ".ws-ctx-engine"
+    if session_id:
+        cache = SessionDeduplicationCache(session_id=session_id, cache_dir=cache_dir)
+        cache.clear()
+        console.print(f"[green]✓[/green] Cleared session cache: {session_id}")
+    else:
+        deleted = clear_all_sessions(cache_dir)
+        console.print(f"[green]✓[/green] Cleared {deleted} session cache file(s) from {cache_dir}")
+
+
 def main() -> None:
     """
     Main entry point for the CLI.
-    
+
     This function is called when the user runs 'ws-ctx-engine' command.
     It handles all CLI commands and exits with appropriate status codes.
-    
+
     Requirements: 11.1, 11.8
     """
     try:

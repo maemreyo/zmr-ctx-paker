@@ -95,12 +95,13 @@ class TestClass:
         config.format = "xml"
         config.output_path = str(tmp_path / "output")
         
-        output_path, tracker = query_and_pack(
+        output_path, meta = query_and_pack(
             repo_path=str(repo_path),
             query="test function",
             config=config
         )
-        
+
+        tracker = meta["tracker"]
         metrics = tracker.get_metrics()
         
         # Verify all required query metrics are reported

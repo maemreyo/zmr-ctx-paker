@@ -1,0 +1,30 @@
+[package]
+name = "ws_ctx_engine_rust"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "_rust"
+crate-type = ["cdylib"]
+
+[dependencies]
+# PyO3 — Python bindings for Rust
+pyo3 = { version = "0.21", features = ["extension-module"] }
+
+# Fast parallel file walker with built-in gitignore support
+ignore = "0.4"
+
+# Blake3 — cryptographic hash, ~10x faster than SHA-256 for large inputs
+blake3 = "1"
+
+# xxHash — non-cryptographic hash, fastest for small buffers
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
+
+# Rayon — data parallelism
+rayon = "1"
+
+[profile.release]
+# Strip debug symbols and enable LTO for smaller, faster wheels
+strip = true
+lto = true
+codegen-units = 1

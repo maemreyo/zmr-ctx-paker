@@ -16,7 +16,15 @@ from ..logger import get_logger
 
 @dataclass
 class Config:
-    """System configuration loaded from .ws-ctx-engine.yaml"""
+    """
+    System configuration loaded from .ws-ctx-engine.yaml.
+
+    Fields are grouped by subsystem.  Fields marked **PLANNED** are parsed and
+    stored but not yet acted upon by the engine — they are reserved for future
+    milestones so that user configs remain forward-compatible.
+
+    All list/dict fields use factory defaults to avoid mutable-default pitfalls.
+    """
     
     # Output settings
     format: str = "zip"  # "xml" | "zip" | "json" | "md"
@@ -43,9 +51,9 @@ class Config:
     
     # Backend selection
     backends: Dict[str, str] = field(default_factory=lambda: {
-        "vector_index": "native-leann",  # auto | native-leann | leann | faiss
-        "graph": "igraph",               # auto | igraph | networkx
-        "embeddings": "local"            # auto | local | api
+        "vector_index": "auto",  # auto | native-leann | leann | faiss
+        "graph": "auto",         # auto | igraph | networkx
+        "embeddings": "auto"     # auto | local | api
     })
     
     # Embeddings config
@@ -57,11 +65,18 @@ class Config:
         "api_key_env": "OPENAI_API_KEY"
     })
     
-    # Performance tuning
+    # Performance tuning — fields are parsed but not yet active (PLANNED)
     performance: Dict[str, Any] = field(default_factory=lambda: {
-        "max_workers": 4,
-        "cache_embeddings": True,
-        "incremental_index": True
+        "max_workers": 4,           # PLANNED — not active
+        "cache_embeddings": True,   # PLANNED — not active
+        "incremental_index": True,  # PLANNED — not active (see M6)
+    })
+
+    # AI rule persistence — auto-detect and always include AI rule files
+    ai_rules: Dict[str, Any] = field(default_factory=lambda: {
+        "auto_detect": True,
+        "extra_files": [],
+        "boost": 10.0,
     })
     
     @classmethod
@@ -155,7 +170,17 @@ class Config:
         # Set performance tuning
         if "performance" in data:
             config.performance = cls._validate_performance(data["performance"], logger)
-        
+
+        # Set ai_rules config
+        if "ai_rules" in data and isinstance(data["ai_rules"], dict):
+            ai_rules = data["ai_rules"]
+            if "auto_detect" in ai_rules:
+                config.ai_rules["auto_detect"] = bool(ai_rules["auto_detect"])
+            if "extra_files" in ai_rules and isinstance(ai_rules["extra_files"], list):
+                config.ai_rules["extra_files"] = [str(f) for f in ai_rules["extra_files"]]
+            if "boost" in ai_rules and isinstance(ai_rules["boost"], (int, float)):
+                config.ai_rules["boost"] = float(ai_rules["boost"])
+
         logger.info(f"Configuration loaded successfully from {path}")
         return config
     
@@ -167,8 +192,8 @@ class Config:
             return "zip"
         
         value = value.lower()
-        if value not in ["xml", "zip", "json", "md"]:
-            logger.error(f"Invalid format: {value}, must be 'xml', 'zip', 'json', or 'md'")
+        if value not in ["xml", "zip", "json", "yaml", "md", "toon"]:
+            logger.error(f"Invalid format: {value}, must be 'xml', 'zip', 'json', 'yaml', 'md', or 'toon'")
             return "zip"
         
         return value
@@ -232,9 +257,9 @@ class Config:
         if not isinstance(value, dict):
             logger.error(f"Invalid backends type: {type(value).__name__}, expected dict")
             return {
-                "vector_index": "native-leann",
-                "graph": "igraph",
-                "embeddings": "local"
+                "vector_index": "auto",
+                "graph": "auto",
+                "embeddings": "auto"
             }
         
         valid_backends = {

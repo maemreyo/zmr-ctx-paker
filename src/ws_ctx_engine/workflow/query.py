@@ -16,7 +16,7 @@ from ..domain_map import DomainMapDB
 from .indexer import load_indexes
 from ..logger import get_logger
 from ..monitoring import PerformanceTracker
-from ..output import JSONFormatter, MarkdownFormatter
+from ..output import JSONFormatter, MarkdownFormatter, TOONFormatter, YAMLFormatter
 from ..retrieval import RetrievalEngine
 from ..packer import XMLPacker, ZIPPacker
 from ..secret_scanner import SecretScanner
@@ -122,8 +122,9 @@ def _build_file_payload(
     graph: Any,
     secret_scanner: Optional[SecretScanner],
     secrets_scan: bool,
+    preloaded_content: Optional[str] = None,
 ) -> dict[str, Any]:
-    content = _read_file_content(repo_path, file_path)
+    content = preloaded_content if preloaded_content is not None else _read_file_content(repo_path, file_path)
     scan_result = None
     if secrets_scan and secret_scanner is not None:
         scan_result = secret_scanner.scan(file_path)
@@ -189,6 +190,7 @@ def search_codebase(
         semantic_weight=config.semantic_weight,
         pagerank_weight=config.pagerank_weight,
         domain_map=domain_map,
+        config=config,
     )
 
     ranked_files = retrieval_engine.retrieve(query=query, top_k=max(limit * 5, 50))
@@ -223,7 +225,11 @@ def query_and_pack(
     config: Optional[Config] = None,
     index_dir: str = ".ws-ctx-engine",
     secrets_scan: bool = False,
-) -> tuple[str, PerformanceTracker]:
+    compress: bool = False,
+    shuffle: bool = True,
+    agent_phase: Optional[str] = None,
+    session_id: Optional[str] = None,
+) -> tuple[str, dict[str, Any]]:
     """
     Query indexes and generate output in configured format.
     
@@ -326,14 +332,26 @@ def query_and_pack(
             graph=graph,
             semantic_weight=config.semantic_weight,
             pagerank_weight=config.pagerank_weight,
-            domain_map=domain_map
+            domain_map=domain_map,
+            config=config,
         )
 
         ranked_files = retrieval_engine.retrieve(
             query=query,
             changed_files=changed_files,
-            top_k=100
+            top_k=100,
         )
+
+        # Apply phase-aware re-weighting if --mode is specified
+        if agent_phase:
+            try:
+                from ..ranking.phase_ranker import AgentPhase, apply_phase_weights, parse_phase
+                phase = parse_phase(agent_phase)
+                if phase is not None:
+                    ranked_files = apply_phase_weights(ranked_files, phase)
+            except Exception as exc:
+                logger.warning(f"Phase-aware ranking failed (ignored): {exc}")
+
         retrieval_duration = time.time() - retrieval_start
         tracker.end_phase("retrieval")
         tracker.track_memory()
@@ -387,11 +405,76 @@ def query_and_pack(
     logger.info(f"Phase 4: Packing output in {config.format.upper()} format")
     tracker.start_phase("packing")
     pack_start = time.time()
-    
+
     try:
         index_health = _build_index_health(repo_path, metadata)
 
-        # Prepare metadata
+        # Create output directory
+        output_dir = Path(config.output_path)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        scanner = SecretScanner(repo_path=repo_path, index_dir=index_dir) if secrets_scan else None
+
+        # --- Pre-processing: dedup + compression ---
+
+        # Session deduplication — replace already-seen file content with markers
+        dedup_cache = None
+        if session_id is not None:
+            try:
+                from ..session.dedup_cache import SessionDeduplicationCache
+                dedup_cache = SessionDeduplicationCache(
+                    session_id=session_id,
+                    cache_dir=Path(repo_path) / index_dir,
+                )
+                logger.info(f"Session dedup cache loaded: {dedup_cache.size} entries (session={session_id})")
+            except Exception as exc:
+                logger.warning(f"Session dedup cache init failed (ignored): {exc}")
+
+        deduplicated_count = 0
+
+        # Apply shuffle before compression so highest-ranked files get full content
+        effective_files = list(selected_files)
+        if shuffle and config.format == "xml":
+            try:
+                from ..packer.xml_packer import shuffle_for_model_recall
+                effective_files = shuffle_for_model_recall(effective_files)
+            except Exception as exc:
+                logger.warning(f"Context shuffle failed (ignored): {exc}")
+
+        # Build content map: file_path → (possibly compressed / deduplicated) content
+        content_map: Dict[str, str] = {}
+        ranked_scores = dict(ranked_files)
+
+        if compress or dedup_cache is not None:
+            try:
+                if compress:
+                    from ..output.compressor import apply_compression_to_selected_files
+                    compressed_pairs = apply_compression_to_selected_files(
+                        selected_files=effective_files,
+                        ranked_scores=ranked_scores,
+                        repo_path=repo_path,
+                    )
+                    for fp, content in compressed_pairs:
+                        content_map[fp] = content
+                else:
+                    for fp in effective_files:
+                        content_map[fp] = _read_file_content(repo_path, fp)
+            except Exception as exc:
+                logger.warning(f"Pre-processing (compress/dedup) failed (ignored): {exc}")
+                content_map = {}
+
+            # Apply dedup over whatever content we have
+            if dedup_cache is not None:
+                for fp in list(content_map.keys()):
+                    is_dup, result = dedup_cache.check_and_mark(fp, content_map[fp])
+                    if is_dup:
+                        deduplicated_count += 1
+                        content_map[fp] = result
+
+        if deduplicated_count:
+            logger.info(f"Session dedup: {deduplicated_count} file(s) replaced with markers")
+
+        # Prepare metadata (after dedup count is finalized for this phase)
         output_metadata = {
             "repo_name": os.path.basename(os.path.abspath(repo_path)),
             "file_count": len(selected_files),
@@ -400,22 +483,19 @@ def query_and_pack(
             "changed_files": changed_files,
             "generated_at": _utc_now(),
             "index_health": index_health,
+            "session_id": session_id,
+            "deduplicated_files": deduplicated_count,
         }
-
-        # Create output directory
-        output_dir = Path(config.output_path)
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        scanner = SecretScanner(repo_path=repo_path, index_dir=index_dir) if secrets_scan else None
 
         # Pack based on format
         if config.format == "xml":
             packer = XMLPacker()
             output_content = packer.pack(
-                selected_files=selected_files,
+                selected_files=effective_files,
                 repo_path=repo_path,
                 metadata=output_metadata,
                 secret_scanner=scanner,
+                content_map=content_map if content_map else None,
             )
 
             output_path = output_dir / "repomix-output.xml"
@@ -426,7 +506,7 @@ def query_and_pack(
             packer = ZIPPacker()
             importance_scores = dict(ranked_files)
             output_content = packer.pack(
-                selected_files=selected_files,
+                selected_files=effective_files,
                 repo_path=repo_path,
                 metadata=output_metadata,
                 importance_scores=importance_scores,
@@ -437,7 +517,7 @@ def query_and_pack(
             with open(output_path, 'wb') as f:
                 f.write(output_content)
 
-        elif config.format in {"json", "md"}:
+        elif config.format in {"json", "md", "yaml", "toon"}:
             ranked_lookup = dict(ranked_files)
             domain_map_db_path = Path(repo_path) / index_dir / "domain_map.db"
             domain_map: Any
@@ -457,8 +537,9 @@ def query_and_pack(
                     graph=graph,
                     secret_scanner=scanner,
                     secrets_scan=secrets_scan,
+                    preloaded_content=content_map.get(file_path) if content_map else None,
                 )
-                for file_path in selected_files
+                for file_path in effective_files
             ]
 
             if isinstance(domain_map, DomainMapDB):
@@ -468,6 +549,14 @@ def query_and_pack(
                 formatter = JSONFormatter()
                 output_content = formatter.render(output_metadata, files_payload)
                 output_path = output_dir / "ws-ctx-engine.json"
+            elif config.format == "yaml":
+                formatter = YAMLFormatter()
+                output_content = formatter.render(output_metadata, files_payload)
+                output_path = output_dir / "ws-ctx-engine.yaml"
+            elif config.format == "toon":
+                formatter = TOONFormatter()
+                output_content = formatter.render(output_metadata, files_payload)
+                output_path = output_dir / "ws-ctx-engine.toon"
             else:
                 formatter = MarkdownFormatter()
                 output_content = formatter.render(output_metadata, files_payload)
@@ -494,7 +583,7 @@ def query_and_pack(
     
     # End query tracking
     tracker.end_query()
-    
+
     # Log completion with metrics
     total_duration = time.time() - start_time
     logger.info(
@@ -502,5 +591,9 @@ def query_and_pack(
         f"output={output_path}"
     )
     logger.info(f"\n{tracker.format_metrics('query')}")
-    
-    return str(output_path), tracker
+
+    return str(output_path), {
+        "total_tokens": total_tokens,
+        "file_count": len(selected_files),
+        "tracker": tracker,
+    }

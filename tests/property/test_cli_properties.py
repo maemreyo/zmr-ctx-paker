@@ -18,6 +18,26 @@ from hypothesis import given, settings, strategies as st
 from ws_ctx_engine.config import Config
 
 
+def run_cli(*args, **kwargs):
+    """Run a CLI subprocess with env vars that prevent PyTorch SIGSEGV on macOS."""
+    env = os.environ.copy()
+    env.update({
+        'OMP_NUM_THREADS': '1',
+        'MKL_NUM_THREADS': '1',
+        'OPENBLAS_NUM_THREADS': '1',
+        'VECLIB_MAXIMUM_THREADS': '1',
+        'NUMEXPR_NUM_THREADS': '1',
+        'TOKENIZERS_PARALLELISM': 'false',
+    })
+    if 'env' in kwargs:
+        env.update(kwargs['env'])
+    kwargs['env'] = env
+    if kwargs.get('text') or kwargs.get('encoding'):
+        kwargs.setdefault('encoding', 'utf-8')
+        kwargs.setdefault('errors', 'replace')
+    return subprocess.run(*args, **kwargs)
+
+
 # Helper function to create a minimal test repository
 def create_test_repo(repo_path: Path) -> None:
     """Create a minimal test repository with Python files."""
@@ -79,7 +99,7 @@ def test_cli_index_command_creates_indexes():
         create_test_repo(repo_path)
         
         # Run index command
-        result = subprocess.run(
+        result = run_cli(
             [sys.executable, "-m", "ws_ctx_engine.cli", "index", str(repo_path)],
             capture_output=True,
             text=True,
@@ -117,7 +137,7 @@ def test_cli_query_command_generates_output(format_choice: str, budget: int):
         create_test_repo(repo_path)
         
         # First, build indexes
-        result = subprocess.run(
+        result = run_cli(
             [sys.executable, "-m", "ws_ctx_engine.cli", "index", str(repo_path)],
             capture_output=True,
             text=True,
@@ -137,7 +157,7 @@ output_path: {output_dir}
 """)
         
         # Run query command
-        result = subprocess.run(
+        result = run_cli(
             [
                 sys.executable, "-m", "ws_ctx_engine.cli", "query",
                 "calculator function",
@@ -191,7 +211,7 @@ output_path: {output_dir}
 """)
         
         # Run pack command (full workflow)
-        result = subprocess.run(
+        result = run_cli(
             [
                 sys.executable, "-m", "ws_ctx_engine.cli", "pack",
                 str(repo_path),
@@ -250,7 +270,7 @@ output_path: {output_dir}
 """)
         
         # Build indexes first
-        result = subprocess.run(
+        result = run_cli(
             [sys.executable, "-m", "ws_ctx_engine.cli", "index", str(repo_path)],
             capture_output=True,
             text=True,
@@ -258,7 +278,7 @@ output_path: {output_dir}
         assert result.returncode == 0
         
         # Run query with CLI flags that override config
-        result = subprocess.run(
+        result = run_cli(
             [
                 sys.executable, "-m", "ws_ctx_engine.cli", "query",
                 "test query",
@@ -300,7 +320,7 @@ def test_cli_exit_codes_success_and_failure():
         
         # Test 1: Success case - valid index command
         create_test_repo(repo_path)
-        result = subprocess.run(
+        result = run_cli(
             [sys.executable, "-m", "ws_ctx_engine.cli", "index", str(repo_path)],
             capture_output=True,
             text=True,
@@ -309,7 +329,7 @@ def test_cli_exit_codes_success_and_failure():
         
         # Test 2: Failure case - invalid repo path
         invalid_path = repo_path / "nonexistent"
-        result = subprocess.run(
+        result = run_cli(
             [sys.executable, "-m", "ws_ctx_engine.cli", "index", str(invalid_path)],
             capture_output=True,
             text=True,
@@ -317,7 +337,7 @@ def test_cli_exit_codes_success_and_failure():
         assert result.returncode != 0, "Failure case should return non-zero exit code"
         
         # Test 3: Failure case - invalid format flag
-        result = subprocess.run(
+        result = run_cli(
             [
                 sys.executable, "-m", "ws_ctx_engine.cli", "query",
                 "test",
@@ -330,7 +350,7 @@ def test_cli_exit_codes_success_and_failure():
         assert result.returncode != 0, "Invalid format should return non-zero exit code"
         
         # Test 4: Failure case - invalid budget (negative)
-        result = subprocess.run(
+        result = run_cli(
             [
                 sys.executable, "-m", "ws_ctx_engine.cli", "query",
                 "test",
@@ -346,7 +366,7 @@ def test_cli_exit_codes_success_and_failure():
         new_repo = Path(tmpdir) / "new_repo"
         new_repo.mkdir()
         create_test_repo(new_repo)
-        result = subprocess.run(
+        result = run_cli(
             [
                 sys.executable, "-m", "ws_ctx_engine.cli", "query",
                 "test",
@@ -366,7 +386,7 @@ def test_cli_handles_missing_config_file():
         create_test_repo(repo_path)
         
         # Try to use non-existent config file
-        result = subprocess.run(
+        result = run_cli(
             [
                 sys.executable, "-m", "ws_ctx_engine.cli", "index",
                 str(repo_path),
@@ -396,7 +416,7 @@ def test_search_agent_mode_ndjson_lines_are_parseable(limit: int):
         env["NUMEXPR_NUM_THREADS"] = "1"
         env["TOKENIZERS_PARALLELISM"] = "false"
 
-        index_result = subprocess.run(
+        index_result = run_cli(
             [sys.executable, "-m", "ws_ctx_engine.cli", "index", str(repo_path)],
             capture_output=True,
             text=True,
@@ -404,7 +424,7 @@ def test_search_agent_mode_ndjson_lines_are_parseable(limit: int):
         )
         assert index_result.returncode == 0
 
-        search_result = subprocess.run(
+        search_result = run_cli(
             [
                 sys.executable,
                 "-m",
@@ -461,7 +481,7 @@ output_path: {output_dir}
             encoding="utf-8",
         )
 
-        result = subprocess.run(
+        result = run_cli(
             [
                 sys.executable,
                 "-m",
@@ -499,7 +519,7 @@ def test_cli_verbose_flag_enables_detailed_logging():
         create_test_repo(repo_path)
         
         # Run with verbose flag
-        result = subprocess.run(
+        result = run_cli(
             [
                 sys.executable, "-m", "ws_ctx_engine.cli", "index",
                 str(repo_path),

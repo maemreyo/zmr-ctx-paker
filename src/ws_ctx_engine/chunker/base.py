@@ -1,9 +1,38 @@
-import fnmatch
+import logging
+import warnings
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 from ..models import CodeChunk
+
+logger = logging.getLogger("ws_ctx_engine")
+
+# M7: Optional Rust accelerated hot-paths (PyO3 extension).
+# The extension is optional — Python fallbacks are used when not available.
+try:
+    from ws_ctx_engine._rust import walk_files as _rust_walk_files  # type: ignore[import]
+    from ws_ctx_engine._rust import hash_content as _rust_hash_content  # type: ignore[import]
+    from ws_ctx_engine._rust import count_tokens as _rust_count_tokens  # type: ignore[import]
+    RUST_AVAILABLE = True
+    logger.debug("Rust extension loaded — using accelerated hot-paths")
+except ImportError:
+    RUST_AVAILABLE = False
+    _rust_walk_files = None
+    _rust_hash_content = None
+    _rust_count_tokens = None
+
+# Extensions with actual AST parsers available in this engine.
+# Files matching these extensions will be parsed with full AST support.
+# Any other extension will produce a [WARNING] during indexing.
+INDEXED_EXTENSIONS = frozenset({
+    ".py",    # Python — tree-sitter + regex fallback
+    ".js",    # JavaScript — tree-sitter + regex fallback
+    ".ts",    # TypeScript — tree-sitter + regex fallback
+    ".jsx",   # JSX — tree-sitter JavaScript
+    ".tsx",   # TSX — tree-sitter TypeScript
+    ".rs",    # Rust — tree-sitter + regex fallback
+})
 
 
 class ASTChunker(ABC):
@@ -12,19 +41,111 @@ class ASTChunker(ABC):
         pass
 
 
+def collect_gitignore_patterns(root: Path) -> List[str]:
+    """
+    Recursively discover all .gitignore files under *root* and collect patterns,
+    prefixing sub-directory patterns with their relative directory path so that
+    the resulting spec replicates Git's scoping rules.
+    """
+    all_patterns: List[str] = []
+    for gitignore_path in sorted(root.rglob(".gitignore")):
+        try:
+            relative_dir = gitignore_path.parent.relative_to(root)
+        except ValueError:
+            continue
+        try:
+            lines = gitignore_path.read_text(encoding="utf-8", errors="ignore").splitlines()
+        except OSError:
+            continue
+        for raw_line in lines:
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if str(relative_dir) != ".":
+                # Scope the pattern to its subdirectory
+                all_patterns.append(f"{relative_dir}/{line}")
+            else:
+                all_patterns.append(line)
+    return all_patterns
+
+
+def build_ignore_spec(patterns: List[str]):
+    """
+    Build a GitIgnoreSpec that replicates actual Git behaviour including
+    re-include (!pattern) and last-pattern-wins semantics.
+
+    Requires pathspec>=0.12 (GitIgnoreSpec).
+    """
+    try:
+        from pathspec import GitIgnoreSpec  # type: ignore[import-untyped]
+        return GitIgnoreSpec.from_lines(patterns)
+    except ImportError:
+        # Graceful fallback if pathspec is somehow unavailable at runtime.
+        logger.warning(
+            "pathspec.GitIgnoreSpec not available — falling back to basic fnmatch ignore. "
+            "Install pathspec>=0.12 for full .gitignore compliance."
+        )
+        return None
+
+
+def get_files_to_include(root: Path, spec) -> List[str]:
+    """Return relative paths of files that are NOT matched by *spec* (i.e. not ignored)."""
+    if spec is None:
+        return []
+    try:
+        # match_tree_files with negate=True returns files NOT matched by the spec
+        return list(spec.match_tree_files(str(root), negate=True))
+    except Exception:
+        return []
+
+
+def warn_non_indexed_extension(file_path: str) -> None:
+    """Emit a WARNING when a file's extension has no AST parser."""
+    ext = Path(file_path).suffix.lower()
+    if ext and ext not in INDEXED_EXTENSIONS:
+        logger.warning(
+            "[WARNING] No AST parser available for extension '%s' (file: %s). "
+            "File will be indexed as plain text.",
+            ext,
+            file_path,
+        )
+
+
 def _should_include_file(
     file_path: Path,
     repo_root: Path,
     include_patterns: List[str],
-    exclude_patterns: List[str]
+    exclude_patterns: List[str],
+    gitignore_spec: Optional[object] = None,
 ) -> bool:
-    relative_path = str(file_path.relative_to(repo_root))
-    path_parts = relative_path.split('/')
+    """
+    Decide whether a file should be included.
 
+    Priority:
+    1. If gitignore_spec is provided, honour it (replaces old exclude_patterns for
+       gitignore-sourced rules).
+    2. Check explicit exclude_patterns (user config).
+    3. Check include_patterns.
+    """
+    import fnmatch
+
+    relative_path = str(file_path.relative_to(repo_root))
+    path_parts = relative_path.split("/")
+
+    # 1. Gitignore spec check
+    if gitignore_spec is not None:
+        try:
+            if gitignore_spec.match_file(relative_path):
+                return False
+        except Exception:
+            pass
+
+    # 2. Explicit exclude patterns
     for pattern in exclude_patterns:
         if _match_pattern(relative_path, path_parts, pattern):
             return False
 
+    # 3. Include patterns
     for pattern in include_patterns:
         if _match_pattern(relative_path, path_parts, pattern):
             return True
@@ -33,17 +154,19 @@ def _should_include_file(
 
 
 def _match_pattern(relative_path: str, path_parts: List[str], pattern: str) -> bool:
+    import fnmatch
+
     if fnmatch.fnmatch(relative_path, pattern):
         return True
-    if fnmatch.fnmatch(relative_path, pattern.replace('**/', '*/')):
+    if fnmatch.fnmatch(relative_path, pattern.replace("**/", "*/")):
         return True
-    if fnmatch.fnmatch(relative_path, pattern.replace('**', '*')):
+    if fnmatch.fnmatch(relative_path, pattern.replace("**", "*")):
         return True
-    if pattern.startswith('**/'):
+    if pattern.startswith("**/"):
         simple_pattern = pattern[3:]
         for part in path_parts:
             if fnmatch.fnmatch(part, simple_pattern):
                 return True
-        if fnmatch.fnmatch(relative_path.split('/')[-1], simple_pattern):
+        if fnmatch.fnmatch(relative_path.split("/")[-1], simple_pattern):
             return True
     return False

@@ -765,6 +765,159 @@ class FAISSIndex(VectorIndex):
             logger.error(f"Failed to load FAISS index: {e}")
             raise IOError(f"Failed to load FAISS index: {e}")
 
+    # ------------------------------------------------------------------
+    # M6: Incremental update support via IndexIDMap2
+    # ------------------------------------------------------------------
+
+    def _ensure_idmap2(self) -> None:
+        """
+        Migrate an IndexHNSWFlat (or other flat index) to IndexIDMap2 so that
+        individual vectors can be removed by their integer ID.
+
+        IndexIDMap2 is preferred over IndexIDMap because it also supports
+        ``reconstruct()`` — useful for future cache verification.
+        """
+        import faiss
+
+        if self._index is None:
+            return
+        if isinstance(self._index, faiss.IndexIDMap2):
+            return  # Already wrapped
+
+        base = self._index
+        # Only flat-family indices support reconstruct(); HNSW and IVF do not.
+        # For non-flat indices we skip vector re-registration — existing vectors
+        # remain searchable but cannot be individually removed by ID.
+        supports_reconstruct = isinstance(
+            base,
+            (faiss.IndexFlat, faiss.IndexFlatL2, faiss.IndexFlatIP),
+        )
+        wrapped = faiss.IndexIDMap2(base)
+        if supports_reconstruct and len(self._file_paths) > 0 and self._embedding_dim:
+            try:
+                n = base.ntotal
+                ids = np.arange(n, dtype=np.int64)
+                vecs = np.vstack([
+                    base.reconstruct(int(i)) for i in range(n)
+                ]).astype(np.float32)
+                wrapped.add_with_ids(vecs, ids)
+            except Exception as exc:
+                self.logger.warning(f"Could not migrate to IndexIDMap2 (ignored): {exc}")
+                return  # Keep old index as-is
+        elif not supports_reconstruct and base.ntotal > 0:
+            self.logger.warning(
+                "Index type %s does not support reconstruct(); existing vectors will not "
+                "have ID mappings — incremental removal will not work for pre-existing entries.",
+                type(base).__name__,
+            )
+        self._index = wrapped
+
+    def update_incremental(
+        self,
+        deleted_paths: List[str],
+        new_chunks: List["CodeChunk"],
+        embedding_cache: Optional["EmbeddingCache"] = None,
+    ) -> None:
+        """
+        Incrementally update the FAISS index.
+
+        Removes vectors for *deleted_paths*, then adds vectors for *new_chunks*.
+        Uses *embedding_cache* to skip re-embedding unchanged content.
+
+        Args:
+            deleted_paths: File paths whose vectors should be removed.
+            new_chunks: New/changed code chunks to embed and add.
+            embedding_cache: Optional cache to avoid redundant embeddings.
+        """
+        import faiss
+
+        # Ensure we're using IndexIDMap2 for remove_ids support
+        self._ensure_idmap2()
+
+        if self._embedding_generator is None:
+            self._embedding_generator = EmbeddingGenerator(
+                model_name=self.model_name,
+                device=self.device,
+                batch_size=self.batch_size,
+            )
+
+        # 1. Remove deleted/changed paths
+        ids_to_remove: List[int] = []
+        for path in deleted_paths:
+            try:
+                idx = self._file_paths.index(path)
+                ids_to_remove.append(idx)
+                self._file_paths.pop(idx)
+                self._file_symbols.pop(path, None)
+            except ValueError:
+                pass
+
+        if ids_to_remove and isinstance(self._index, faiss.IndexIDMap2):
+            self._index.remove_ids(np.array(ids_to_remove, dtype=np.int64))
+            self.logger.info(f"Removed {len(ids_to_remove)} entries from FAISS index")
+
+        # 2. Group new chunks by file
+        if not new_chunks:
+            return
+
+        file_to_chunks: Dict[str, List] = {}
+        for chunk in new_chunks:
+            file_to_chunks.setdefault(chunk.path, []).append(chunk)
+
+        new_paths = list(file_to_chunks.keys())
+        texts: List[str] = []
+        need_embed: List[int] = []   # indices that require embedding (no cache hit)
+        cached_vecs: Dict[int, np.ndarray] = {}
+
+        for i, fp in enumerate(new_paths):
+            combined = "\n".join(c.content for c in file_to_chunks[fp])
+            texts.append(combined)
+            if embedding_cache is not None:
+                h = EmbeddingCache.content_hash(combined)
+                cached = embedding_cache.lookup(h)
+                if cached is not None:
+                    cached_vecs[i] = cached
+                    continue
+            need_embed.append(i)
+
+        # Embed only the uncached texts
+        all_vecs: Dict[int, np.ndarray] = dict(cached_vecs)
+        if need_embed:
+            uncached_texts = [texts[i] for i in need_embed]
+            embeddings = self._embedding_generator.encode(uncached_texts)
+            for j, i in enumerate(need_embed):
+                vec = embeddings[j]
+                all_vecs[i] = vec
+                # Store in cache for future runs
+                if embedding_cache is not None:
+                    h = EmbeddingCache.content_hash(texts[i])
+                    embedding_cache.store(h, vec)
+
+        # 3. Add new vectors with IDs starting after current file_paths
+        start_id = len(self._file_paths)
+        new_vecs = np.vstack([all_vecs[i] for i in range(len(new_paths))]).astype(np.float32)
+        new_ids = np.arange(start_id, start_id + len(new_paths), dtype=np.int64)
+
+        if isinstance(self._index, faiss.IndexIDMap2):
+            self._index.add_with_ids(new_vecs, new_ids)
+        else:
+            self._index.add(new_vecs)
+
+        self._file_paths.extend(new_paths)
+        for fp, chunks_list in file_to_chunks.items():
+            syms: List[str] = []
+            for c in chunks_list:
+                syms.extend(c.symbols_defined)
+            self._file_symbols[fp] = syms
+
+        self.logger.info(f"Incremental update: +{len(new_paths)} files")
+
+
+# Import EmbeddingCache lazily to avoid circular imports
+try:
+    from .embedding_cache import EmbeddingCache  # noqa: E402
+except ImportError:
+    EmbeddingCache = None  # type: ignore[assignment,misc]
 
 
 def create_vector_index(

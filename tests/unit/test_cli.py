@@ -71,7 +71,13 @@ def run_cli_command(args, **kwargs):
     if 'env' in kwargs:
         env.update(kwargs['env'])
     kwargs['env'] = env
-    
+
+    # If text mode is requested, ensure binary-safe decoding so ZIP/binary
+    # stdout doesn't raise UnicodeDecodeError
+    if kwargs.get('text') or kwargs.get('encoding'):
+        kwargs.setdefault('encoding', 'utf-8')
+        kwargs.setdefault('errors', 'replace')
+
     return subprocess.run(args, **kwargs)
 
 

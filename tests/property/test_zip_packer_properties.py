@@ -383,9 +383,10 @@ class TestZIPPackerProperties:
                     reading_section = manifest_content
                 
                 # Extract file positions in reading order section
+                # Use backtick-wrapped search to avoid prefix matches (e.g. '0.py' in '00.py')
                 file_positions = {}
                 for file_name in file_names:
-                    pos = reading_section.find(file_name)
+                    pos = reading_section.find(f"`{file_name}`")
                     if pos >= 0:
                         file_positions[file_name] = pos
                 

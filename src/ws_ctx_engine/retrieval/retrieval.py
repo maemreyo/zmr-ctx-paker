@@ -14,7 +14,7 @@ Additional signals applied on top of the base hybrid score:
 
 import logging
 import re
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from ws_ctx_engine.graph import RepoMapGraph
 from ws_ctx_engine.vector_index import VectorIndex
@@ -134,6 +134,7 @@ class RetrievalEngine:
         domain_boost: float = 0.25,
         test_penalty: float = 0.5,
         domain_map: Optional["DomainKeywordMap"] = None,
+        config: Optional[Any] = None,
     ):
         """
         Initialize RetrievalEngine with indexes and weights.
@@ -170,6 +171,7 @@ class RetrievalEngine:
         self.domain_boost = domain_boost
         self.domain_map = domain_map if domain_map is not None else DomainKeywordMap()
         self.test_penalty = test_penalty
+        self._config = config
 
         logger.info(
             f"RetrievalEngine initialized with weights: "
@@ -287,9 +289,17 @@ class RetrievalEngine:
         # 6. Final normalisation → guarantees scores ∈ [0, 1]
         final_scores = self._normalize(merged)
 
-        results = sorted(final_scores.items(), key=lambda x: x[1], reverse=True)
-        logger.info(f"Retrieval complete: {len(results)} files ranked")
-        return results[:top_k]
+        # 7. AI rule boost — always push rule files to the top regardless of query
+        try:
+            from ..ranking.ranker import apply_ai_rule_boost_to_ranked
+            ranked_list = sorted(final_scores.items(), key=lambda x: x[1], reverse=True)
+            extra_files = getattr(getattr(self, "_config", None), "ai_rules", {}).get("extra_files")
+            ranked_list = apply_ai_rule_boost_to_ranked(ranked_list, extra_files=extra_files)
+        except Exception:
+            ranked_list = sorted(final_scores.items(), key=lambda x: x[1], reverse=True)
+
+        logger.info(f"Retrieval complete: {len(ranked_list)} files ranked")
+        return ranked_list[:top_k]
 
     # ------------------------------------------------------------------
     # Scoring helpers

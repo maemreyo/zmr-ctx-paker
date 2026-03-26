@@ -25,11 +25,57 @@ from ..vector_index import VectorIndex
 logger = get_logger()
 
 
+def _detect_incremental_changes(
+    repo_path: str,
+    index_path: Path,
+) -> tuple[bool, List[str], List[str]]:
+    """
+    Compare stored file hashes against current disk state.
+
+    Returns:
+        (incremental_possible, changed_paths, deleted_paths)
+
+        *incremental_possible* is False when no prior metadata exists, meaning
+        the caller should fall back to a full rebuild.
+    """
+    metadata_file = index_path / "metadata.json"
+    if not metadata_file.exists():
+        return False, [], []
+
+    try:
+        data = json.loads(metadata_file.read_text(encoding="utf-8"))
+        stored_hashes: dict[str, str] = data.get("file_hashes", {})
+    except Exception:
+        return False, [], []
+
+    if not stored_hashes:
+        return False, [], []
+
+    changed: List[str] = []
+    deleted: List[str] = []
+
+    for rel_path, old_hash in stored_hashes.items():
+        full_path = Path(repo_path) / rel_path
+        if not full_path.exists():
+            deleted.append(rel_path)
+            continue
+        try:
+            new_hash = hashlib.sha256(full_path.read_bytes()).hexdigest()
+        except OSError:
+            changed.append(rel_path)
+            continue
+        if new_hash != old_hash:
+            changed.append(rel_path)
+
+    return True, changed, deleted
+
+
 def index_repository(
     repo_path: str,
     config: Optional[Config] = None,
     index_dir: str = ".ws-ctx-engine",
-    domain_only: bool = False
+    domain_only: bool = False,
+    incremental: bool = False,
 ) -> PerformanceTracker:
     """
     Build and persist indexes for later queries.
@@ -86,6 +132,21 @@ def index_repository(
     tracker.start_phase("parsing")
     parse_start = time.time()
 
+    # Detect changed/deleted files when incremental=True
+    _changed_paths: List[str] = []
+    _deleted_paths: List[str] = []
+    _incremental_mode_active = False
+
+    if incremental:
+        _incremental_mode_active, _changed_paths, _deleted_paths = _detect_incremental_changes(
+            repo_path, index_path
+        )
+        if _incremental_mode_active:
+            logger.info(
+                f"Incremental mode: {len(_changed_paths)} changed, "
+                f"{len(_deleted_paths)} deleted files"
+            )
+
     try:
         chunks = parse_with_fallback(repo_path, config=config)
         parse_duration = time.time() - parse_start
@@ -127,7 +188,39 @@ def index_repository(
                 index_path=str(index_path / "leann_index")
             )
 
-            vector_index.build(chunks)
+            # Load and use embedding cache when available
+            embedding_cache = None
+            try:
+                from ..vector_index.embedding_cache import EmbeddingCache
+                embedding_cache = EmbeddingCache(cache_dir=index_path)
+                embedding_cache.load()
+            except Exception:
+                embedding_cache = None
+
+            if _incremental_mode_active and embedding_cache is not None:
+                # Only rebuild changed files; use cache for unchanged
+                changed_chunks = [c for c in chunks if c.path in set(_changed_paths)]
+                try:
+                    vector_index_path = str(index_path / "vector.idx")
+                    from ..vector_index.vector_index import FAISSIndex
+                    if hasattr(FAISSIndex, 'load') and Path(vector_index_path).exists():
+                        vector_index = FAISSIndex.load(vector_index_path)
+                        vector_index.update_incremental(
+                            deleted_paths=_deleted_paths + _changed_paths,
+                            new_chunks=changed_chunks,
+                            embedding_cache=embedding_cache,
+                        )
+                    else:
+                        vector_index.build(chunks)
+                except Exception as inc_exc:
+                    logger.warning(f"Incremental update failed, falling back to full rebuild: {inc_exc}")
+                    vector_index.build(chunks)
+            else:
+                vector_index.build(chunks)
+
+            if embedding_cache is not None:
+                embedding_cache.save()
+
             vector_duration = time.time() - vector_start
             tracker.end_phase("vector_indexing")
             tracker.track_memory()
