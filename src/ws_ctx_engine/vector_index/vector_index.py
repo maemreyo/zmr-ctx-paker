@@ -26,11 +26,13 @@ class VectorIndex(ABC):
     """
 
     @abstractmethod
-    def build(self, chunks: list[CodeChunk]) -> None:
+    def build(self, chunks: list[CodeChunk], embedding_cache: Any | None = None) -> None:
         """Build vector index from code chunks.
 
         Args:
             chunks: List of CodeChunk objects to index
+            embedding_cache: Optional cache to avoid re-embedding unchanged files.
+                Implementations that don't support caching may ignore this parameter.
 
         Raises:
             RuntimeError: If index building fails
@@ -305,11 +307,12 @@ class LEANNIndex(VectorIndex):
         self._file_symbols: dict[str, list[str]] = {}
         self._graph = None  # Simplified: store all embeddings for now
 
-    def build(self, chunks: list[CodeChunk]) -> None:
+    def build(self, chunks: list[CodeChunk], embedding_cache: Any | None = None) -> None:
         """Build LEANN index from code chunks.
 
         Args:
             chunks: List of CodeChunk objects to index
+            embedding_cache: Ignored — LEANNIndex manages its own storage.
 
         Raises:
             RuntimeError: If index building fails

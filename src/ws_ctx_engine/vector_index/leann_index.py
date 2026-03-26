@@ -81,11 +81,12 @@ class NativeLEANNIndex(VectorIndex):
                 "Install with: pip install leann or: pip install ws-ctx-engine[leann]"
             ) from None
 
-    def build(self, chunks: list[CodeChunk]) -> None:
+    def build(self, chunks: list[CodeChunk], embedding_cache: Any | None = None) -> None:
         """Build LEANN index from code chunks.
 
         Args:
             chunks: List of CodeChunk objects to index
+            embedding_cache: Ignored — NativeLEANN manages its own storage.
 
         Raises:
             RuntimeError: If index building fails
