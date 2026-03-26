@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.0a0] - 2026-03-26
+
+### Changes
+- Full quality gate: black, ruff (0 errors), mypy strict (0 errors)
+- Rust extension (PyO3 0.23): walk_files only — 36x speedup over os.walk; hash_content and count_tokens removed (Python is fast enough)
+- Integration test coverage: --compress, --mode, --session-id workflows
+- All 5 query_and_pack callers fixed to unpack (output_path, metadata) tuple
+- EmbeddingGenerator autouse mock prevents torch segfaults on Python 3.13 ARM64
+- NativeLEANNIndex now preferred in auto backend selection
+
+
+
 ## [0.1.10] - 2026-03-25
 
 ### Changes

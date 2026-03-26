@@ -2,9 +2,8 @@
 ///
 /// The `ignore` crate respects `.gitignore`, `.ignore`, and `.git/info/exclude`
 /// natively — giving correct Git semantics without needing pathspec.
-use pyo3::prelude::*;
 use ignore::WalkBuilder;
-use rayon::prelude::*;
+use pyo3::prelude::*;
 
 /// Walk *root* respecting gitignore rules and return relative file paths.
 ///

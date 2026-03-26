@@ -56,3 +56,4 @@ dmypy.json
 .ruff_cache/
 tests/query_resultsexamples/zmr-koe/source
 .coverage.*
+_rust/target

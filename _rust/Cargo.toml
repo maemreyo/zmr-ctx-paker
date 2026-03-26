@@ -1,6 +1,6 @@
 [package]
 name = "ws_ctx_engine_rust"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 
 [lib]
@@ -9,16 +9,10 @@ crate-type = ["cdylib"]
 
 [dependencies]
 # PyO3 — Python bindings for Rust
-pyo3 = { version = "0.21", features = ["extension-module"] }
+pyo3 = { version = "0.23", features = ["extension-module"] }
 
 # Fast parallel file walker with built-in gitignore support
 ignore = "0.4"
-
-# Blake3 — cryptographic hash, ~10x faster than SHA-256 for large inputs
-blake3 = "1"
-
-# xxHash — non-cryptographic hash, fastest for small buffers
-xxhash-rust = { version = "0.8", features = ["xxh3"] }
 
 # Rayon — data parallelism
 rayon = "1"

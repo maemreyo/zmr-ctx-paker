@@ -6,12 +6,18 @@ Tests the complete index → query → pack workflow for ws-ctx-engine.
 
 import os
 import zipfile
+from unittest.mock import patch
 
+import numpy as np
 import pytest
 from lxml import etree
 
 from ws_ctx_engine.config import Config
+from ws_ctx_engine.vector_index import EmbeddingGenerator
 from ws_ctx_engine.workflow import index_repository, query_and_pack
+
+# Shared mock embeddings for all integration tests (avoids loading actual ML models)
+_MOCK_EMBEDDINGS = np.random.default_rng(42).random((10, 384)).astype(np.float32)
 
 # Check if required dependencies are available
 try:
@@ -33,6 +39,17 @@ pytestmark = pytest.mark.skipif(
     not (FAISS_AVAILABLE or SENTENCE_TRANSFORMERS_AVAILABLE),
     reason="Integration tests require either faiss-cpu or sentence-transformers",
 )
+
+
+@pytest.fixture(autouse=True)
+def mock_embeddings():
+    """Patch EmbeddingGenerator.encode to avoid loading actual ML models.
+
+    This prevents segfaults from torch/sentence-transformers on Python 3.13 ARM64
+    while still exercising the full pipeline orchestration logic.
+    """
+    with patch.object(EmbeddingGenerator, "encode", return_value=_MOCK_EMBEDDINGS):
+        yield
 
 
 @pytest.fixture
@@ -192,7 +209,7 @@ class TestQueryWorkflow:
         assert (index_dir / "metadata.json").exists()
 
         # Phase 2: Query and pack
-        output_path = query_and_pack(
+        output_path, _ = query_and_pack(
             repo_path=str(small_repo), query="authentication logic", config=config_xml
         )
 
@@ -276,7 +293,7 @@ class TestQueryWorkflow:
         assert (index_dir / "metadata.json").exists()
 
         # Phase 2: Query and pack
-        output_path = query_and_pack(
+        output_path, _ = query_and_pack(
             repo_path=str(small_repo), query="authentication logic", config=config_zip
         )
 
@@ -338,7 +355,7 @@ class TestQueryWorkflow:
 
         # Query with changed files
         changed_files = ["src/auth.py"]
-        output_path = query_and_pack(
+        output_path, _ = query_and_pack(
             repo_path=str(small_repo),
             query=None,  # No semantic query, rely on PageRank
             changed_files=changed_files,
@@ -379,7 +396,7 @@ class TestQueryWorkflow:
         index_repository(repo_path=str(small_repo), config=config_xml)
 
         # Query without semantic query
-        output_path = query_and_pack(repo_path=str(small_repo), query=None, config=config_xml)
+        output_path, _ = query_and_pack(repo_path=str(small_repo), query=None, config=config_xml)
 
         # Verify output was created
         assert os.path.exists(output_path)
@@ -419,7 +436,7 @@ class TestQueryWorkflow:
         index_repository(repo_path=str(small_repo), config=config_xml)
 
         # Query and pack
-        output_path = query_and_pack(
+        output_path, _ = query_and_pack(
             repo_path=str(small_repo), query="authentication", config=config_xml
         )
 
@@ -443,3 +460,110 @@ class TestQueryWorkflow:
         files = root.find("files")
         file_elements = files.findall("file")
         assert len(file_elements) > 0
+
+    def test_workflow_with_compress(self, small_repo, config_xml):
+        """
+        Test workflow with smart compression enabled.
+
+        Verifies:
+        - Output is generated successfully with compress=True
+        - XML output is valid
+        - At least one file is selected
+        """
+        index_repository(repo_path=str(small_repo), config=config_xml)
+
+        output_path, _ = query_and_pack(
+            repo_path=str(small_repo),
+            query="authentication logic",
+            config=config_xml,
+            compress=True,
+        )
+
+        assert os.path.exists(output_path)
+
+        with open(output_path, encoding="utf-8") as f:
+            xml_content = f.read()
+
+        root = etree.fromstring(xml_content.encode("utf-8"))
+        assert root.tag == "repository"
+
+        files = root.find("files")
+        assert files is not None
+        assert len(files.findall("file")) > 0
+
+    def test_workflow_with_mode(self, small_repo, config_xml):
+        """
+        Test workflow with agent phase mode enabled.
+
+        Verifies:
+        - Output is generated successfully for each mode
+        - XML output is valid and contains files
+        - 'test' mode includes test files when present
+        """
+        index_repository(repo_path=str(small_repo), config=config_xml)
+
+        for phase in ("discovery", "edit", "test"):
+            output_path, _ = query_and_pack(
+                repo_path=str(small_repo),
+                query="authentication logic",
+                config=config_xml,
+                agent_phase=phase,
+            )
+
+            assert os.path.exists(output_path), f"Output missing for phase={phase}"
+
+            with open(output_path, encoding="utf-8") as f:
+                xml_content = f.read()
+
+            root = etree.fromstring(xml_content.encode("utf-8"))
+            assert root.tag == "repository"
+            files = root.find("files")
+            assert files is not None
+            assert len(files.findall("file")) > 0, f"No files selected for phase={phase}"
+
+    def test_workflow_with_session_id(self, small_repo, config_xml):
+        """
+        Test workflow with session-level semantic deduplication.
+
+        Verifies:
+        - First call with session_id succeeds and produces output
+        - Second call with same session_id also succeeds
+        - Both outputs are valid XML
+        """
+        import uuid
+
+        session_id = f"test-{uuid.uuid4().hex[:8]}"
+
+        index_repository(repo_path=str(small_repo), config=config_xml)
+
+        # First call — primes the session cache
+        output_path_1, _ = query_and_pack(
+            repo_path=str(small_repo),
+            query="authentication logic",
+            config=config_xml,
+            session_id=session_id,
+        )
+        assert os.path.exists(output_path_1)
+
+        with open(output_path_1, encoding="utf-8") as f:
+            xml_content_1 = f.read()
+
+        root_1 = etree.fromstring(xml_content_1.encode("utf-8"))
+        assert root_1.tag == "repository"
+        assert len(root_1.find("files").findall("file")) > 0
+
+        # Second call — should hit session cache
+        config_xml.output_path = str(small_repo / "output2")
+        output_path_2, _ = query_and_pack(
+            repo_path=str(small_repo),
+            query="authentication logic",
+            config=config_xml,
+            session_id=session_id,
+        )
+        assert os.path.exists(output_path_2)
+
+        with open(output_path_2, encoding="utf-8") as f:
+            xml_content_2 = f.read()
+
+        root_2 = etree.fromstring(xml_content_2.encode("utf-8"))
+        assert root_2.tag == "repository"

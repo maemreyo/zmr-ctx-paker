@@ -8,25 +8,20 @@ from ..models import CodeChunk
 logger = logging.getLogger("ws_ctx_engine")
 
 # M7: Optional Rust accelerated hot-paths (PyO3 extension).
-# The extension is optional — Python fallbacks are used when not available.
+# Only walk_files is in Rust — hashlib and len()//4 are fast enough in Python.
+# Tries ws_ctx_engine._rust first (namespace install), then top-level _rust
+# (maturin develop install).
 try:
-    from ws_ctx_engine._rust import (  # type: ignore[import-not-found]
-        count_tokens as _rust_count_tokens,
-    )
-    from ws_ctx_engine._rust import (
-        hash_content as _rust_hash_content,
-    )
-    from ws_ctx_engine._rust import (
-        walk_files as _rust_walk_files,
-    )
+    try:
+        from ws_ctx_engine._rust import walk_files as _rust_walk_files  # type: ignore[import-not-found]
+    except ImportError:
+        from _rust import walk_files as _rust_walk_files  # type: ignore[import-not-found]
 
     RUST_AVAILABLE = True
-    logger.debug("Rust extension loaded — using accelerated hot-paths")
+    logger.debug("Rust extension loaded — using accelerated file walker")
 except ImportError:
     RUST_AVAILABLE = False
     _rust_walk_files = None
-    _rust_hash_content = None
-    _rust_count_tokens = None
 
 # Extensions with actual AST parsers available in this engine.
 # Files matching these extensions will be parsed with full AST support.
