@@ -3,6 +3,7 @@
 <cite>
 **Referenced Files in This Document**
 - [_rust/Cargo.toml](file://_rust/Cargo.toml)
+- [_rust/Cargo.lock](file://_rust/Cargo.lock)
 - [_rust/src/lib.rs](file://_rust/src/lib.rs)
 - [_rust/src/walker.rs](file://_rust/src/walker.rs)
 - [src/ws_ctx_engine/chunker/base.py](file://src/ws_ctx_engine/chunker/base.py)
@@ -12,6 +13,13 @@
 - [src/ws_ctx_engine/monitoring/performance.py](file://src/ws_ctx_engine/monitoring/performance.py)
 - [tests/test_performance_benchmarks.py](file://tests/test_performance_benchmarks.py)
 </cite>
+
+## Update Summary
+**Changes Made**
+- Updated dependency version tracking to reflect Rust extension version bump from 0.1.0 to 0.2.0
+- Updated Cargo.toml and Cargo.lock references to show current dependency versions
+- Enhanced dependency analysis section with current version information
+- Updated performance documentation to reflect current architecture and capabilities
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -29,13 +37,15 @@ This document explains the optional Rust extension that accelerates hot-path ope
 
 The Rust module is optional: when absent, the engine automatically falls back to pure Python implementations. The guide covers architecture, build/installation, verification, performance targets, and troubleshooting.
 
+**Updated** The extension now uses version 0.2.0 of the ws_ctx_engine_rust crate, with updated dependency versions for pyo3 (0.23.5), ignore (0.4.25), and rayon (1.11.0).
+
 ## Project Structure
 The Rust extension resides under the _rust/ directory and compiles to a Python extension named _rust. The Python chunker module conditionally imports the Rust function and falls back to Python when unavailable.
 
 ```mermaid
 graph TB
 subgraph "Rust Extension (_rust/)"
-RToml["_rust/Cargo.toml<br/>Defines cdylib, pyo3, ignore, rayon"]
+RToml["_rust/Cargo.toml<br/>Version 0.2.0, defines cdylib, pyo3 0.23, ignore 0.4, rayon 1"]
 RLib["_rust/src/lib.rs<br/>Exports PyO3 module and functions"]
 RWalker["_rust/src/walker.rs<br/>Parallel file walker"]
 end
@@ -157,7 +167,7 @@ I --> J["Return Vec<String>"]
 ### Build and Distribution Pipeline
 - CI builds wheels for Linux (manylinux), macOS (universal2), and Windows using maturin-action.
 - Artifacts are uploaded and can be downloaded from GitHub Actions.
-- A smoke test verifies presence of walk_files, hash_content, and count_tokens in the installed wheel.
+- A smoke test verifies presence of walk_files function in the installed wheel.
 
 ```mermaid
 graph TB
@@ -168,14 +178,14 @@ Job --> Win["Windows wheel"]
 Linux --> Upload["Upload artifacts"]
 Mac --> Upload
 Win --> Upload
-Upload --> Smoke["Smoke test installs wheel and asserts functions"]
+Upload --> Smoke["Smoke test installs wheel and asserts walk_files function"]
 ```
 
 **Diagram sources**
-- [.github/workflows/build-rust.yml:1-83](file://.github/workflows/build-rust.yml#L1-L83)
+- [.github/workflows/build-rust.yml:1-84](file://.github/workflows/build-rust.yml#L1-L84)
 
 **Section sources**
-- [.github/workflows/build-rust.yml:1-83](file://.github/workflows/build-rust.yml#L1-L83)
+- [.github/workflows/build-rust.yml:1-84](file://.github/workflows/build-rust.yml#L1-L84)
 
 ### Performance Targets and Benchmarks
 - Performance targets show 8–20x speedup for file walking and 8–12x for gitignore matching, chunk hashing, and token counting.
@@ -202,18 +212,20 @@ TC --> TCRes["~1s → <100ms (8–12x)"]
 
 ## Dependency Analysis
 - Rust crate dependencies:
-  - pyo3: Python bindings for Rust (extension module).
-  - ignore: high-performance directory traversal with native .gitignore semantics.
-  - rayon: parallelism for CPU-bound tasks.
+  - pyo3: Python bindings for Rust (extension module) - version 0.23.5
+  - ignore: high-performance directory traversal with native .gitignore semantics - version 0.4.25
+  - rayon: parallelism for CPU-bound tasks - version 1.11.0
 - Python integration depends on conditional import logic in the chunker base module.
 - The extension is compiled as a cdylib and exposed to Python via PyO3.
+
+**Updated** All dependencies have been updated to their latest compatible versions, with pyo3 at 0.23.5, ignore at 0.4.25, and rayon at 1.11.0.
 
 ```mermaid
 graph TB
 Py["Python Chunker (base.py)"] --> Rust["_rust (compiled cdylib)"]
-Rust --> Pyo3["pyo3"]
-Rust --> Ignore["ignore"]
-Rust --> Rayon["rayon"]
+Rust --> Pyo3["pyo3 0.23.5"]
+Rust --> Ignore["ignore 0.4.25"]
+Rust --> Rayon["rayon 1.11.0"]
 ```
 
 **Diagram sources**
@@ -229,10 +241,8 @@ Rust --> Rayon["rayon"]
 ## Performance Considerations
 - Hot-path focus: Only file walking is accelerated; hashing and token counting remain in Python to avoid interop overhead.
 - Deterministic sorting: Results are sorted for reproducibility; this adds O(n log n) overhead but is necessary for consistent outputs.
-- Parallel traversal: Uses rayon internally via ignore’s parallel builder to maximize throughput on multi-core systems.
+- Parallel traversal: Uses rayon internally via ignore's parallel builder to maximize throughput on multi-core systems.
 - Git semantics: Native .gitignore respect eliminates the need for pathspecs and reduces false positives/negatives.
-
-[No sources needed since this section provides general guidance]
 
 ## Troubleshooting Guide
 Common issues and resolutions:
@@ -253,7 +263,9 @@ Verification steps:
 
 **Section sources**
 - [docs/guides/performance.md:22-42](file://docs/guides/performance.md#L22-L42)
-- [.github/workflows/build-rust.yml:63-83](file://.github/workflows/build-rust.yml#L63-L83)
+- [.github/workflows/build-rust.yml:63-84](file://.github/workflows/build-rust.yml#L63-L84)
 
 ## Conclusion
 The Rust extension provides a focused, high-impact acceleration for the most frequently called operation—parallel file walking—while keeping the rest of the pipeline in Python for simplicity and portability. Its optional nature ensures robust fallback behavior, and CI guarantees cross-platform wheels. Performance targets are validated through documented benchmarks and continuous integration smoke tests.
+
+**Updated** The extension now operates on version 0.2.0 with updated dependency versions, maintaining the same architecture while benefiting from the latest improvements in pyo3, ignore, and rayon crates.
