@@ -1,8 +1,5 @@
 """Unit tests for DomainKeywordMap."""
 
-import tempfile
-from pathlib import Path
-
 import pytest
 
 from ws_ctx_engine.domain_map import DomainKeywordMap
@@ -24,7 +21,7 @@ class TestDomainKeywordMap:
                 content="def foo(): pass",
                 symbols_defined=["foo"],
                 symbols_referenced=[],
-                language="python"
+                language="python",
             )
         ]
 
@@ -46,7 +43,7 @@ class TestDomainKeywordMap:
                 content="def foo(): pass",
                 symbols_defined=["foo"],
                 symbols_referenced=[],
-                language="python"
+                language="python",
             )
         ]
 
@@ -68,7 +65,7 @@ class TestDomainKeywordMap:
                 content="def foo(): pass",
                 symbols_defined=["foo"],
                 symbols_referenced=[],
-                language="python"
+                language="python",
             ),
             CodeChunk(
                 path="chunker/resolvers/python.py",
@@ -77,7 +74,7 @@ class TestDomainKeywordMap:
                 content="def bar(): pass",
                 symbols_defined=["bar"],
                 symbols_referenced=[],
-                language="python"
+                language="python",
             ),
         ]
 
@@ -99,7 +96,7 @@ class TestDomainKeywordMap:
                 content="def foo(): pass",
                 symbols_defined=["foo"],
                 symbols_referenced=[],
-                language="python"
+                language="python",
             )
         ]
 
@@ -120,7 +117,7 @@ class TestDomainKeywordMap:
                 content="def foo(): pass",
                 symbols_defined=["foo"],
                 symbols_referenced=[],
-                language="python"
+                language="python",
             )
         ]
 
@@ -143,7 +140,7 @@ class TestDomainKeywordMap:
                 content="def foo(): pass",
                 symbols_defined=["foo"],
                 symbols_referenced=[],
-                language="python"
+                language="python",
             )
         ]
 
@@ -163,7 +160,7 @@ class TestDomainKeywordMap:
                 content="def foo(): pass",
                 symbols_defined=["foo"],
                 symbols_referenced=[],
-                language="python"
+                language="python",
             )
         ]
 
@@ -195,7 +192,7 @@ class TestDomainKeywordMap:
                 content="def foo(): pass",
                 symbols_defined=["foo"],
                 symbols_referenced=[],
-                language="python"
+                language="python",
             ),
             CodeChunk(
                 path="graph/dependency.py",
@@ -204,7 +201,7 @@ class TestDomainKeywordMap:
                 content="def bar(): pass",
                 symbols_defined=["bar"],
                 symbols_referenced=[],
-                language="python"
+                language="python",
             ),
         ]
 
@@ -226,7 +223,7 @@ class TestDomainKeywordMap:
                 content="def foo(): pass",
                 symbols_defined=["foo"],
                 symbols_referenced=[],
-                language="python"
+                language="python",
             )
         ]
 
@@ -264,7 +261,7 @@ class TestRetrievalEngineQueryClassification:
 
     def test_classify_path_dominant(self):
         """Test that domain keyword queries are classified as path-dominant."""
-        from ws_ctx_engine.retrieval.retrieval import RetrievalEngine, DomainKeywordMap
+        from ws_ctx_engine.retrieval.retrieval import DomainKeywordMap, RetrievalEngine
 
         vector_idx = MockVectorIndex()
         graph = MockRepoMapGraph()
@@ -284,16 +281,13 @@ class TestRetrievalEngineQueryClassification:
         vector_idx = MockVectorIndex()
         graph = MockRepoMapGraph()
         engine = RetrievalEngine(
-            vector_idx, graph,
-            symbol_boost=0.3,
-            path_boost=0.2,
-            domain_boost=0.4
+            vector_idx, graph, symbol_boost=0.3, path_boost=0.2, domain_boost=0.4
         )
 
         eff_symbol, eff_path, eff_domain = engine._effective_weights("symbol")
 
         assert eff_symbol == pytest.approx(0.3 * 1.5)  # 0.45
-        assert eff_path == pytest.approx(0.2 * 0.5)   # 0.10
+        assert eff_path == pytest.approx(0.2 * 0.5)  # 0.10
         assert eff_domain == pytest.approx(0.4 * 0.3)  # 0.12
 
     def test_effective_weights_path_dominant(self):
@@ -303,21 +297,18 @@ class TestRetrievalEngineQueryClassification:
         vector_idx = MockVectorIndex()
         graph = MockRepoMapGraph()
         engine = RetrievalEngine(
-            vector_idx, graph,
-            symbol_boost=0.3,
-            path_boost=0.2,
-            domain_boost=0.4
+            vector_idx, graph, symbol_boost=0.3, path_boost=0.2, domain_boost=0.4
         )
 
         eff_symbol, eff_path, eff_domain = engine._effective_weights("path-dominant")
 
-        assert eff_symbol == pytest.approx(0.3 * 0.5)   # 0.15
-        assert eff_path == pytest.approx(0.2 * 1.5)    # 0.30
+        assert eff_symbol == pytest.approx(0.3 * 0.5)  # 0.15
+        assert eff_path == pytest.approx(0.2 * 1.5)  # 0.30
         assert eff_domain == pytest.approx(0.4 * 0.5)  # 0.20
 
     def test_compute_domain_scores(self):
         """Test domain score computation."""
-        from ws_ctx_engine.retrieval.retrieval import RetrievalEngine, DomainKeywordMap
+        from ws_ctx_engine.retrieval.retrieval import DomainKeywordMap, RetrievalEngine
 
         vector_idx = MockVectorIndex()
         graph = MockRepoMapGraph()
@@ -338,6 +329,7 @@ class TestRetrievalEngineQueryClassification:
 
 class MockVectorIndex:
     """Mock VectorIndex for testing."""
+
     def __init__(self):
         pass
 
@@ -347,5 +339,6 @@ class MockVectorIndex:
 
 class MockRepoMapGraph:
     """Mock RepoMapGraph for testing."""
+
     def __init__(self):
         pass

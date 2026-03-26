@@ -1,14 +1,18 @@
-from .base import LanguageResolver
-from .python import PythonResolver
-from .javascript import JavaScriptResolver
-from .typescript import TypeScriptResolver
-from .rust import RustResolver
+from typing import Union
 
-ALL_RESOLVERS = {
-    'python': PythonResolver,
-    'javascript': JavaScriptResolver,
-    'typescript': TypeScriptResolver,
-    'rust': RustResolver,
+from .base import LanguageResolver
+from .javascript import JavaScriptResolver
+from .python import PythonResolver
+from .rust import RustResolver
+from .typescript import TypeScriptResolver
+
+ALL_RESOLVERS: dict[
+    str, type[PythonResolver | JavaScriptResolver | TypeScriptResolver | RustResolver]
+] = {
+    "python": PythonResolver,
+    "javascript": JavaScriptResolver,
+    "typescript": TypeScriptResolver,
+    "rust": RustResolver,
 }
 
 __all__ = [

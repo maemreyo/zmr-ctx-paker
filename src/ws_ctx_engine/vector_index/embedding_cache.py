@@ -19,7 +19,6 @@ import hashlib
 import json
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -46,8 +45,8 @@ class EmbeddingCache:
         self._cache_dir = cache_dir
         self._embeddings_path = cache_dir / "embeddings.npy"
         self._index_path = cache_dir / "embedding_index.json"
-        self._hash_to_idx: Dict[str, int] = {}
-        self._vectors: Optional[np.ndarray] = None  # shape (N, dim)
+        self._hash_to_idx: dict[str, int] = {}
+        self._vectors: np.ndarray | None = None  # shape (N, dim)
 
     # ------------------------------------------------------------------
     # Persistence
@@ -56,9 +55,9 @@ class EmbeddingCache:
     def load(self) -> None:
         """Load cache from disk.  No-op if files don't exist yet."""
         try:
-            self._hash_to_idx = json.loads(
-                self._index_path.read_text(encoding="utf-8")
-            ).get("hash_to_idx", {})
+            self._hash_to_idx = json.loads(self._index_path.read_text(encoding="utf-8")).get(
+                "hash_to_idx", {}
+            )
             if self._embeddings_path.exists():
                 self._vectors = np.load(str(self._embeddings_path))
                 logger.info(f"Embedding cache loaded: {len(self._hash_to_idx)} entries")
@@ -87,14 +86,15 @@ class EmbeddingCache:
     # Lookup / store
     # ------------------------------------------------------------------
 
-    def lookup(self, content_hash: str) -> Optional[np.ndarray]:
+    def lookup(self, content_hash: str) -> np.ndarray | None:
         """Return cached vector for *content_hash*, or None if not found."""
         idx = self._hash_to_idx.get(content_hash)
         if idx is None or self._vectors is None:
             return None
         if idx >= len(self._vectors):
             return None
-        return self._vectors[idx]
+        row: np.ndarray[tuple[int, ...], np.dtype[np.float32]] = self._vectors[idx]
+        return row
 
     def store(self, content_hash: str, vector: np.ndarray) -> None:
         """Add or update the cached vector for *content_hash*."""

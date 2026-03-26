@@ -3,7 +3,6 @@
 import json
 
 import numpy as np
-import pytest
 
 from ws_ctx_engine.vector_index.embedding_cache import EmbeddingCache
 

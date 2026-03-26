@@ -115,7 +115,10 @@ def test_get_domain_map_success_path_with_ranked_domains(monkeypatch) -> None:
         service = MCPToolService(workspace=tmpdir, config=_config())
         metadata = _FakeMetadata(file_hashes={"src/a.py": "h1", "src/b.py": "h2", "src/c.py": "h3"})
         monkeypatch.setattr(service, "_load_metadata", lambda: metadata)
-        monkeypatch.setattr("ws_ctx_engine.mcp.tools.load_indexes", lambda *args, **kwargs: (None, _FakeNXGraph(), None))
+        monkeypatch.setattr(
+            "ws_ctx_engine.mcp.tools.load_indexes",
+            lambda *args, **kwargs: (None, _FakeNXGraph(), None),
+        )
 
         class _FakeDB:
             def __init__(self, path: str):
@@ -165,7 +168,12 @@ def test_get_domain_map_handles_index_and_db_failures(monkeypatch) -> None:
 def test_get_index_status_success_response_is_cached(monkeypatch) -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         cfg = MCPConfig(
-            rate_limits={"search_codebase": 60, "get_file_context": 60, "get_domain_map": 60, "get_index_status": 1}
+            rate_limits={
+                "search_codebase": 60,
+                "get_file_context": 60,
+                "get_domain_map": 60,
+                "get_index_status": 1,
+            }
         )
         service = MCPToolService(workspace=tmpdir, config=cfg)
 
@@ -173,7 +181,11 @@ def test_get_index_status_success_response_is_cached(monkeypatch) -> None:
 
         def _ok_status():
             calls["count"] += 1
-            return {"index_health": {"status": "current"}, "recommendation": "Index appears up-to-date.", "workspace": tmpdir}
+            return {
+                "index_health": {"status": "current"},
+                "recommendation": "Index appears up-to-date.",
+                "workspace": tmpdir,
+            }
 
         monkeypatch.setattr(service, "_get_index_status", _ok_status)
 
@@ -191,8 +203,12 @@ def test_build_index_health_handles_git_stale_and_current() -> None:
         (repo / ".git").mkdir(parents=True, exist_ok=True)
         service = MCPToolService(workspace=str(repo), config=_config())
 
-        stale = service._build_index_health(_FakeMetadata(stale=True, file_hashes={"src/a.py": "h"}))
-        current = service._build_index_health(_FakeMetadata(stale=False, file_hashes={"src/a.py": "h"}))
+        stale = service._build_index_health(
+            _FakeMetadata(stale=True, file_hashes={"src/a.py": "h"})
+        )
+        current = service._build_index_health(
+            _FakeMetadata(stale=False, file_hashes={"src/a.py": "h"})
+        )
 
     assert stale["status"] == "stale"
     assert stale["stale_reason"]
@@ -204,10 +220,16 @@ def test_load_neighbors_supports_nx_and_igraph_shapes(monkeypatch) -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         service = MCPToolService(workspace=tmpdir, config=_config())
 
-        monkeypatch.setattr("ws_ctx_engine.mcp.tools.load_indexes", lambda *args, **kwargs: (None, _FakeNXGraph(), None))
+        monkeypatch.setattr(
+            "ws_ctx_engine.mcp.tools.load_indexes",
+            lambda *args, **kwargs: (None, _FakeNXGraph(), None),
+        )
         deps_nx, dents_nx = service._load_neighbors("src/a.py")
 
-        monkeypatch.setattr("ws_ctx_engine.mcp.tools.load_indexes", lambda *args, **kwargs: (None, _FakeIGraph(), None))
+        monkeypatch.setattr(
+            "ws_ctx_engine.mcp.tools.load_indexes",
+            lambda *args, **kwargs: (None, _FakeIGraph(), None),
+        )
         deps_ig, dents_ig = service._load_neighbors("src/a.py")
 
     assert deps_nx == ["src/b.py"]
@@ -234,7 +256,9 @@ def test_graph_stats_and_helpers_cover_edge_cases(monkeypatch) -> None:
         import builtins
 
         missing_path = Path(tmpdir) / "missing.py"
-        monkeypatch.setattr(builtins, "open", lambda *args, **kwargs: (_ for _ in ()).throw(OSError("no read")))
+        monkeypatch.setattr(
+            builtins, "open", lambda *args, **kwargs: (_ for _ in ()).throw(OSError("no read"))
+        )
         line_count = service._line_count(missing_path)
 
     assert nx_stats == {"total_nodes": 3, "total_edges": 2, "avg_degree": 1.33}
@@ -290,7 +314,12 @@ def test_index_health_or_unknown_when_no_metadata_and_no_git(monkeypatch) -> Non
 def test_cache_read_write_and_expiration() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         cfg = MCPConfig(
-            rate_limits={"search_codebase": 60, "get_file_context": 60, "get_domain_map": 60, "get_index_status": 60},
+            rate_limits={
+                "search_codebase": 60,
+                "get_file_context": 60,
+                "get_domain_map": 60,
+                "get_index_status": 60,
+            },
             cache_ttl_seconds=1,
         )
         service = MCPToolService(workspace=tmpdir, config=cfg)

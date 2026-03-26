@@ -8,14 +8,12 @@ and repositories, logging detailed results for each test run.
 
 import argparse
 import json
-import os
 import shutil
 import subprocess
 import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
 
 
 class StressTestRunner:
@@ -50,11 +48,11 @@ class StressTestRunner:
         self,
         test_name: str,
         repo_path: str,
-        config_path: Optional[str] = None,
+        config_path: str | None = None,
         prompt: str = "",
-        expected_files: Optional[int] = None,
-        expected_chunks: Optional[int] = None
-    ) -> Dict:
+        expected_files: int | None = None,
+        expected_chunks: int | None = None,
+    ) -> dict:
         """Run a single test scenario.
 
         Args:
@@ -90,7 +88,7 @@ class StressTestRunner:
             "expected_files": expected_files,
             "expected_chunks": expected_chunks,
             "timestamp": datetime.now().isoformat(),
-            "run_dir": str(run_dir)
+            "run_dir": str(run_dir),
         }
 
         # Save test metadata
@@ -106,10 +104,7 @@ class StressTestRunner:
         start_time = time.time()
         try:
             result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=300  # 5 minute timeout
+                cmd, capture_output=True, text=True, timeout=300  # 5 minute timeout
             )
             duration = time.time() - start_time
             success = result.returncode == 0
@@ -140,24 +135,15 @@ class StressTestRunner:
 
             # Copy metadata
             if (context_pack_dir / "metadata.json").exists():
-                shutil.copy2(
-                    context_pack_dir / "metadata.json",
-                    artifacts_dir / "metadata.json"
-                )
+                shutil.copy2(context_pack_dir / "metadata.json", artifacts_dir / "metadata.json")
 
             # Copy vector index
             if (context_pack_dir / "vector.idx").exists():
-                shutil.copy2(
-                    context_pack_dir / "vector.idx",
-                    artifacts_dir / "vector.idx"
-                )
+                shutil.copy2(context_pack_dir / "vector.idx", artifacts_dir / "vector.idx")
 
             # Copy graph
             if (context_pack_dir / "graph.pkl").exists():
-                shutil.copy2(
-                    context_pack_dir / "graph.pkl",
-                    artifacts_dir / "graph.pkl"
-                )
+                shutil.copy2(context_pack_dir / "graph.pkl", artifacts_dir / "graph.pkl")
 
         # Parse results from metadata
         actual_files = None
@@ -193,7 +179,7 @@ class StressTestRunner:
             "actual_files": actual_files,
             "actual_chunks": actual_chunks,
             "files_match": actual_files == expected_files if expected_files else None,
-            "chunks_match": actual_chunks == expected_chunks if expected_chunks else None
+            "chunks_match": actual_chunks == expected_chunks if expected_chunks else None,
         }
 
         # Save test results
@@ -208,15 +194,19 @@ class StressTestRunner:
         print(f"Duration: {duration:.2f}s")
         if error_message:
             print(f"Error: {error_message}")
-        print(f"\nExpected vs Actual:")
-        print(f"  Files: {expected_files} → {actual_files} {'✅' if test_result['files_match'] else '❌' if expected_files else '⚠️'}")
-        print(f"  Chunks: {expected_chunks} → {actual_chunks} {'✅' if test_result['chunks_match'] else '❌' if expected_chunks else '⚠️'}")
+        print("\nExpected vs Actual:")
+        print(
+            f"  Files: {expected_files} → {actual_files} {'✅' if test_result['files_match'] else '❌' if expected_files else '⚠️'}"
+        )
+        print(
+            f"  Chunks: {expected_chunks} → {actual_chunks} {'✅' if test_result['chunks_match'] else '❌' if expected_chunks else '⚠️'}"
+        )
         print(f"\nArtifacts saved to: {run_dir}")
         print(f"{'='*80}\n")
 
         return test_result
 
-    def generate_summary_report(self, results: List[Dict]):
+    def generate_summary_report(self, results: list[dict]):
         """Generate a summary report of all test runs.
 
         Args:
@@ -236,11 +226,17 @@ class StressTestRunner:
             f.write("|---|-----------|--------|----------|-------|--------|----------|\n")
 
             for r in results:
-                status = "✅ PASS" if r['success'] else "❌ FAIL"
-                files_status = "✅" if r.get('files_match') else "❌" if r.get('expected_files') else "⚠️"
-                chunks_status = "✅" if r.get('chunks_match') else "❌" if r.get('expected_chunks') else "⚠️"
+                status = "✅ PASS" if r["success"] else "❌ FAIL"
+                files_status = (
+                    "✅" if r.get("files_match") else "❌" if r.get("expected_files") else "⚠️"
+                )
+                chunks_status = (
+                    "✅" if r.get("chunks_match") else "❌" if r.get("expected_chunks") else "⚠️"
+                )
 
-                f.write(f"| {r['test_number']} | {r['test_name']} | {status} | {r['duration']:.2f}s | ")
+                f.write(
+                    f"| {r['test_number']} | {r['test_name']} | {status} | {r['duration']:.2f}s | "
+                )
                 f.write(f"{r['expected_files']} → {r['actual_files']} {files_status} | ")
                 f.write(f"{r['expected_chunks']} → {r['actual_chunks']} {chunks_status} | ")
                 f.write(f"[📁]({Path(r['run_dir']).name}) |\n")
@@ -250,15 +246,19 @@ class StressTestRunner:
                 f.write(f"### Test #{r['test_number']}: {r['test_name']}\n\n")
                 f.write(f"**Prompt**: {r['prompt']}\n\n")
                 f.write(f"**Repository**: `{r['repo_path']}`\n\n")
-                if r['config_path']:
+                if r["config_path"]:
                     f.write(f"**Config**: `{r['config_path']}`\n\n")
                 f.write(f"**Status**: {'✅ PASS' if r['success'] else '❌ FAIL'}\n\n")
                 f.write(f"**Duration**: {r['duration']:.2f}s\n\n")
-                if r['error_message']:
+                if r["error_message"]:
                     f.write(f"**Error**: {r['error_message']}\n\n")
-                f.write(f"**Results**:\n")
-                f.write(f"- Files: {r['expected_files']} (expected) → {r['actual_files']} (actual)\n")
-                f.write(f"- Chunks: {r['expected_chunks']} (expected) → {r['actual_chunks']} (actual)\n\n")
+                f.write("**Results**:\n")
+                f.write(
+                    f"- Files: {r['expected_files']} (expected) → {r['actual_files']} (actual)\n"
+                )
+                f.write(
+                    f"- Chunks: {r['expected_chunks']} (expected) → {r['actual_chunks']} (actual)\n\n"
+                )
                 f.write(f"**Artifacts**: `{r['run_dir']}`\n\n")
                 f.write("---\n\n")
 
@@ -269,93 +269,96 @@ def main():
     """Main entry point for stress testing."""
     parser = argparse.ArgumentParser(description="Stress test ws-ctx-engine")
     parser.add_argument(
-        "--output-dir",
-        default="tests/stress_results",
-        help="Directory to store test results"
+        "--output-dir", default="tests/stress_results", help="Directory to store test results"
     )
-    parser.add_argument(
-        "--quick",
-        action="store_true",
-        help="Run quick test suite (fewer tests)"
-    )
+    parser.add_argument("--quick", action="store_true", help="Run quick test suite (fewer tests)")
     args = parser.parse_args()
 
     runner = StressTestRunner(output_dir=args.output_dir)
     results = []
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("WS-CTX-ENGINE STRESS TEST SUITE")
-    print("="*80)
+    print("=" * 80)
 
     # Test 1: zmr-koe with default config
-    results.append(runner.run_test(
-        test_name="zmr-koe_default",
-        repo_path="examples/zmr-koe/source",
-        prompt="Test zmr-koe repository with default configuration. "
-               "Should extract functions from TypeScript/JavaScript files.",
-        expected_files=1,
-        expected_chunks=6
-    ))
+    results.append(
+        runner.run_test(
+            test_name="zmr-koe_default",
+            repo_path="examples/zmr-koe/source",
+            prompt="Test zmr-koe repository with default configuration. "
+            "Should extract functions from TypeScript/JavaScript files.",
+            expected_files=1,
+            expected_chunks=6,
+        )
+    )
 
     # Test 2: zmr-koe with custom config
-    results.append(runner.run_test(
-        test_name="zmr-koe_custom_config",
-        repo_path="examples/zmr-koe/source",
-        config_path="examples/zmr-koe/config.yaml",
-        prompt="Test zmr-koe repository with custom config (50k token budget, TS/JS focus). "
-               "Should respect include/exclude patterns.",
-        expected_files=1,
-        expected_chunks=6
-    ))
+    results.append(
+        runner.run_test(
+            test_name="zmr-koe_custom_config",
+            repo_path="examples/zmr-koe/source",
+            config_path="examples/zmr-koe/config.yaml",
+            prompt="Test zmr-koe repository with custom config (50k token budget, TS/JS focus). "
+            "Should respect include/exclude patterns.",
+            expected_files=1,
+            expected_chunks=6,
+        )
+    )
 
     if not args.quick:
         # Test 3: Empty repository
         empty_repo = Path("tests/fixtures/empty_repo")
         empty_repo.mkdir(parents=True, exist_ok=True)
-        results.append(runner.run_test(
-            test_name="empty_repository",
-            repo_path=str(empty_repo),
-            prompt="Test with empty repository. Should handle gracefully with no files.",
-            expected_files=0,
-            expected_chunks=0
-        ))
+        results.append(
+            runner.run_test(
+                test_name="empty_repository",
+                repo_path=str(empty_repo),
+                prompt="Test with empty repository. Should handle gracefully with no files.",
+                expected_files=0,
+                expected_chunks=0,
+            )
+        )
 
         # Test 4: Repository with only config files
         config_only_repo = Path("tests/fixtures/config_only_repo")
         config_only_repo.mkdir(parents=True, exist_ok=True)
         (config_only_repo / "package.json").write_text('{"name": "test"}')
         (config_only_repo / "tsconfig.json").write_text('{"compilerOptions": {}}')
-        results.append(runner.run_test(
-            test_name="config_files_only",
-            repo_path=str(config_only_repo),
-            prompt="Test with only config files (no functions/classes). "
-                   "Should scan files but extract 0 chunks.",
-            expected_files=0,
-            expected_chunks=0
-        ))
+        results.append(
+            runner.run_test(
+                test_name="config_files_only",
+                repo_path=str(config_only_repo),
+                prompt="Test with only config files (no functions/classes). "
+                "Should scan files but extract 0 chunks.",
+                expected_files=0,
+                expected_chunks=0,
+            )
+        )
 
         # Test 5: Large file stress test
         large_file_repo = Path("tests/fixtures/large_file_repo")
         large_file_repo.mkdir(parents=True, exist_ok=True)
-        large_file_content = "\n".join([
-            f"export function func{i}() {{ return {i}; }}"
-            for i in range(1000)
-        ])
+        large_file_content = "\n".join(
+            [f"export function func{i}() {{ return {i}; }}" for i in range(1000)]
+        )
         (large_file_repo / "large.ts").write_text(large_file_content)
-        results.append(runner.run_test(
-            test_name="large_file_1000_functions",
-            repo_path=str(large_file_repo),
-            prompt="Test with large file containing 1000 functions. "
-                   "Should handle large files efficiently.",
-            expected_files=1,
-            expected_chunks=1000
-        ))
+        results.append(
+            runner.run_test(
+                test_name="large_file_1000_functions",
+                repo_path=str(large_file_repo),
+                prompt="Test with large file containing 1000 functions. "
+                "Should handle large files efficiently.",
+                expected_files=1,
+                expected_chunks=1000,
+            )
+        )
 
     # Generate summary report
     runner.generate_summary_report(results)
 
     # Exit with appropriate code
-    failed_tests = sum(1 for r in results if not r['success'])
+    failed_tests = sum(1 for r in results if not r["success"])
     if failed_tests > 0:
         print(f"\n❌ {failed_tests} test(s) failed\n")
         sys.exit(1)

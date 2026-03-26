@@ -6,14 +6,12 @@ Tests real-world user queries to verify ws-ctx-engine can answer practical quest
 """
 
 import json
-import os
 import shutil
 import subprocess
 import sys
 import zipfile
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List
 
 
 class QueryTestRunner:
@@ -35,8 +33,8 @@ class QueryTestRunner:
         repo_path: str,
         query: str,
         config_path: str = None,
-        expected_files: List[str] = None
-    ) -> Dict:
+        expected_files: list[str] = None,
+    ) -> dict:
         """Run a query test.
 
         Args:
@@ -72,7 +70,7 @@ class QueryTestRunner:
             "config_path": config_path,
             "expected_files": expected_files,
             "timestamp": datetime.now().isoformat(),
-            "run_dir": str(run_dir)
+            "run_dir": str(run_dir),
         }
 
         with open(run_dir / "test_metadata.json", "w") as f:
@@ -85,12 +83,7 @@ class QueryTestRunner:
 
         # Run query
         try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=120
-            )
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
             success = result.returncode == 0
             error_message = None
         except subprocess.TimeoutExpired:
@@ -122,7 +115,7 @@ class QueryTestRunner:
             extract_dir = run_dir / "extracted"
             extract_dir.mkdir(exist_ok=True)
 
-            with zipfile.ZipFile(output_zip, 'r') as zip_ref:
+            with zipfile.ZipFile(output_zip, "r") as zip_ref:
                 zip_ref.extractall(extract_dir)
 
             # Get list of files
@@ -159,7 +152,7 @@ class QueryTestRunner:
             "actual_files": actual_files,
             "files_count": len(actual_files),
             "files_match": files_match,
-            "has_review_context": review_context is not None
+            "has_review_context": review_context is not None,
         }
 
         # Save test results
@@ -186,7 +179,7 @@ class QueryTestRunner:
 
         return test_result
 
-    def generate_summary(self, results: List[Dict]):
+    def generate_summary(self, results: list[dict]):
         """Generate summary report."""
         summary_path = self.output_dir / "query_test_summary.md"
 
@@ -202,22 +195,24 @@ class QueryTestRunner:
             f.write("|---|-----------|--------|-------|-------|\n")
 
             for r in results:
-                status = "✅ PASS" if r['success'] else "❌ FAIL"
-                query_short = r['query'][:50] + "..." if len(r['query']) > 50 else r['query']
-                f.write(f"| {r['test_number']} | {r['test_name']} | {status} | {r['files_count']} | {query_short} |\n")
+                status = "✅ PASS" if r["success"] else "❌ FAIL"
+                query_short = r["query"][:50] + "..." if len(r["query"]) > 50 else r["query"]
+                f.write(
+                    f"| {r['test_number']} | {r['test_name']} | {status} | {r['files_count']} | {query_short} |\n"
+                )
 
             f.write("\n## Detailed Results\n\n")
             for r in results:
                 f.write(f"### Test #{r['test_number']}: {r['test_name']}\n\n")
                 f.write(f"**Query**: {r['query']}\n\n")
                 f.write(f"**Repository**: `{r['repo_path']}`\n\n")
-                if r['config_path']:
+                if r["config_path"]:
                     f.write(f"**Config**: `{r['config_path']}`\n\n")
                 f.write(f"**Status**: {'✅ PASS' if r['success'] else '❌ FAIL'}\n\n")
-                if r['error_message']:
+                if r["error_message"]:
                     f.write(f"**Error**: {r['error_message']}\n\n")
                 f.write(f"**Files Returned** ({r['files_count']}):\n")
-                for file in r['actual_files']:
+                for file in r["actual_files"]:
                     f.write(f"- `{file}`\n")
                 f.write(f"\n**Artifacts**: `{r['run_dir']}`\n\n")
                 f.write("---\n\n")
@@ -230,24 +225,27 @@ def main():
     runner = QueryTestRunner()
     results = []
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("WS-CTX-ENGINE QUERY TEST SUITE")
-    print("="*80)
+    print("=" * 80)
 
     # Test 1: Voice management query (TS/JS only)
-    results.append(runner.run_query_test(
-        test_name="voice_management_ts_only",
-        repo_path="examples/zmr-koe/source",
-        config_path="examples/zmr-koe/config.yaml",
-        query="How does voice management work? Show me the logic for managing voices",
-        expected_files=["koe/src/lib/store.ts"]
-    ))
+    results.append(
+        runner.run_query_test(
+            test_name="voice_management_ts_only",
+            repo_path="examples/zmr-koe/source",
+            config_path="examples/zmr-koe/config.yaml",
+            query="How does voice management work? Show me the logic for managing voices",
+            expected_files=["koe/src/lib/store.ts"],
+        )
+    )
 
     # Test 2: Voice management query (all languages)
     # First, create a config that includes Rust files
     all_langs_config = Path("tests/fixtures/all_langs_config.yaml")
     all_langs_config.parent.mkdir(parents=True, exist_ok=True)
-    all_langs_config.write_text("""
+    all_langs_config.write_text(
+        """
 token_budget: 50000
 include_patterns:
   - "**/*.ts"
@@ -257,37 +255,44 @@ exclude_patterns:
   - "**/node_modules/**"
   - "**/target/**"
   - "**/.git/**"
-""")
+"""
+    )
 
-    results.append(runner.run_query_test(
-        test_name="voice_management_all_langs",
-        repo_path="examples/zmr-koe/source",
-        config_path=str(all_langs_config),
-        query="How does voice management work? Show me the logic for managing voices",
-        expected_files=["koe/src/lib/store.ts", "koe/src-tauri/src/voices.rs"]
-    ))
+    results.append(
+        runner.run_query_test(
+            test_name="voice_management_all_langs",
+            repo_path="examples/zmr-koe/source",
+            config_path=str(all_langs_config),
+            query="How does voice management work? Show me the logic for managing voices",
+            expected_files=["koe/src/lib/store.ts", "koe/src-tauri/src/voices.rs"],
+        )
+    )
 
     # Test 3: Specific technical query
-    results.append(runner.run_query_test(
-        test_name="tauri_invoke_pattern",
-        repo_path="examples/zmr-koe/source",
-        config_path="examples/zmr-koe/config.yaml",
-        query="Show me how Tauri invoke is used to communicate between frontend and backend"
-    ))
+    results.append(
+        runner.run_query_test(
+            test_name="tauri_invoke_pattern",
+            repo_path="examples/zmr-koe/source",
+            config_path="examples/zmr-koe/config.yaml",
+            query="Show me how Tauri invoke is used to communicate between frontend and backend",
+        )
+    )
 
     # Test 4: Architecture query
-    results.append(runner.run_query_test(
-        test_name="state_management",
-        repo_path="examples/zmr-koe/source",
-        config_path="examples/zmr-koe/config.yaml",
-        query="How is application state managed? Show me the state management pattern"
-    ))
+    results.append(
+        runner.run_query_test(
+            test_name="state_management",
+            repo_path="examples/zmr-koe/source",
+            config_path="examples/zmr-koe/config.yaml",
+            query="How is application state managed? Show me the state management pattern",
+        )
+    )
 
     # Generate summary
     runner.generate_summary(results)
 
     # Exit with appropriate code
-    failed = sum(1 for r in results if not r['success'])
+    failed = sum(1 for r in results if not r["success"])
     if failed > 0:
         print(f"\n❌ {failed} test(s) failed\n")
         sys.exit(1)

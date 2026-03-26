@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """CLI wrapper for wsctx-init script."""
 
-import subprocess
-import sys
 import os
 import stat
+import subprocess
+import sys
 
 
-def main():
+def main() -> None:
     script_dir = os.path.dirname(os.path.abspath(__file__))
     init_script = os.path.join(script_dir, "scripts", "init.sh")
 
@@ -15,10 +15,7 @@ def main():
     st = os.stat(init_script)
     os.chmod(init_script, st.st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
 
-    result = subprocess.run(
-        ["bash", init_script] + sys.argv[1:],
-        cwd=os.getcwd()
-    )
+    result = subprocess.run(["bash", init_script] + sys.argv[1:], cwd=os.getcwd())
     sys.exit(result.returncode)
 
 

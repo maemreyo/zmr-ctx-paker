@@ -7,7 +7,6 @@ from typer.testing import CliRunner
 
 from ws_ctx_engine.cli.cli import _load_config, app
 
-
 runner = CliRunner()
 
 
@@ -124,7 +123,9 @@ def test_query_command_rejects_non_positive_budget(monkeypatch) -> None:
 
 def test_query_command_success_path(monkeypatch) -> None:
     monkeypatch.setattr("ws_ctx_engine.cli.cli._load_config", lambda config, repo_path=None: _cfg())
-    monkeypatch.setattr("ws_ctx_engine.cli.cli.query_and_pack", lambda **kwargs: (Path("output.xml"), {}))
+    monkeypatch.setattr(
+        "ws_ctx_engine.cli.cli.query_and_pack", lambda **kwargs: (Path("output.xml"), {})
+    )
 
     with runner.isolated_filesystem():
         Path("output.xml").write_text("<context/>", encoding="utf-8")
@@ -288,7 +289,9 @@ def test_index_command_fails_fast_when_explicit_backend_missing(monkeypatch) -> 
     cfg = _cfg()
     cfg.backends = {"vector_index": "native-leann", "graph": "igraph", "embeddings": "local"}
     monkeypatch.setattr("ws_ctx_engine.cli.cli._load_config", lambda config, repo_path=None: cfg)
-    monkeypatch.setattr("ws_ctx_engine.cli.cli._is_module_available", lambda module_name: module_name != "leann")
+    monkeypatch.setattr(
+        "ws_ctx_engine.cli.cli._is_module_available", lambda module_name: module_name != "leann"
+    )
 
     with runner.isolated_filesystem():
         Path("repo").mkdir()
@@ -375,7 +378,9 @@ def test_query_command_handles_file_not_found(monkeypatch) -> None:
     monkeypatch.setattr("ws_ctx_engine.cli.cli.query_and_pack", _raise_not_found)
 
     with runner.isolated_filesystem():
-        result = runner.invoke(app, ["query", "auth", "--repo", ".", "--format", "md", "--budget", "100"])
+        result = runner.invoke(
+            app, ["query", "auth", "--repo", ".", "--format", "md", "--budget", "100"]
+        )
 
     assert result.exit_code == 1
     assert "missing index" in result.stdout
@@ -431,7 +436,9 @@ def test_status_command_success_path(monkeypatch) -> None:
         repo = Path("repo")
         index_dir = repo / ".ws-ctx-engine"
         index_dir.mkdir(parents=True, exist_ok=True)
-        (index_dir / "metadata.json").write_text('{"file_count": 3, "backend": "faiss"}', encoding="utf-8")
+        (index_dir / "metadata.json").write_text(
+            '{"file_count": 3, "backend": "faiss"}', encoding="utf-8"
+        )
         (index_dir / "vector.idx").write_bytes(b"x")
         (index_dir / "graph.pkl").write_bytes(b"x")
         (index_dir / "domain_map.db").write_bytes(b"x")
@@ -512,7 +519,9 @@ def test_reindex_domain_success_path(monkeypatch) -> None:
         def format_metrics(self, kind: str) -> str:
             return f"{kind}-ok"
 
-    monkeypatch.setattr("ws_ctx_engine.workflow.indexer.index_repository", lambda **kwargs: _Tracker())
+    monkeypatch.setattr(
+        "ws_ctx_engine.workflow.indexer.index_repository", lambda **kwargs: _Tracker()
+    )
     monkeypatch.setattr("ws_ctx_engine.cli.cli._load_config", lambda config, repo_path=None: _cfg())
 
     with runner.isolated_filesystem():
@@ -600,13 +609,17 @@ def test_query_command_repo_not_found() -> None:
 def test_pack_command_success_with_valid_overrides(monkeypatch) -> None:
     monkeypatch.setattr("ws_ctx_engine.cli.cli._load_config", lambda config, repo_path=None: _cfg())
     monkeypatch.setattr("ws_ctx_engine.cli.cli.index_repository", lambda **kwargs: None)
-    monkeypatch.setattr("ws_ctx_engine.cli.cli.query_and_pack", lambda **kwargs: (Path("out.zip"), {}))
+    monkeypatch.setattr(
+        "ws_ctx_engine.cli.cli.query_and_pack", lambda **kwargs: (Path("out.zip"), {})
+    )
 
     with runner.isolated_filesystem():
         repo = Path("repo")
         repo.mkdir()
         # ZIP is binary — no read_text attempted, no file needed
-        result = runner.invoke(app, ["pack", "repo", "--format", "zip", "--budget", "123", "--verbose"])
+        result = runner.invoke(
+            app, ["pack", "repo", "--format", "zip", "--budget", "123", "--verbose"]
+        )
 
     assert result.exit_code == 0
 

@@ -14,7 +14,7 @@ Additional signals applied on top of the base hybrid score:
 
 import logging
 import re
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any
 
 from ws_ctx_engine.graph import RepoMapGraph
 from ws_ctx_engine.vector_index import VectorIndex
@@ -24,22 +24,24 @@ logger = logging.getLogger(__name__)
 
 class DomainKeywordMap:
     """Lightweight domain keyword to directory mapping for query classification."""
-    def __init__(self):
-        self._keyword_to_dirs: Dict[str, Set[str]] = {}
+
+    def __init__(self) -> None:
+        self._keyword_to_dirs: dict[str, set[str]] = {}
 
     def load(self, path: str) -> None:
         import pickle
         from pathlib import Path
+
         if Path(path).exists():
-            with open(path, 'rb') as f:
+            with open(path, "rb") as f:
                 data = pickle.load(f)
                 self._keyword_to_dirs = {k: set(v) for k, v in data.items()}
 
     @property
-    def keywords(self) -> Set[str]:
+    def keywords(self) -> set[str]:
         return set(self._keyword_to_dirs.keys())
 
-    def directories_for(self, keyword: str) -> List[str]:
+    def directories_for(self, keyword: str) -> list[str]:
         return list(self._keyword_to_dirs.get(keyword.lower(), set()))
 
     def keyword_matches(self, token: str) -> bool:
@@ -52,23 +54,86 @@ class DomainKeywordMap:
                 return True
         return False
 
+
 # Words that carry no semantic signal when matching against file paths or symbols.
-_STOP_WORDS: frozenset = frozenset({
-    'the', 'a', 'an', 'in', 'for', 'of', 'and', 'or', 'is', 'are', 'how',
-    'does', 'what', 'where', 'show', 'me', 'find', 'get', 'use', 'uses',
-    'used', 'to', 'from', 'with', 'this', 'that', 'it', 'its', 'by', 'be',
-    'do', 'did', 'has', 'have', 'not', 'can', 'all', 'any', 'my', 'our',
-    'which', 'when', 'then', 'there', 'their', 'about', 'into', 'should',
-    'would', 'could', 'will', 'may', 'might', 'was', 'were', 'been', 'being',
-    'just', 'also', 'more', 'like', 'than', 'but', 'so', 'if', 'at', 'on',
-})
+_STOP_WORDS: frozenset = frozenset(
+    {
+        "the",
+        "a",
+        "an",
+        "in",
+        "for",
+        "of",
+        "and",
+        "or",
+        "is",
+        "are",
+        "how",
+        "does",
+        "what",
+        "where",
+        "show",
+        "me",
+        "find",
+        "get",
+        "use",
+        "uses",
+        "used",
+        "to",
+        "from",
+        "with",
+        "this",
+        "that",
+        "it",
+        "its",
+        "by",
+        "be",
+        "do",
+        "did",
+        "has",
+        "have",
+        "not",
+        "can",
+        "all",
+        "any",
+        "my",
+        "our",
+        "which",
+        "when",
+        "then",
+        "there",
+        "their",
+        "about",
+        "into",
+        "should",
+        "would",
+        "could",
+        "will",
+        "may",
+        "might",
+        "was",
+        "were",
+        "been",
+        "being",
+        "just",
+        "also",
+        "more",
+        "like",
+        "than",
+        "but",
+        "so",
+        "if",
+        "at",
+        "on",
+    }
+)
 
 # Regex patterns that identify test files (matched against the full file path).
-_TEST_FILE_PATTERNS: List[re.Pattern] = [
-    re.compile(r'(^|/)tests?/', re.IGNORECASE),
-    re.compile(r'(^|/)test_', re.IGNORECASE),
-    re.compile(r'_test\.(py|js|ts|rs)$', re.IGNORECASE),
-    re.compile(r'\.spec\.(js|ts)$', re.IGNORECASE),
+_TEST_FILE_PATTERNS: list[re.Pattern] = [
+    re.compile(r"(^|/)tests?/", re.IGNORECASE),
+    re.compile(r"(^|/)test_", re.IGNORECASE),
+    re.compile(r"_test\.(py|js|ts|rs)$", re.IGNORECASE),
+    re.compile(r"\.spec\.(js|ts)$", re.IGNORECASE),
 ]
 
 
@@ -133,8 +198,8 @@ class RetrievalEngine:
         path_boost: float = 0.2,
         domain_boost: float = 0.25,
         test_penalty: float = 0.5,
-        domain_map: Optional["DomainKeywordMap"] = None,
-        config: Optional[Any] = None,
+        domain_map: Any = None,
+        config: Any | None = None,
     ):
         """
         Initialize RetrievalEngine with indexes and weights.
@@ -158,9 +223,7 @@ class RetrievalEngine:
             raise ValueError(f"pagerank_weight must be in [0, 1], got {pagerank_weight}")
 
         if abs(semantic_weight + pagerank_weight - 1.0) > 0.001:
-            raise ValueError(
-                f"Weights must sum to 1.0, got {semantic_weight + pagerank_weight}"
-            )
+            raise ValueError(f"Weights must sum to 1.0, got {semantic_weight + pagerank_weight}")
 
         self.vector_index = vector_index
         self.graph = graph
@@ -186,10 +249,10 @@ class RetrievalEngine:
 
     def retrieve(
         self,
-        query: Optional[str] = None,
-        changed_files: Optional[List[str]] = None,
+        query: str | None = None,
+        changed_files: list[str] | None = None,
         top_k: int = 100,
-    ) -> List[Tuple[str, float]]:
+    ) -> list[tuple[str, float]]:
         """
         Retrieve files with hybrid importance scores.
 
@@ -225,7 +288,7 @@ class RetrievalEngine:
         )
 
         # 1. Semantic scores
-        semantic_scores: Dict[str, float] = {}
+        semantic_scores: dict[str, float] = {}
         if query:
             try:
                 semantic_results = self.vector_index.search(query, top_k)
@@ -235,7 +298,7 @@ class RetrievalEngine:
                 logger.warning(f"Semantic search failed: {e}, continuing with PageRank only")
 
         # 2. PageRank scores
-        pagerank_scores: Dict[str, float] = {}
+        pagerank_scores: dict[str, float] = {}
         try:
             pagerank_scores = self.graph.pagerank(changed_files)
             logger.info(f"PageRank computed for {len(pagerank_scores)} files")
@@ -266,25 +329,27 @@ class RetrievalEngine:
 
             # Path boost
             if tokens and eff_path > 0:
-                all_files: Set[str] = set(merged.keys())
+                all_files: set[str] = set(merged.keys())
                 path_scores = self._compute_path_scores(tokens, all_files)
                 for file_path, score in path_scores.items():
                     merged[file_path] = merged.get(file_path, 0.0) + eff_path * score
 
             # Domain boost
             if tokens and eff_domain > 0:
-                all_files: Set[str] = set(merged.keys())
-                domain_scores = self._compute_domain_scores(tokens, all_files)
+                all_files_domain: set[str] = set(merged.keys())
+                domain_scores = self._compute_domain_scores(tokens, all_files_domain)
                 for file_path, score in domain_scores.items():
                     merged[file_path] = merged.get(file_path, 0.0) + eff_domain * score
 
-            logger.info(f"Query type: {query_type}, effective weights: symbol={eff_symbol:.2f}, path={eff_path:.2f}, domain={eff_domain:.2f}")
+            logger.info(
+                f"Query type: {query_type}, effective weights: symbol={eff_symbol:.2f}, path={eff_path:.2f}, domain={eff_domain:.2f}"
+            )
 
         # 5. Test file penalty
         if self.test_penalty > 0:
             for file_path in list(merged.keys()):
                 if self._is_test_file(file_path):
-                    merged[file_path] *= (1.0 - self.test_penalty)
+                    merged[file_path] *= 1.0 - self.test_penalty
 
         # 6. Final normalisation → guarantees scores ∈ [0, 1]
         final_scores = self._normalize(merged)
@@ -292,6 +357,7 @@ class RetrievalEngine:
         # 7. AI rule boost — always push rule files to the top regardless of query
         try:
             from ..ranking.ranker import apply_ai_rule_boost_to_ranked
+
             ranked_list = sorted(final_scores.items(), key=lambda x: x[1], reverse=True)
             extra_files = getattr(getattr(self, "_config", None), "ai_rules", {}).get("extra_files")
             ranked_list = apply_ai_rule_boost_to_ranked(ranked_list, extra_files=extra_files)
@@ -305,7 +371,7 @@ class RetrievalEngine:
     # Scoring helpers
     # ------------------------------------------------------------------
 
-    def _extract_query_tokens(self, query: str) -> Set[str]:
+    def _extract_query_tokens(self, query: str) -> set[str]:
         """Extract meaningful identifier-like tokens from a query string.
 
         Splits on non-alphanumeric characters, lower-cases, and removes
@@ -317,14 +383,14 @@ class RetrievalEngine:
         Returns:
             Set of lowercase token strings
         """
-        raw = set(re.findall(r'[a-zA-Z_][a-zA-Z0-9_]*', query))
+        raw = set(re.findall(r"[a-zA-Z_][a-zA-Z0-9_]*", query))
         return {t.lower() for t in raw if len(t) >= 3 and t.lower() not in _STOP_WORDS}
 
     def _compute_symbol_scores(
         self,
-        tokens: Set[str],
-        file_symbols: Dict[str, List[str]],
-    ) -> Dict[str, float]:
+        tokens: set[str],
+        file_symbols: dict[str, list[str]],
+    ) -> dict[str, float]:
         """Score files by exact overlap between query tokens and defined symbols.
 
         Args:
@@ -337,7 +403,7 @@ class RetrievalEngine:
         if not tokens or not file_symbols:
             return {}
 
-        scores: Dict[str, float] = {}
+        scores: dict[str, float] = {}
         for file_path, symbols in file_symbols.items():
             symbol_set = {s.lower() for s in symbols}
             matches = sum(1 for t in tokens if t in symbol_set)
@@ -348,9 +414,9 @@ class RetrievalEngine:
 
     def _compute_path_scores(
         self,
-        tokens: Set[str],
-        all_files: Set[str],
-    ) -> Dict[str, float]:
+        tokens: set[str],
+        all_files: set[str],
+    ) -> dict[str, float]:
         """Score files by how many query tokens appear in their file path.
 
         Splits each path on common separators (``/``, ``_``, ``-``, ``.``)
@@ -373,7 +439,7 @@ class RetrievalEngine:
         if not tokens or not all_files:
             return {}
 
-        def _token_matches(token: str, path_parts: Set[str]) -> bool:
+        def _token_matches(token: str, path_parts: set[str]) -> bool:
             for part in path_parts:
                 if not part:
                     continue
@@ -389,16 +455,16 @@ class RetrievalEngine:
                     return True
             return False
 
-        scores: Dict[str, float] = {}
+        scores: dict[str, float] = {}
         for file_path in all_files:
-            path_parts = set(re.split(r'[/_\-.]', file_path.lower()))
+            path_parts = set(re.split(r"[/_\-.]", file_path.lower()))
             matches = sum(1 for t in tokens if _token_matches(t, path_parts))
             if matches:
                 scores[file_path] = min(1.0, matches / len(tokens))
 
         return scores
 
-    def _classify_query(self, query: str, tokens: Set[str]) -> str:
+    def _classify_query(self, query: str, tokens: set[str]) -> str:
         """
         Classify query into one of three types for adaptive boosting.
 
@@ -420,15 +486,15 @@ class RetrievalEngine:
 
         # 2. Symbol: PascalCase or snake_case identifier
         # Only check if no domain keywords matched
-        if re.search(r'\b[A-Z][a-z]+[A-Z]', query):
+        if re.search(r"\b[A-Z][a-z]+[A-Z]", query):
             return "symbol"
-        if any('_' in t and len(t) > 4 for t in tokens):
+        if any("_" in t and len(t) > 4 for t in tokens):
             return "symbol"
 
         # 3. Default
         return "semantic-dominant"
 
-    def _effective_weights(self, query_type: str) -> Tuple[float, float, float]:
+    def _effective_weights(self, query_type: str) -> tuple[float, float, float]:
         """
         Return effective (symbol, path, domain) boost weights for query type.
 
@@ -456,9 +522,9 @@ class RetrievalEngine:
 
     def _compute_domain_scores(
         self,
-        tokens: Set[str],
-        all_files: Set[str],
-    ) -> Dict[str, float]:
+        tokens: set[str],
+        all_files: set[str],
+    ) -> dict[str, float]:
         """
         Score files by whether they are in directories matching domain keywords.
 
@@ -474,7 +540,7 @@ class RetrievalEngine:
         if not tokens or not self.domain_map.keywords:
             return {}
 
-        matched_dirs = set()
+        matched_dirs: set[str] = set()
         for token in tokens:
             for kw in self.domain_map.keywords:
                 prefix_len = min(5, len(token), len(kw))
@@ -484,11 +550,7 @@ class RetrievalEngine:
         if not matched_dirs:
             return {}
 
-        return {
-            fp: 1.0
-            for fp in all_files
-            if any(fp.startswith(d) for d in matched_dirs)
-        }
+        return {fp: 1.0 for fp in all_files if any(fp.startswith(d) for d in matched_dirs)}
 
     def _is_test_file(self, file_path: str) -> bool:
         """Return True if *file_path* looks like a test/spec file."""
@@ -498,7 +560,7 @@ class RetrievalEngine:
     # Normalisation and merging (unchanged from original implementation)
     # ------------------------------------------------------------------
 
-    def _normalize(self, scores: Dict[str, float]) -> Dict[str, float]:
+    def _normalize(self, scores: dict[str, float]) -> dict[str, float]:
         """
         Normalise scores to [0, 1] using min-max normalisation.
 
@@ -523,18 +585,17 @@ class RetrievalEngine:
         max_score = max(values)
 
         if max_score - min_score < 1e-9:
-            return {file: 1.0 for file in scores}
+            return dict.fromkeys(scores, 1.0)
 
         return {
-            file: (score - min_score) / (max_score - min_score)
-            for file, score in scores.items()
+            file: (score - min_score) / (max_score - min_score) for file, score in scores.items()
         }
 
     def _merge_scores(
         self,
-        semantic_scores: Dict[str, float],
-        pagerank_scores: Dict[str, float],
-    ) -> Dict[str, float]:
+        semantic_scores: dict[str, float],
+        pagerank_scores: dict[str, float],
+    ) -> dict[str, float]:
         """
         Merge normalised semantic and PageRank scores using configured weights.
 

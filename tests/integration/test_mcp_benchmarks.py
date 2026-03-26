@@ -90,7 +90,9 @@ def test_search_codebase_p99_latency_under_200ms(benchmark_repo: Path) -> None:
     samples_ms: list[float] = []
     for _ in range(30):
         started = time.perf_counter()
-        payload = service.call_tool("search_codebase", {"query": "authentication login", "limit": 10})
+        payload = service.call_tool(
+            "search_codebase", {"query": "authentication login", "limit": 10}
+        )
         elapsed_ms = (time.perf_counter() - started) * 1000.0
         assert "error" not in payload
         samples_ms.append(elapsed_ms)
@@ -149,10 +151,7 @@ def test_secret_scan_cache_hit_rate_realistic_repo(tmp_path: Path) -> None:
             secret_file_count += 1
             content = f'API_KEY = "sk-live-realistic-secret-{i:03d}"\n'
         else:
-            content = (
-                "def helper(value: int) -> int:\n"
-                "    return value * 2\n"
-            )
+            content = "def helper(value: int) -> int:\n" "    return value * 2\n"
         file_path.write_text(content, encoding="utf-8")
         relative_paths.append(file_path.relative_to(repo).as_posix())
 

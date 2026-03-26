@@ -1,11 +1,9 @@
 """Unit tests for YAML and TOON output formatters."""
 
-import pytest
 import yaml
 
-from ws_ctx_engine.output.yaml_formatter import YAMLFormatter
 from ws_ctx_engine.output.toon_formatter import TOONFormatter
-
+from ws_ctx_engine.output.yaml_formatter import YAMLFormatter
 
 SAMPLE_METADATA = {
     "repo_name": "my-repo",
@@ -48,7 +46,11 @@ class TestYAMLFormatter:
         formatter = YAMLFormatter()
         output = formatter.render(SAMPLE_METADATA, SAMPLE_FILES)
         parsed = yaml.safe_load(output)
-        assert parsed.get("repo_name") == "my-repo" or "metadata" in parsed or "repo_name" in str(output)
+        assert (
+            parsed.get("repo_name") == "my-repo"
+            or "metadata" in parsed
+            or "repo_name" in str(output)
+        )
 
     def test_files_present(self):
         formatter = YAMLFormatter()

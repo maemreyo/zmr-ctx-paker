@@ -3,8 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Optional
-
+from typing import Any
 
 DEFAULT_RATE_LIMITS: dict[str, int] = {
     "search_codebase": 60,
@@ -22,33 +21,41 @@ class MCPConfigValidationError(ValueError):
 class MCPConfig:
     rate_limits: dict[str, int] = field(default_factory=lambda: dict(DEFAULT_RATE_LIMITS))
     cache_ttl_seconds: int = 30
-    workspace: Optional[str] = None
+    workspace: str | None = None
 
     @classmethod
     def load(
         cls,
         workspace: str,
-        config_path: Optional[str] = None,
-        rate_limit_overrides: Optional[Dict[str, int]] = None,
+        config_path: str | None = None,
+        rate_limit_overrides: dict[str, int] | None = None,
         strict: bool = False,
-    ) -> "MCPConfig":
+    ) -> MCPConfig:
         data: dict[str, Any] = {}
 
-        resolved_config = Path(config_path) if config_path else Path(workspace) / ".ws-ctx-engine" / "mcp_config.json"
+        resolved_config = (
+            Path(config_path)
+            if config_path
+            else Path(workspace) / ".ws-ctx-engine" / "mcp_config.json"
+        )
         if config_path and not resolved_config.exists():
             raise MCPConfigValidationError(f"MCP config file not found: {resolved_config}")
 
         if resolved_config.exists():
             try:
-                with open(resolved_config, "r", encoding="utf-8") as f:
+                with open(resolved_config, encoding="utf-8") as f:
                     loaded = json.load(f)
             except json.JSONDecodeError as exc:
                 if strict:
-                    raise MCPConfigValidationError(f"Invalid JSON in MCP config: {resolved_config}") from exc
+                    raise MCPConfigValidationError(
+                        f"Invalid JSON in MCP config: {resolved_config}"
+                    ) from exc
                 loaded = {}
             except Exception as exc:
                 if strict:
-                    raise MCPConfigValidationError(f"Failed to read MCP config: {resolved_config}") from exc
+                    raise MCPConfigValidationError(
+                        f"Failed to read MCP config: {resolved_config}"
+                    ) from exc
                 loaded = {}
 
             if isinstance(loaded, dict):
@@ -69,7 +76,9 @@ class MCPConfig:
                     continue
                 if not isinstance(value, int) or value <= 0:
                     if strict:
-                        raise MCPConfigValidationError(f"Rate limit for '{key}' must be a positive integer.")
+                        raise MCPConfigValidationError(
+                            f"Rate limit for '{key}' must be a positive integer."
+                        )
                     continue
                 rate_limits[key] = value
 
@@ -86,18 +95,24 @@ class MCPConfig:
         elif isinstance(raw_ttl, int) and raw_ttl > 0:
             cache_ttl_seconds = raw_ttl
 
-        resolved_workspace: Optional[str] = None
+        resolved_workspace: str | None = None
         raw_workspace = data.get("workspace")
         if raw_workspace is not None:
             if not isinstance(raw_workspace, str) or not raw_workspace.strip():
                 if strict:
-                    raise MCPConfigValidationError("'workspace' must be a non-empty string when provided.")
+                    raise MCPConfigValidationError(
+                        "'workspace' must be a non-empty string when provided."
+                    )
             else:
                 resolved_workspace = raw_workspace.strip()
 
-        return cls(rate_limits=rate_limits, cache_ttl_seconds=cache_ttl_seconds, workspace=resolved_workspace)
+        return cls(
+            rate_limits=rate_limits,
+            cache_ttl_seconds=cache_ttl_seconds,
+            workspace=resolved_workspace,
+        )
 
-    def resolve_workspace(self, runtime_workspace: Optional[str], bootstrap_workspace: str) -> str:
+    def resolve_workspace(self, runtime_workspace: str | None, bootstrap_workspace: str) -> str:
         if runtime_workspace is not None and runtime_workspace.strip():
             return str(Path(runtime_workspace).resolve())
 

@@ -7,17 +7,22 @@ import re
 import shutil
 import subprocess
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-
 
 _SECRET_PATTERNS: dict[str, re.Pattern[str]] = {
     "aws_access_key": re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
     "private_key": re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
-    "database_url_with_password": re.compile(r"\b(?:postgres(?:ql)?|mysql|mongodb)://[^\s:@]+:[^\s@]+@[^\s]+"),
-    "api_key_assignment": re.compile(r"\b(?:api[_-]?key|token|secret|password)\s*[:=]\s*[\"'][^\"'\n]{8,}[\"']", re.IGNORECASE),
-    "env_secret": re.compile(r"\b(?:SECRET_KEY|DATABASE_PASSWORD|AWS_SECRET_ACCESS_KEY)\s*=\s*[^\n]+", re.IGNORECASE),
+    "database_url_with_password": re.compile(
+        r"\b(?:postgres(?:ql)?|mysql|mongodb)://[^\s:@]+:[^\s@]+@[^\s]+"
+    ),
+    "api_key_assignment": re.compile(
+        r"\b(?:api[_-]?key|token|secret|password)\s*[:=]\s*[\"'][^\"'\n]{8,}[\"']", re.IGNORECASE
+    ),
+    "env_secret": re.compile(
+        r"\b(?:SECRET_KEY|DATABASE_PASSWORD|AWS_SECRET_ACCESS_KEY)\s*=\s*[^\n]+", re.IGNORECASE
+    ),
 }
 
 
@@ -75,7 +80,10 @@ class SecretScanner:
             "mtime": stat.st_mtime,
             "inode": stat.st_ino,
             "secrets_found": found,
-            "scanned_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+            "scanned_at": datetime.now(UTC)
+            .replace(microsecond=0)
+            .isoformat()
+            .replace("+00:00", "Z"),
         }
         self._save_cache()
         return SecretScanResult(secrets_detected=found, secret_scan_skipped=False)
@@ -176,7 +184,7 @@ class SecretScanner:
         if not self.cache_path.exists():
             return {}
         try:
-            with open(self.cache_path, "r", encoding="utf-8") as f:
+            with open(self.cache_path, encoding="utf-8") as f:
                 payload = json.load(f)
                 return payload if isinstance(payload, dict) else {}
         except Exception:
@@ -190,7 +198,7 @@ class SecretScanner:
     @staticmethod
     def _read_text(path: Path) -> str | None:
         try:
-            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            with open(path, encoding="utf-8", errors="ignore") as f:
                 return f.read()
         except Exception:
             return None

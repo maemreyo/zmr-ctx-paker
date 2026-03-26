@@ -1,5 +1,5 @@
-from .zip_packer import ZIPPacker
 from .xml_packer import XMLPacker
+from .zip_packer import ZIPPacker
 
 __all__ = ["ZIPPacker", "XMLPacker"]
 

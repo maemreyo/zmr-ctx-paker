@@ -26,7 +26,9 @@ class TestApplyAiRuleBoost:
         assert score == pytest.approx(0.7)
 
     def test_extra_files_get_boost(self):
-        score = apply_ai_rule_boost("CUSTOM_RULES.md", base_score=0.0, extra_files=["CUSTOM_RULES.md"])
+        score = apply_ai_rule_boost(
+            "CUSTOM_RULES.md", base_score=0.0, extra_files=["CUSTOM_RULES.md"]
+        )
         assert score == pytest.approx(AI_RULE_BOOST)
 
     def test_custom_boost_value(self):

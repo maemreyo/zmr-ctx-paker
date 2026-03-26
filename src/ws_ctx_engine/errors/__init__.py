@@ -1,10 +1,10 @@
 from .errors import (
-    WsCtxEngineError,
-    DependencyError,
-    ConfigurationError,
-    ParsingError,
-    IndexError,
     BudgetError,
+    ConfigurationError,
+    DependencyError,
+    IndexError,
+    ParsingError,
+    WsCtxEngineError,
 )
 
 # Aliases for backwards compatibility and test imports

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from ws_ctx_engine.chunker.base import _should_include_file, _match_pattern, ASTChunker
+from ws_ctx_engine.chunker.base import ASTChunker, _match_pattern, _should_include_file
 from ws_ctx_engine.models import CodeChunk
 
 
@@ -138,6 +138,7 @@ class TestCodeChunkModel:
 
     def test_code_chunk_token_count(self):
         import tiktoken
+
         chunk = CodeChunk(
             path="test.py",
             start_line=1,
@@ -145,7 +146,7 @@ class TestCodeChunkModel:
             content="def hello():\n    print('Hello')\n    return True\n",
             symbols_defined=["hello"],
             symbols_referenced=["print"],
-            language="python"
+            language="python",
         )
 
         enc = tiktoken.get_encoding("cl100k_base")

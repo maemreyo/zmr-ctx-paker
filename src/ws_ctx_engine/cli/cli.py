@@ -4,15 +4,15 @@ Command-line interface for ws-ctx-engine.
 Provides CLI commands for indexing repositories, querying, and packing context.
 """
 
-import json
-import os
-import sys
-import logging
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, List, Optional
 import importlib.metadata
 import importlib.util
+import json
+import logging
+import os
+import sys
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
 
 import typer
 import yaml
@@ -20,9 +20,9 @@ from rich.console import Console
 from rich.panel import Panel
 
 from ..config import Config
-from ..workflow import index_repository, query_and_pack, search_codebase
 from ..logger import get_logger
 from ..mcp_server import run_mcp_server
+from ..workflow import index_repository, query_and_pack, search_codebase
 
 # Initialize CLI app
 app = typer.Typer(
@@ -58,17 +58,18 @@ def _enable_command_agent_mode(command_agent_mode: bool) -> None:
 
 
 def _utc_now() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def _copy_to_clipboard(text: str) -> None:
     """Copy *text* to the system clipboard (macOS / Linux / Windows)."""
     import subprocess
-    candidates = [
-        (["pbcopy"], {}),                                    # macOS
-        (["clip"], {}),                                      # Windows
-        (["xclip", "-selection", "clipboard"], {}),          # Linux (xclip)
-        (["xsel", "--clipboard", "--input"], {}),             # Linux (xsel)
+
+    candidates: list[tuple[list[str], dict[str, Any]]] = [
+        (["pbcopy"], {}),  # macOS
+        (["clip"], {}),  # Windows
+        (["xclip", "-selection", "clipboard"], {}),  # Linux (xclip)
+        (["xsel", "--clipboard", "--input"], {}),  # Linux (xsel)
     ]
     for cmd, kwargs in candidates:
         try:
@@ -79,9 +80,8 @@ def _copy_to_clipboard(text: str) -> None:
                 return
         except FileNotFoundError:
             continue
-    console.print(
+    Console(stderr=True).print(
         "[yellow]Warning:[/yellow] Could not copy to clipboard (no clipboard tool found)",
-        file=sys.stderr,
     )
 
 
@@ -135,7 +135,9 @@ def _apply_gitignore_patterns(cfg: Config, repo_path: Path) -> Config:
     return cfg
 
 
-def _build_smart_config(repo_path: Path, include_gitignore: bool, vector_index: str, graph: str, embeddings_backend: str) -> dict[str, Any]:
+def _build_smart_config(
+    repo_path: Path, include_gitignore: bool, vector_index: str, graph: str, embeddings_backend: str
+) -> dict[str, Any]:
     cfg = Config()
 
     exclude_patterns = list(cfg.exclude_patterns)
@@ -199,7 +201,7 @@ def _ensure_repo_gitignore_has_wsctx_artifacts(repo_path: Path) -> bool:
     return True
 
 
-def _parse_rate_limits(values: List[str]) -> dict[str, int]:
+def _parse_rate_limits(values: list[str]) -> dict[str, int]:
     parsed: dict[str, int] = {}
     allowed_tools = {"search_codebase", "get_file_context", "get_domain_map", "get_index_status"}
 
@@ -274,7 +276,9 @@ def _preflight_runtime_dependencies(cfg: Config, command_name: str) -> Config:
             resolved_backends["embeddings"] = "api"
             warnings.append("embeddings auto-resolved to api (sentence-transformers unavailable)")
         else:
-            warnings.append("embeddings auto could not be validated (local/api requirements may be missing)")
+            warnings.append(
+                "embeddings auto could not be validated (local/api requirements may be missing)"
+            )
 
     vector_backend = cfg.backends.get("vector_index", "auto")
     if vector_backend == "native-leann" and not report.get("leann", False):
@@ -309,7 +313,7 @@ def _preflight_runtime_dependencies(cfg: Config, command_name: str) -> Config:
         details = "\n".join(f"- {item}" for item in errors)
         raise RuntimeError(
             f"Dependency check failed for '{command_name}':\n{details}\n"
-            f"Recommended install: pip install \"ws-ctx-engine[all]\"\n"
+            f'Recommended install: pip install "ws-ctx-engine[all]"\n'
             f"Or run: ws-ctx-engine doctor"
         )
 
@@ -346,16 +350,20 @@ def doctor() -> None:
     missing_all = [name for name in recommended_all if not report.get(name, False)]
 
     if not missing_all:
-        console.print("\n[bold green]✓ Ready for full feature set (all backends available).[/bold green]")
+        console.print(
+            "\n[bold green]✓ Ready for full feature set (all backends available).[/bold green]"
+        )
         raise typer.Exit(code=0)
 
-    console.print("\n[yellow]Some recommended dependencies are missing for full feature set.[/yellow]")
+    console.print(
+        "\n[yellow]Some recommended dependencies are missing for full feature set.[/yellow]"
+    )
     typer.echo('Recommended install: pip install "ws-ctx-engine[all]"')
     console.print("[yellow]Missing:[/yellow] " + ", ".join(missing_all))
     raise typer.Exit(code=1)
 
 
-def version_callback(value: bool):
+def version_callback(value: bool) -> None:
     if value:
         try:
             version = importlib.metadata.version("ws-ctx-engine")
@@ -364,9 +372,10 @@ def version_callback(value: bool):
         console.print(f"ws-ctx-engine version: [bold cyan]{version}[/bold cyan]")
         raise typer.Exit()
 
+
 @app.callback()
-def main(
-    version: Optional[bool] = typer.Option(
+def _cli_callback(
+    version: bool | None = typer.Option(
         None,
         "--version",
         "-V",
@@ -384,7 +393,7 @@ def main(
         "--quiet/--no-quiet",
         help="Suppress informational logs in terminal; only warnings/errors are shown.",
     ),
-):
+) -> None:
     """
     Intelligently package codebases into optimized context for Large Language Models.
     """
@@ -399,7 +408,7 @@ def index(
         ...,
         help="Path to the repository root directory",
     ),
-    config: Optional[str] = typer.Option(
+    config: str | None = typer.Option(
         None,
         "--config",
         "-c",
@@ -432,51 +441,63 @@ def index(
         # Set verbose mode
         if verbose:
             logger.logger.setLevel("DEBUG")
-        
+
         # Validate repo path
         repo_path_obj = Path(repo_path)
         if not repo_path_obj.exists():
             console.print(f"[red]Error:[/red] Repository path does not exist: {repo_path}")
-            _emit_ndjson({"type": "error", "command": "index", "error": "repo_not_found", "repo": repo_path})
+            _emit_ndjson(
+                {"type": "error", "command": "index", "error": "repo_not_found", "repo": repo_path}
+            )
             raise typer.Exit(code=1)
 
         if not repo_path_obj.is_dir():
             console.print(f"[red]Error:[/red] Repository path is not a directory: {repo_path}")
-            _emit_ndjson({"type": "error", "command": "index", "error": "repo_not_directory", "repo": repo_path})
+            _emit_ndjson(
+                {
+                    "type": "error",
+                    "command": "index",
+                    "error": "repo_not_directory",
+                    "repo": repo_path,
+                }
+            )
             raise typer.Exit(code=1)
 
         cfg = _preflight_runtime_dependencies(cfg, "index")
 
         # Display start message
-        console.print(Panel.fit(
-            f"[bold cyan]Indexing repository:[/bold cyan] {repo_path}",
-            border_style="cyan"
-        ))
-        
+        console.print(
+            Panel.fit(
+                f"[bold cyan]Indexing repository:[/bold cyan] {repo_path}", border_style="cyan"
+            )
+        )
+
         # Run indexing
         index_repository(repo_path=repo_path, config=cfg, incremental=incremental)
-        
+
         # Display success message
         console.print("[bold green]✓[/bold green] Indexing complete!")
         console.print(f"Indexes saved to: {repo_path_obj / '.ws-ctx-engine'}")
-        _emit_ndjson({
-            "type": "status",
-            "command": "index",
-            "status": "success",
-            "repo": str(repo_path_obj),
-            "index_dir": str(repo_path_obj / '.ws-ctx-engine'),
-            "generated_at": _utc_now(),
-        })
+        _emit_ndjson(
+            {
+                "type": "status",
+                "command": "index",
+                "status": "success",
+                "repo": str(repo_path_obj),
+                "index_dir": str(repo_path_obj / ".ws-ctx-engine"),
+                "generated_at": _utc_now(),
+            }
+        )
 
         raise typer.Exit(code=0)
-        
+
     except typer.Exit:
         raise
     except Exception as e:
         console.print(f"[red]Error during indexing:[/red] {e}")
         logger.log_error(e, {"command": "index", "repo_path": repo_path})
         _emit_ndjson({"type": "error", "command": "index", "error": str(e)})
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
 
 @app.command()
@@ -499,12 +520,12 @@ def search(
         max=50,
         help="Maximum number of ranked results to return (1-50)",
     ),
-    domain_filter: Optional[str] = typer.Option(
+    domain_filter: str | None = typer.Option(
         None,
         "--domain-filter",
         help="Optional domain filter applied to results.",
     ),
-    config: Optional[str] = typer.Option(
+    config: str | None = typer.Option(
         None,
         "--config",
         "-c",
@@ -533,23 +554,34 @@ def search(
         repo_path_obj = Path(repo_path)
         if not repo_path_obj.exists():
             console.print(f"[red]Error:[/red] Repository path does not exist: {repo_path}")
-            _emit_ndjson({"type": "error", "command": "search", "error": "repo_not_found", "repo": repo_path})
+            _emit_ndjson(
+                {"type": "error", "command": "search", "error": "repo_not_found", "repo": repo_path}
+            )
             raise typer.Exit(code=1)
 
         if not repo_path_obj.is_dir():
             console.print(f"[red]Error:[/red] Repository path is not a directory: {repo_path}")
-            _emit_ndjson({"type": "error", "command": "search", "error": "repo_not_directory", "repo": repo_path})
+            _emit_ndjson(
+                {
+                    "type": "error",
+                    "command": "search",
+                    "error": "repo_not_directory",
+                    "repo": repo_path,
+                }
+            )
             raise typer.Exit(code=1)
 
         cfg = _preflight_runtime_dependencies(cfg, "search")
 
         if not AGENT_MODE:
-            console.print(Panel.fit(
-                f"[bold cyan]Searching:[/bold cyan] {query_text}\n"
-                f"[bold cyan]Repository:[/bold cyan] {repo_path}\n"
-                f"[bold cyan]Limit:[/bold cyan] {limit}",
-                border_style="cyan"
-            ))
+            console.print(
+                Panel.fit(
+                    f"[bold cyan]Searching:[/bold cyan] {query_text}\n"
+                    f"[bold cyan]Repository:[/bold cyan] {repo_path}\n"
+                    f"[bold cyan]Limit:[/bold cyan] {limit}",
+                    border_style="cyan",
+                )
+            )
 
         results, index_health = search_codebase(
             repo_path=repo_path,
@@ -559,27 +591,31 @@ def search(
             domain_filter=domain_filter,
         )
 
-        _emit_ndjson({
-            "type": "meta",
-            "query": query_text,
-            "limit": limit,
-            "domain_filter": domain_filter,
-            "index_built_at": index_health.get("index_built_at"),
-            "files_indexed": index_health.get("files_indexed"),
-            "index_health": index_health,
-            "generated_at": _utc_now(),
-        })
+        _emit_ndjson(
+            {
+                "type": "meta",
+                "query": query_text,
+                "limit": limit,
+                "domain_filter": domain_filter,
+                "index_built_at": index_health.get("index_built_at"),
+                "files_indexed": index_health.get("files_indexed"),
+                "index_health": index_health,
+                "generated_at": _utc_now(),
+            }
+        )
 
         if AGENT_MODE:
             for rank, result in enumerate(results, start=1):
-                _emit_ndjson({
-                    "type": "result",
-                    "rank": rank,
-                    "path": result["path"],
-                    "score": result["score"],
-                    "domain": result["domain"],
-                    "summary": result["summary"],
-                })
+                _emit_ndjson(
+                    {
+                        "type": "result",
+                        "rank": rank,
+                        "path": result["path"],
+                        "score": result["score"],
+                        "domain": result["domain"],
+                        "summary": result["summary"],
+                    }
+                )
         else:
             if not results:
                 console.print("[yellow]No matching files found.[/yellow]")
@@ -595,30 +631,32 @@ def search(
         raise
     except FileNotFoundError as e:
         console.print(f"[red]Error:[/red] {e}")
-        console.print("\n[yellow]Suggestion:[/yellow] Run 'ws-ctx-engine index' first to build indexes")
+        console.print(
+            "\n[yellow]Suggestion:[/yellow] Run 'ws-ctx-engine index' first to build indexes"
+        )
         _emit_ndjson({"type": "error", "command": "search", "error": str(e)})
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
     except Exception as e:
         console.print(f"[red]Error during search:[/red] {e}")
         logger.log_error(e, {"command": "search", "repo_path": repo_path})
         _emit_ndjson({"type": "error", "command": "search", "error": str(e)})
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
 
 @app.command()
 def mcp(
-    workspace: Optional[str] = typer.Option(
+    workspace: str | None = typer.Option(
         None,
         "--workspace",
         "-w",
         help="Path to workspace root bound to MCP session (overrides mcp_config.workspace when set)",
     ),
-    mcp_config: Optional[str] = typer.Option(
+    mcp_config: str | None = typer.Option(
         None,
         "--mcp-config",
         help="Path to MCP config JSON (defaults to .ws-ctx-engine/mcp_config.json)",
     ),
-    rate_limit: List[str] = typer.Option(
+    rate_limit: list[str] = typer.Option(
         [],
         "--rate-limit",
         help="Override rate limit as TOOL=LIMIT, e.g. search_codebase=60",
@@ -631,7 +669,7 @@ def mcp(
             if not workspace_path.exists() or not workspace_path.is_dir():
                 console.print(f"[red]Error:[/red] Invalid workspace path: {workspace}")
                 raise typer.Exit(code=1)
-            resolved_workspace: Optional[str] = str(workspace_path.resolve())
+            resolved_workspace: str | None = str(workspace_path.resolve())
         else:
             resolved_workspace = None
 
@@ -639,7 +677,7 @@ def mcp(
             parsed_limits = _parse_rate_limits(rate_limit)
         except ValueError as exc:
             console.print(f"[red]Error:[/red] {exc}")
-            raise typer.Exit(code=1)
+            raise typer.Exit(code=1) from exc
 
         run_mcp_server(
             workspace=resolved_workspace,
@@ -649,11 +687,11 @@ def mcp(
     except typer.Exit:
         raise
     except KeyboardInterrupt:
-        raise typer.Exit(code=0)
+        raise typer.Exit(code=0) from None
     except Exception as e:
         console.print(f"[red]Error starting MCP server:[/red] {e}")
         logger.log_error(e, {"command": "mcp", "workspace": workspace})
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
 
 @app.command()
@@ -668,19 +706,19 @@ def query(
         "-r",
         help="Path to the repository root directory",
     ),
-    format: Optional[str] = typer.Option(
+    format: str | None = typer.Option(
         None,
         "--format",
         "-f",
         help="Output format: 'xml', 'zip', 'json', 'yaml', 'md', or 'toon' (experimental)",
     ),
-    budget: Optional[int] = typer.Option(
+    budget: int | None = typer.Option(
         None,
         "--budget",
         "-b",
         help="Token budget for context window",
     ),
-    config: Optional[str] = typer.Option(
+    config: str | None = typer.Option(
         None,
         "--config",
         "-c",
@@ -722,7 +760,7 @@ def query(
         "--shuffle/--no-shuffle",
         help="Reorder files to combat 'Lost in the Middle' (default: on).",
     ),
-    mode: Optional[str] = typer.Option(
+    mode: str | None = typer.Option(
         None,
         "--mode",
         help="Agent phase mode: 'discovery', 'edit', or 'test'. Adjusts ranking weights.",
@@ -755,15 +793,31 @@ def query(
         # Override config with CLI flags
         if format is not None:
             if format not in ["xml", "zip", "json", "yaml", "md", "toon"]:
-                console.print(f"[red]Error:[/red] Invalid format '{format}'. Must be 'xml', 'zip', 'json', 'yaml', 'md', or 'toon'")
-                _emit_ndjson({"type": "error", "command": "query", "error": "invalid_format", "format": format})
+                console.print(
+                    f"[red]Error:[/red] Invalid format '{format}'. Must be 'xml', 'zip', 'json', 'yaml', 'md', or 'toon'"
+                )
+                _emit_ndjson(
+                    {
+                        "type": "error",
+                        "command": "query",
+                        "error": "invalid_format",
+                        "format": format,
+                    }
+                )
                 raise typer.Exit(code=1)
             cfg.format = format
 
         if budget is not None:
             if budget <= 0:
                 console.print(f"[red]Error:[/red] Budget must be positive, got {budget}")
-                _emit_ndjson({"type": "error", "command": "query", "error": "invalid_budget", "budget": budget})
+                _emit_ndjson(
+                    {
+                        "type": "error",
+                        "command": "query",
+                        "error": "invalid_budget",
+                        "budget": budget,
+                    }
+                )
                 raise typer.Exit(code=1)
             cfg.token_budget = budget
 
@@ -775,34 +829,46 @@ def query(
         repo_path_obj = Path(repo_path)
         if not repo_path_obj.exists():
             console.print(f"[red]Error:[/red] Repository path does not exist: {repo_path}")
-            _emit_ndjson({"type": "error", "command": "query", "error": "repo_not_found", "repo": repo_path})
+            _emit_ndjson(
+                {"type": "error", "command": "query", "error": "repo_not_found", "repo": repo_path}
+            )
             raise typer.Exit(code=1)
 
         if not repo_path_obj.is_dir():
             console.print(f"[red]Error:[/red] Repository path is not a directory: {repo_path}")
-            _emit_ndjson({"type": "error", "command": "query", "error": "repo_not_directory", "repo": repo_path})
+            _emit_ndjson(
+                {
+                    "type": "error",
+                    "command": "query",
+                    "error": "repo_not_directory",
+                    "repo": repo_path,
+                }
+            )
             raise typer.Exit(code=1)
 
         cfg = _preflight_runtime_dependencies(cfg, "query")
 
         _stdout_formats = {"json", "xml", "yaml", "md"}
-        stdout_mode = stdout or (cfg.format in _stdout_formats and not AGENT_MODE)
         json_stdout_mode = cfg.format == "json" and not AGENT_MODE and not stdout
 
         # Validate mode flag
         if mode is not None and mode not in ("discovery", "edit", "test"):
-            console.print(f"[red]Error:[/red] Invalid --mode '{mode}'. Must be 'discovery', 'edit', or 'test'")
+            console.print(
+                f"[red]Error:[/red] Invalid --mode '{mode}'. Must be 'discovery', 'edit', or 'test'"
+            )
             raise typer.Exit(code=1)
 
         # Display start message
         if not AGENT_MODE and not json_stdout_mode and not stdout:
-            console.print(Panel.fit(
-                f"[bold cyan]Querying:[/bold cyan] {query_text}\n"
-                f"[bold cyan]Repository:[/bold cyan] {repo_path}\n"
-                f"[bold cyan]Format:[/bold cyan] {cfg.format.upper()}\n"
-                f"[bold cyan]Budget:[/bold cyan] {cfg.token_budget:,} tokens",
-                border_style="cyan"
-            ))
+            console.print(
+                Panel.fit(
+                    f"[bold cyan]Querying:[/bold cyan] {query_text}\n"
+                    f"[bold cyan]Repository:[/bold cyan] {repo_path}\n"
+                    f"[bold cyan]Format:[/bold cyan] {cfg.format.upper()}\n"
+                    f"[bold cyan]Budget:[/bold cyan] {cfg.token_budget:,} tokens",
+                    border_style="cyan",
+                )
+            )
 
         # Run query
         output_path, query_meta = query_and_pack(
@@ -817,10 +883,7 @@ def query(
         )
 
         is_binary_format = cfg.format == "zip"
-        output_content = (
-            None if is_binary_format
-            else Path(output_path).read_text(encoding="utf-8")
-        )
+        output_content = None if is_binary_format else Path(output_path).read_text(encoding="utf-8")
         total_tokens = query_meta.get("total_tokens", 0) if isinstance(query_meta, dict) else 0
 
         # Display success message
@@ -831,35 +894,41 @@ def query(
         elif not AGENT_MODE:
             console.print("[bold green]✓[/bold green] Query complete!")
             if total_tokens:
-                console.print(f"[green]Context packed ({total_tokens:,} / {cfg.token_budget:,} tokens)[/green]")
+                console.print(
+                    f"[green]Context packed ({total_tokens:,} / {cfg.token_budget:,} tokens)[/green]"
+                )
             console.print(f"Output saved to: {output_path}")
 
         if copy and output_content is not None:
             _copy_to_clipboard(output_content)
 
-        _emit_ndjson({
-            "type": "status",
-            "command": "query",
-            "status": "success",
-            "output_path": str(output_path),
-            "total_tokens": total_tokens,
-            "generated_at": _utc_now(),
-        })
+        _emit_ndjson(
+            {
+                "type": "status",
+                "command": "query",
+                "status": "success",
+                "output_path": str(output_path),
+                "total_tokens": total_tokens,
+                "generated_at": _utc_now(),
+            }
+        )
 
         raise typer.Exit(code=0)
-        
+
     except typer.Exit:
         raise
     except FileNotFoundError as e:
         console.print(f"[red]Error:[/red] {e}")
-        console.print("\n[yellow]Suggestion:[/yellow] Run 'ws-ctx-engine index' first to build indexes")
+        console.print(
+            "\n[yellow]Suggestion:[/yellow] Run 'ws-ctx-engine index' first to build indexes"
+        )
         _emit_ndjson({"type": "error", "command": "query", "error": str(e)})
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
     except Exception as e:
         console.print(f"[red]Error during query:[/red] {e}")
         logger.log_error(e, {"command": "query", "repo_path": repo_path})
         _emit_ndjson({"type": "error", "command": "query", "error": str(e)})
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
 
 @app.command()
@@ -868,30 +937,30 @@ def pack(
         ".",
         help="Path to the repository root directory (defaults to current directory)",
     ),
-    query_text: Optional[str] = typer.Option(
+    query_text: str | None = typer.Option(
         None,
         "--query",
         "-q",
         help="Optional natural language query for semantic search",
     ),
-    changed_files_path: Optional[str] = typer.Option(
+    changed_files_path: str | None = typer.Option(
         None,
         "--changed-files",
         help="Path to a file listing changed files (one per line) for PageRank boosting.",
     ),
-    format: Optional[str] = typer.Option(
+    format: str | None = typer.Option(
         None,
         "--format",
         "-f",
         help="Output format: 'xml', 'zip', 'json', 'yaml', 'md', or 'toon' (experimental)",
     ),
-    budget: Optional[int] = typer.Option(
+    budget: int | None = typer.Option(
         None,
         "--budget",
         "-b",
         help="Token budget for context window",
     ),
-    config: Optional[str] = typer.Option(
+    config: str | None = typer.Option(
         None,
         "--config",
         "-c",
@@ -933,7 +1002,7 @@ def pack(
         "--shuffle/--no-shuffle",
         help="Reorder files to combat 'Lost in the Middle' (default: on in agent-mode).",
     ),
-    mode: Optional[str] = typer.Option(
+    mode: str | None = typer.Option(
         None,
         "--mode",
         help="Agent phase mode: 'discovery', 'edit', or 'test'. Adjusts ranking weights.",
@@ -966,61 +1035,91 @@ def pack(
         # Override config with CLI flags
         if format is not None:
             if format not in ["xml", "zip", "json", "yaml", "md", "toon"]:
-                console.print(f"[red]Error:[/red] Invalid format '{format}'. Must be 'xml', 'zip', 'json', 'yaml', 'md', or 'toon'")
-                _emit_ndjson({"type": "error", "command": "pack", "error": "invalid_format", "format": format})
+                console.print(
+                    f"[red]Error:[/red] Invalid format '{format}'. Must be 'xml', 'zip', 'json', 'yaml', 'md', or 'toon'"
+                )
+                _emit_ndjson(
+                    {
+                        "type": "error",
+                        "command": "pack",
+                        "error": "invalid_format",
+                        "format": format,
+                    }
+                )
                 raise typer.Exit(code=1)
             cfg.format = format
-        
+
         if budget is not None:
             if budget <= 0:
                 console.print(f"[red]Error:[/red] Budget must be positive, got {budget}")
-                _emit_ndjson({"type": "error", "command": "pack", "error": "invalid_budget", "budget": budget})
+                _emit_ndjson(
+                    {
+                        "type": "error",
+                        "command": "pack",
+                        "error": "invalid_budget",
+                        "budget": budget,
+                    }
+                )
                 raise typer.Exit(code=1)
             cfg.token_budget = budget
-        
+
         # Set verbose mode
         if verbose:
             logger.logger.setLevel("DEBUG")
-        
+
         # Validate repo path
         repo_path_obj = Path(repo_path)
         if not repo_path_obj.exists():
             console.print(f"[red]Error:[/red] Repository path does not exist: {repo_path}")
-            _emit_ndjson({"type": "error", "command": "pack", "error": "repo_not_found", "repo": repo_path})
+            _emit_ndjson(
+                {"type": "error", "command": "pack", "error": "repo_not_found", "repo": repo_path}
+            )
             raise typer.Exit(code=1)
-        
+
         if not repo_path_obj.is_dir():
             console.print(f"[red]Error:[/red] Repository path is not a directory: {repo_path}")
-            _emit_ndjson({"type": "error", "command": "pack", "error": "repo_not_directory", "repo": repo_path})
+            _emit_ndjson(
+                {
+                    "type": "error",
+                    "command": "pack",
+                    "error": "repo_not_directory",
+                    "repo": repo_path,
+                }
+            )
             raise typer.Exit(code=1)
 
         cfg = _preflight_runtime_dependencies(cfg, "pack")
 
         _stdout_formats = {"json", "xml", "yaml", "md"}
-        stdout_mode = stdout or (cfg.format in _stdout_formats and not AGENT_MODE)
         json_stdout_mode = cfg.format == "json" and not AGENT_MODE and not stdout
 
         # Validate mode flag
         if mode is not None and mode not in ("discovery", "edit", "test"):
-            console.print(f"[red]Error:[/red] Invalid --mode '{mode}'. Must be 'discovery', 'edit', or 'test'")
+            console.print(
+                f"[red]Error:[/red] Invalid --mode '{mode}'. Must be 'discovery', 'edit', or 'test'"
+            )
             raise typer.Exit(code=1)
 
         # Display start message
         if not AGENT_MODE and not json_stdout_mode and not stdout:
-            console.print(Panel.fit(
-                f"[bold cyan]Packing repository:[/bold cyan] {repo_path}\n"
-                f"[bold cyan]Query:[/bold cyan] {query_text or 'None (using PageRank only)'}\n"
-                f"[bold cyan]Format:[/bold cyan] {cfg.format.upper()}\n"
-                f"[bold cyan]Budget:[/bold cyan] {cfg.token_budget:,} tokens",
-                border_style="cyan"
-            ))
+            console.print(
+                Panel.fit(
+                    f"[bold cyan]Packing repository:[/bold cyan] {repo_path}\n"
+                    f"[bold cyan]Query:[/bold cyan] {query_text or 'None (using PageRank only)'}\n"
+                    f"[bold cyan]Format:[/bold cyan] {cfg.format.upper()}\n"
+                    f"[bold cyan]Budget:[/bold cyan] {cfg.token_budget:,} tokens",
+                    border_style="cyan",
+                )
+            )
 
         # Parse --changed-files file if provided
-        changed_files: Optional[List[str]] = None
+        changed_files: list[str] | None = None
         if changed_files_path is not None:
             cf_path = Path(changed_files_path)
             if not cf_path.exists():
-                console.print(f"[red]Error:[/red] --changed-files path does not exist: {changed_files_path}")
+                console.print(
+                    f"[red]Error:[/red] --changed-files path does not exist: {changed_files_path}"
+                )
                 raise typer.Exit(code=1)
             lines = cf_path.read_text(encoding="utf-8", errors="ignore").splitlines()
             changed_files = [ln.strip() for ln in lines if ln.strip()]
@@ -1054,10 +1153,7 @@ def pack(
         )
 
         is_binary_format = cfg.format == "zip"
-        output_content = (
-            None if is_binary_format
-            else Path(output_path).read_text(encoding="utf-8")
-        )
+        output_content = None if is_binary_format else Path(output_path).read_text(encoding="utf-8")
         total_tokens = pack_meta.get("total_tokens", 0) if isinstance(pack_meta, dict) else 0
         budget_tokens = cfg.token_budget
 
@@ -1069,30 +1165,34 @@ def pack(
         elif not AGENT_MODE:
             console.print("\n[bold green]✓[/bold green] Packing complete!")
             if total_tokens:
-                console.print(f"[green]Context packed ({total_tokens:,} / {budget_tokens:,} tokens)[/green]")
+                console.print(
+                    f"[green]Context packed ({total_tokens:,} / {budget_tokens:,} tokens)[/green]"
+                )
             console.print(f"Output saved to: {output_path}")
 
         if copy and output_content is not None:
             _copy_to_clipboard(output_content)
 
-        _emit_ndjson({
-            "type": "status",
-            "command": "pack",
-            "status": "success",
-            "output_path": str(output_path),
-            "total_tokens": total_tokens,
-            "generated_at": _utc_now(),
-        })
+        _emit_ndjson(
+            {
+                "type": "status",
+                "command": "pack",
+                "status": "success",
+                "output_path": str(output_path),
+                "total_tokens": total_tokens,
+                "generated_at": _utc_now(),
+            }
+        )
 
         raise typer.Exit(code=0)
-        
+
     except typer.Exit:
         raise
     except Exception as e:
         console.print(f"[red]Error during packing:[/red] {e}")
         logger.log_error(e, {"command": "pack", "repo_path": repo_path})
         _emit_ndjson({"type": "error", "command": "pack", "error": str(e)})
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
 
 @app.command()
@@ -1101,7 +1201,7 @@ def status(
         ...,
         help="Path to the repository root directory",
     ),
-    config: Optional[str] = typer.Option(
+    config: str | None = typer.Option(
         None,
         "--config",
         "-c",
@@ -1129,24 +1229,45 @@ def status(
         repo_path_obj = Path(repo_path)
         if not repo_path_obj.exists():
             console.print(f"[red]Error:[/red] Repository path does not exist: {repo_path}")
-            _emit_ndjson({"type": "error", "command": "status", "error": "repo_not_found", "repo": repo_path})
+            _emit_ndjson(
+                {"type": "error", "command": "status", "error": "repo_not_found", "repo": repo_path}
+            )
             raise typer.Exit(code=1)
 
         index_path = repo_path_obj / ".ws-ctx-engine"
         if not index_path.exists():
             console.print(f"[red]Error:[/red] No index found at {index_path}")
-            console.print("\n[yellow]Suggestion:[/yellow] Run 'ws-ctx-engine index' first to build indexes")
-            _emit_ndjson({"type": "error", "command": "status", "error": "index_not_found", "index_dir": str(index_path)})
+            console.print(
+                "\n[yellow]Suggestion:[/yellow] Run 'ws-ctx-engine index' first to build indexes"
+            )
+            _emit_ndjson(
+                {
+                    "type": "error",
+                    "command": "status",
+                    "error": "index_not_found",
+                    "index_dir": str(index_path),
+                }
+            )
             raise typer.Exit(code=1)
 
         if not (index_path / "metadata.json").exists():
-            console.print(f"[red]Error:[/red] Incomplete index - metadata.json is missing")
-            console.print("\n[yellow]Suggestion:[/yellow] Run 'ws-ctx-engine index' to rebuild indexes")
-            _emit_ndjson({"type": "error", "command": "status", "error": "metadata_missing", "index_dir": str(index_path)})
+            console.print("[red]Error:[/red] Incomplete index - metadata.json is missing")
+            console.print(
+                "\n[yellow]Suggestion:[/yellow] Run 'ws-ctx-engine index' to rebuild indexes"
+            )
+            _emit_ndjson(
+                {
+                    "type": "error",
+                    "command": "status",
+                    "error": "metadata_missing",
+                    "index_dir": str(index_path),
+                }
+            )
             raise typer.Exit(code=1)
 
         import json
-        with open(index_path / "metadata.json", "r") as f:
+
+        with open(index_path / "metadata.json") as f:
             metadata = json.load(f)
 
         total_size = sum(f.stat().st_size for f in index_path.rglob("*") if f.is_file())
@@ -1172,6 +1293,7 @@ def status(
                 console.print(f"[bold]Domain map DB size:[/bold] {db_size / 1024:.1f} KB")
 
                 from ..domain_map import DomainMapDB
+
                 db = DomainMapDB(str(index_path / "domain_map.db"))
                 stats = db.stats()
                 console.print(f"[bold]Domain keywords:[/bold] {stats['keywords']}")
@@ -1179,17 +1301,19 @@ def status(
                 db.close()
 
         if AGENT_MODE:
-            _emit_ndjson({
-                "type": "status",
-                "command": "status",
-                "repo": str(repo_path_obj),
-                "index_dir": str(index_path),
-                "file_count": metadata.get("file_count", 0),
-                "backend": metadata.get("backend", "unknown"),
-                "indexed_at": metadata.get("created_at", "unknown"),
-                "total_size_bytes": total_size,
-                "generated_at": _utc_now(),
-            })
+            _emit_ndjson(
+                {
+                    "type": "status",
+                    "command": "status",
+                    "repo": str(repo_path_obj),
+                    "index_dir": str(index_path),
+                    "file_count": metadata.get("file_count", 0),
+                    "backend": metadata.get("backend", "unknown"),
+                    "indexed_at": metadata.get("created_at", "unknown"),
+                    "total_size_bytes": total_size,
+                    "generated_at": _utc_now(),
+                }
+            )
         else:
             console.print(f"\n[bold]Last indexed:[/bold] {metadata.get('created_at', 'unknown')}")
 
@@ -1201,7 +1325,7 @@ def status(
         console.print(f"[red]Error showing status:[/red] {e}")
         logger.log_error(e, {"command": "status", "repo_path": repo_path})
         _emit_ndjson({"type": "error", "command": "status", "error": str(e)})
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
 
 @app.command()
@@ -1210,7 +1334,7 @@ def vacuum(
         ...,
         help="Path to the repository root directory",
     ),
-    config: Optional[str] = typer.Option(
+    config: str | None = typer.Option(
         None,
         "--config",
         "-c",
@@ -1234,7 +1358,9 @@ def vacuum(
         index_path = repo_path_obj / ".ws-ctx-engine"
         if not index_path.exists():
             console.print(f"[red]Error:[/red] No index found at {index_path}")
-            console.print("\n[yellow]Suggestion:[/yellow] Run 'ws-ctx-engine index' first to build indexes")
+            console.print(
+                "\n[yellow]Suggestion:[/yellow] Run 'ws-ctx-engine index' first to build indexes"
+            )
             raise typer.Exit(code=1)
 
         db_path = index_path / "domain_map.db"
@@ -1243,6 +1369,7 @@ def vacuum(
             raise typer.Exit(code=1)
 
         from ..domain_map import DomainMapDB
+
         db = DomainMapDB(str(db_path))
 
         console.print(f"[bold]Running VACUUM on:[/bold] {db_path}")
@@ -1252,7 +1379,7 @@ def vacuum(
         db.close()
 
         new_size = db_path.stat().st_size
-        console.print(f"\n[bold green]✓[/bold green] VACUUM complete!")
+        console.print("\n[bold green]✓[/bold green] VACUUM complete!")
         console.print(f"Database size after optimization: {new_size / 1024:.1f} KB")
 
         raise typer.Exit(code=0)
@@ -1263,7 +1390,7 @@ def vacuum(
         console.print(f"[red]Error during VACUUM:[/red] {e}")
         logger.log_error(e, {"command": "vacuum", "repo_path": repo_path})
         _emit_ndjson({"type": "error", "command": "vacuum", "error": str(e)})
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
 
 @app.command()
@@ -1272,7 +1399,7 @@ def reindex_domain(
         ...,
         help="Path to the repository root directory",
     ),
-    config: Optional[str] = typer.Option(
+    config: str | None = typer.Option(
         None,
         "--config",
         "-c",
@@ -1298,24 +1425,27 @@ def reindex_domain(
         index_path = repo_path_obj / ".ws-ctx-engine"
         if not index_path.exists():
             console.print(f"[red]Error:[/red] No index found at {index_path}")
-            console.print("\n[yellow]Suggestion:[/yellow] Run 'ws-ctx-engine index' first to build indexes")
+            console.print(
+                "\n[yellow]Suggestion:[/yellow] Run 'ws-ctx-engine index' first to build indexes"
+            )
             raise typer.Exit(code=1)
 
         if not (index_path / "metadata.json").exists():
-            console.print(f"[red]Error:[/red] Incomplete index - metadata.json is missing")
+            console.print("[red]Error:[/red] Incomplete index - metadata.json is missing")
             raise typer.Exit(code=1)
 
         console.print("[bold]Rebuilding domain map database...[/bold]")
 
         from ..workflow.indexer import index_repository
+
         tracker = index_repository(
             repo_path=repo_path,
             config=_load_config(config, repo_path=repo_path),
             index_dir=".ws-ctx-engine",
-            domain_only=True
+            domain_only=True,
         )
 
-        console.print(f"\n[bold green]✓[/bold green] Domain map rebuilt!")
+        console.print("\n[bold green]✓[/bold green] Domain map rebuilt!")
         console.print(tracker.format_metrics("index"))
 
         raise typer.Exit(code=0)
@@ -1326,7 +1456,7 @@ def reindex_domain(
         console.print(f"[red]Error rebuilding domain map:[/red] {e}")
         logger.log_error(e, {"command": "reindex-domain", "repo_path": repo_path})
         _emit_ndjson({"type": "error", "command": "reindex-domain", "error": str(e)})
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
 
 @app.command("init-config")
@@ -1424,10 +1554,10 @@ def init_config(
     except Exception as e:
         console.print(f"[red]Error generating config:[/red] {e}")
         logger.log_error(e, {"command": "init-config", "repo_path": repo_path})
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
 
-def _load_config(config_path: Optional[str], repo_path: Optional[str] = None) -> Config:
+def _load_config(config_path: str | None, repo_path: str | None = None) -> Config:
     """
     Load configuration from file or use defaults.
 
@@ -1483,7 +1613,7 @@ def session_clear(
         ".",
         help="Repository root used to locate .ws-ctx-engine/ cache directory.",
     ),
-    session_id: Optional[str] = typer.Option(
+    session_id: str | None = typer.Option(
         None,
         "--session-id",
         help="Clear only this session's cache.  Omit to clear ALL session caches.",

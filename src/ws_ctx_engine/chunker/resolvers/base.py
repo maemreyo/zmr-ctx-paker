@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Set, Optional
+from typing import Any
 
 from ...models import CodeChunk
 
@@ -22,22 +22,22 @@ class LanguageResolver(ABC):
 
     @property
     @abstractmethod
-    def target_types(self) -> Set[str]:
+    def target_types(self) -> set[str]:
         """Return set of AST node types to extract."""
         pass
 
     @property
-    def file_extensions(self) -> List[str]:
+    def file_extensions(self) -> list[str]:
         """Return list of file extensions for this language."""
         return []
 
     @abstractmethod
-    def extract_symbol_name(self, node) -> Optional[str]:
+    def extract_symbol_name(self, node: Any) -> str | None:
         """Extract symbol name from AST node."""
         pass
 
     @abstractmethod
-    def extract_references(self, node) -> List[str]:
+    def extract_references(self, node: Any) -> list[str]:
         """Extract referenced symbols from AST node."""
         pass
 
@@ -47,15 +47,15 @@ class LanguageResolver(ABC):
 
     def node_to_chunk(
         self,
-        node,
+        node: Any,
         content: str,
         file_path: str,
-    ) -> Optional[CodeChunk]:
+    ) -> CodeChunk | None:
         """Convert AST node to CodeChunk."""
         start_line = node.start_point[0] + 1
         end_line = node.end_point[0] + 1
-        content_bytes = content.encode('utf8')
-        node_content = content_bytes[node.start_byte:node.end_byte].decode('utf8')
+        content_bytes = content.encode("utf8")
+        node_content = content_bytes[node.start_byte : node.end_byte].decode("utf8")
         symbol_name = self.extract_symbol_name(node)
 
         return CodeChunk(
@@ -65,5 +65,5 @@ class LanguageResolver(ABC):
             content=node_content,
             symbols_defined=[symbol_name] if symbol_name else [],
             symbols_referenced=self.extract_references(node),
-            language=self.language
+            language=self.language,
         )

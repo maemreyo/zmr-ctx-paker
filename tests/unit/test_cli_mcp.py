@@ -3,7 +3,6 @@ from typer.testing import CliRunner
 
 from ws_ctx_engine.cli.cli import _parse_rate_limits, app
 
-
 runner = CliRunner()
 
 
@@ -34,7 +33,9 @@ def test_mcp_command_rejects_invalid_workspace() -> None:
 
 def test_mcp_command_rejects_missing_explicit_mcp_config() -> None:
     with runner.isolated_filesystem():
-        result = runner.invoke(app, ["mcp", "--workspace", ".", "--mcp-config", "./missing-mcp-config.json"])
+        result = runner.invoke(
+            app, ["mcp", "--workspace", ".", "--mcp-config", "./missing-mcp-config.json"]
+        )
         assert result.exit_code == 1
         assert "MCP config file not found" in result.stdout
 

@@ -12,8 +12,8 @@ def _run_emit_mcp_config(target: Path, force: bool) -> subprocess.CompletedProce
     command = (
         "set -euo pipefail; "
         f'SCRIPT_DIR="{script_dir}"; '
-        "source \"$SCRIPT_DIR/lib/core.sh\"; "
-        "source \"$SCRIPT_DIR/lib/mcp.sh\"; "
+        'source "$SCRIPT_DIR/lib/core.sh"; '
+        'source "$SCRIPT_DIR/lib/mcp.sh"; '
         f'CTX_TARGET="{target}"; '
         f"CTX_FORCE={force_value}; "
         "emit_mcp_config"
@@ -21,7 +21,9 @@ def _run_emit_mcp_config(target: Path, force: bool) -> subprocess.CompletedProce
     return subprocess.run(["bash", "-c", command], capture_output=True, text=True)
 
 
-@pytest.mark.skipif(shutil.which("envsubst") is None, reason="envsubst is required for init template rendering")
+@pytest.mark.skipif(
+    shutil.which("envsubst") is None, reason="envsubst is required for init template rendering"
+)
 def test_emit_mcp_config_creates_default_file(tmp_path: Path) -> None:
     target = tmp_path / "repo"
     target.mkdir(parents=True, exist_ok=True)
@@ -45,7 +47,9 @@ def test_emit_mcp_config_creates_default_file(tmp_path: Path) -> None:
     }
 
 
-@pytest.mark.skipif(shutil.which("envsubst") is None, reason="envsubst is required for init template rendering")
+@pytest.mark.skipif(
+    shutil.which("envsubst") is None, reason="envsubst is required for init template rendering"
+)
 def test_emit_mcp_config_does_not_overwrite_without_force(tmp_path: Path) -> None:
     target = tmp_path / "repo"
     config_dir = target / ".ws-ctx-engine"
@@ -59,7 +63,9 @@ def test_emit_mcp_config_does_not_overwrite_without_force(tmp_path: Path) -> Non
     assert config_path.read_text(encoding="utf-8") == original
 
 
-@pytest.mark.skipif(shutil.which("envsubst") is None, reason="envsubst is required for init template rendering")
+@pytest.mark.skipif(
+    shutil.which("envsubst") is None, reason="envsubst is required for init template rendering"
+)
 def test_emit_mcp_config_overwrites_with_force(tmp_path: Path) -> None:
     target = tmp_path / "repo"
     config_dir = target / ".ws-ctx-engine"

@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from ..config import Config
 from ..domain_map import DomainMapDB
@@ -23,7 +23,9 @@ class CacheEntry:
 
 
 class MCPToolService:
-    def __init__(self, workspace: str, config: MCPConfig, index_dir: str = ".ws-ctx-engine") -> None:
+    def __init__(
+        self, workspace: str, config: MCPConfig, index_dir: str = ".ws-ctx-engine"
+    ) -> None:
         self.workspace_root = Path(workspace).resolve()
         self.index_dir = index_dir
         self.mcp_config = config
@@ -74,10 +76,15 @@ class MCPToolService:
             },
         ]
 
-    def call_tool(self, name: str, arguments: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    def call_tool(self, name: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
         args = arguments or {}
 
-        if name not in {"search_codebase", "get_file_context", "get_domain_map", "get_index_status"}:
+        if name not in {
+            "search_codebase",
+            "get_file_context",
+            "get_domain_map",
+            "get_index_status",
+        }:
             return {"error": "TOOL_NOT_FOUND", "message": "ws-ctx-engine MCP server is read-only."}
 
         if name in {"get_domain_map", "get_index_status"}:
@@ -113,15 +120,24 @@ class MCPToolService:
     def _search_codebase(self, args: dict[str, Any]) -> dict[str, Any]:
         query = args.get("query")
         if not isinstance(query, str) or not query.strip():
-            return {"error": "INVALID_ARGUMENT", "message": "'query' is required and must be a non-empty string."}
+            return {
+                "error": "INVALID_ARGUMENT",
+                "message": "'query' is required and must be a non-empty string.",
+            }
 
         limit = args.get("limit", 10)
         if not isinstance(limit, int) or limit < 1 or limit > 50:
-            return {"error": "INVALID_ARGUMENT", "message": "'limit' must be an integer in [1, 50]."}
+            return {
+                "error": "INVALID_ARGUMENT",
+                "message": "'limit' must be an integer in [1, 50].",
+            }
 
         domain_filter = args.get("domain_filter")
         if domain_filter is not None and not isinstance(domain_filter, str):
-            return {"error": "INVALID_ARGUMENT", "message": "'domain_filter' must be a string when provided."}
+            return {
+                "error": "INVALID_ARGUMENT",
+                "message": "'domain_filter' must be a string when provided.",
+            }
 
         cfg = Config.load(str(self.workspace_root / ".ws-ctx-engine.yaml"))
         try:
@@ -142,14 +158,23 @@ class MCPToolService:
     def _get_file_context(self, args: dict[str, Any]) -> dict[str, Any]:
         raw_path = args.get("path")
         if not isinstance(raw_path, str) or not raw_path.strip():
-            return {"error": "INVALID_ARGUMENT", "message": "'path' is required and must be a non-empty string."}
+            return {
+                "error": "INVALID_ARGUMENT",
+                "message": "'path' is required and must be a non-empty string.",
+            }
 
         include_dependencies_arg = args.get("include_dependencies", True)
         include_dependents_arg = args.get("include_dependents", True)
         if not isinstance(include_dependencies_arg, bool):
-            return {"error": "INVALID_ARGUMENT", "message": "'include_dependencies' must be a boolean when provided."}
+            return {
+                "error": "INVALID_ARGUMENT",
+                "message": "'include_dependencies' must be a boolean when provided.",
+            }
         if not isinstance(include_dependents_arg, bool):
-            return {"error": "INVALID_ARGUMENT", "message": "'include_dependents' must be a boolean when provided."}
+            return {
+                "error": "INVALID_ARGUMENT",
+                "message": "'include_dependents' must be a boolean when provided.",
+            }
 
         include_dependencies = include_dependencies_arg
         include_dependents = include_dependents_arg
@@ -223,14 +248,19 @@ class MCPToolService:
     def _get_domain_map(self) -> dict[str, Any]:
         metadata = self._load_metadata()
         if metadata is None:
-            return {"error": "INDEX_NOT_FOUND", "message": "Index metadata not found. Run 'ws-ctx-engine index .' first."}
+            return {
+                "error": "INDEX_NOT_FOUND",
+                "message": "Index metadata not found. Run 'ws-ctx-engine index .' first.",
+            }
 
         index_health = self._build_index_health(metadata)
 
         graph_stats = {"total_nodes": 0, "total_edges": 0, "avg_degree": 0.0}
         pagerank_scores: dict[str, float] = {}
         try:
-            _, graph, _ = load_indexes(str(self.workspace_root), index_dir=self.index_dir, auto_rebuild=False)
+            _, graph, _ = load_indexes(
+                str(self.workspace_root), index_dir=self.index_dir, auto_rebuild=False
+            )
             graph_stats = self._graph_stats(graph)
             pagerank_scores = graph.pagerank()
         except Exception:
@@ -252,8 +282,12 @@ class MCPToolService:
                 if not matched_files:
                     continue
 
-                ranked_files = sorted(matched_files, key=lambda p: pagerank_scores.get(p, 0.0), reverse=True)
-                pagerank_weight = round(sum(pagerank_scores.get(path, 0.0) for path in matched_files), 6)
+                ranked_files = sorted(
+                    matched_files, key=lambda p: pagerank_scores.get(p, 0.0), reverse=True
+                )
+                pagerank_weight = round(
+                    sum(pagerank_scores.get(path, 0.0) for path in matched_files), 6
+                )
 
                 domains.append(
                     {
@@ -298,13 +332,13 @@ class MCPToolService:
             "workspace": str(self.workspace_root),
         }
 
-    def _load_metadata(self) -> Optional[IndexMetadata]:
+    def _load_metadata(self) -> IndexMetadata | None:
         metadata_path = self.workspace_root / self.index_dir / "metadata.json"
         if not metadata_path.exists():
             return None
 
         try:
-            with open(metadata_path, "r", encoding="utf-8") as f:
+            with open(metadata_path, encoding="utf-8") as f:
                 payload = json.load(f)
             created_at_raw = payload.get("created_at")
             if not isinstance(created_at_raw, str):
@@ -336,7 +370,7 @@ class MCPToolService:
 
         index_built_at = metadata.created_at.replace(microsecond=0)
         if index_built_at.tzinfo is None:
-            index_built_at = index_built_at.replace(tzinfo=timezone.utc)
+            index_built_at = index_built_at.replace(tzinfo=UTC)
 
         return {
             "status": status,
@@ -361,7 +395,9 @@ class MCPToolService:
 
     def _load_neighbors(self, path: str) -> tuple[list[str], list[str]]:
         try:
-            _, graph, _ = load_indexes(str(self.workspace_root), index_dir=self.index_dir, auto_rebuild=False)
+            _, graph, _ = load_indexes(
+                str(self.workspace_root), index_dir=self.index_dir, auto_rebuild=False
+            )
         except Exception:
             return [], []
 
@@ -379,8 +415,12 @@ class MCPToolService:
                 vertex = graph.file_to_vertex.get(path)
                 if vertex is None:
                     return [], []
-                dependencies = sorted(str(graph.vertex_to_file[v]) for v in graph_obj.successors(vertex))
-                dependents = sorted(str(graph.vertex_to_file[v]) for v in graph_obj.predecessors(vertex))
+                dependencies = sorted(
+                    str(graph.vertex_to_file[v]) for v in graph_obj.successors(vertex)
+                )
+                dependents = sorted(
+                    str(graph.vertex_to_file[v]) for v in graph_obj.predecessors(vertex)
+                )
                 return dependencies, dependents
         except Exception:
             return [], []
@@ -443,17 +483,17 @@ class MCPToolService:
     @staticmethod
     def _line_count(path: Path) -> int:
         try:
-            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            with open(path, encoding="utf-8", errors="ignore") as f:
                 return sum(1 for _ in f)
         except Exception:
             return 0
 
-    def _read_cache(self, key: str) -> Optional[dict[str, Any]]:
+    def _read_cache(self, key: str) -> dict[str, Any] | None:
         entry = self._cache.get(key)
         if entry is None:
             return None
 
-        now = datetime.now(timezone.utc).timestamp()
+        now = datetime.now(UTC).timestamp()
         if now >= entry.expires_at:
             self._cache.pop(key, None)
             return None
@@ -461,5 +501,7 @@ class MCPToolService:
         return entry.payload
 
     def _write_cache(self, key: str, payload: dict[str, Any]) -> None:
-        now = datetime.now(timezone.utc).timestamp()
-        self._cache[key] = CacheEntry(payload=payload, expires_at=now + self.mcp_config.cache_ttl_seconds)
+        now = datetime.now(UTC).timestamp()
+        self._cache[key] = CacheEntry(
+            payload=payload, expires_at=now + self.mcp_config.cache_ttl_seconds
+        )

@@ -6,7 +6,6 @@ from pathlib import Path
 import pytest
 
 from ws_ctx_engine.chunker.markdown import MarkdownChunker
-from ws_ctx_engine.models import CodeChunk
 from ws_ctx_engine.config import Config
 
 
@@ -22,7 +21,7 @@ class TestMarkdownChunker:
     @pytest.fixture
     def md_config(self):
         config = Config()
-        config.include_patterns = ['**/*.md', '**/*.markdown', '**/*.mdx']
+        config.include_patterns = ["**/*.md", "**/*.markdown", "**/*.mdx"]
         return config
 
     def test_markdown_no_headings(self, temp_repo, md_config):
@@ -35,7 +34,7 @@ class TestMarkdownChunker:
 
         assert len(chunks) == 1
         assert chunks[0].content == code
-        assert chunks[0].language == 'markdown'
+        assert chunks[0].language == "markdown"
 
     def test_markdown_single_heading(self, temp_repo, md_config):
         """Test markdown file with single heading."""
@@ -171,8 +170,9 @@ More text.
 
     def test_markdown_read_error_handling(self, temp_repo, md_config, monkeypatch):
         """Test that read errors are handled gracefully."""
+
         def mock_read_text(*args, **kwargs):
-            raise IOError("Simulated read error")
+            raise OSError("Simulated read error")
 
         (temp_repo / "readme.md").write_text("# Title\n\nContent")
 
@@ -202,7 +202,7 @@ More text.
     def test_markdown_custom_extensions(self, temp_repo):
         """Test that custom extensions work via config."""
         config = Config()
-        config.include_patterns = ['**/*.txt']
+        config.include_patterns = ["**/*.txt"]
         config.exclude_patterns = []
 
         (temp_repo / "readme.txt").write_text("# Not really markdown")

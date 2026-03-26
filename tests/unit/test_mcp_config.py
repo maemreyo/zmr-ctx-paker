@@ -127,7 +127,9 @@ def test_resolve_workspace_prefers_runtime_over_config() -> None:
         runtime.mkdir(parents=True, exist_ok=True)
 
         config = MCPConfig(workspace="./from-config")
-        resolved = config.resolve_workspace(runtime_workspace=str(runtime), bootstrap_workspace=str(root))
+        resolved = config.resolve_workspace(
+            runtime_workspace=str(runtime), bootstrap_workspace=str(root)
+        )
         assert resolved == str(runtime.resolve())
 
 

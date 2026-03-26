@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import dataclasses
 from enum import Enum
-from typing import Dict, List, Optional, Tuple
 
 
 class AgentPhase(Enum):
@@ -32,16 +31,17 @@ class AgentPhase(Enum):
 @dataclasses.dataclass
 class PhaseWeightConfig:
     """Weight overrides applied by each agent phase."""
+
     semantic_weight: float = 0.5
     symbol_weight: float = 0.3
-    signature_only: bool = False     # Force compression for every file
-    include_tree: bool = False       # Always include directory tree
-    max_token_density: float = 1.0   # Fraction of token budget used for code
-    test_file_boost: float = 1.0     # Score multiplier for test files
-    mock_file_boost: float = 1.0     # Score multiplier for mock/stub files
+    signature_only: bool = False  # Force compression for every file
+    include_tree: bool = False  # Always include directory tree
+    max_token_density: float = 1.0  # Fraction of token budget used for code
+    test_file_boost: float = 1.0  # Score multiplier for test files
+    mock_file_boost: float = 1.0  # Score multiplier for mock/stub files
 
 
-PHASE_WEIGHT_OVERRIDES: Dict[AgentPhase, PhaseWeightConfig] = {
+PHASE_WEIGHT_OVERRIDES: dict[AgentPhase, PhaseWeightConfig] = {
     AgentPhase.DISCOVERY: PhaseWeightConfig(
         semantic_weight=0.2,
         symbol_weight=0.1,
@@ -73,8 +73,15 @@ PHASE_WEIGHT_OVERRIDES: Dict[AgentPhase, PhaseWeightConfig] = {
 
 # File patterns that identify test files
 _TEST_PATTERNS = (
-    "test_", "_test.", ".spec.", "/test/", "/tests/",
-    "/spec/", "_spec.", "mock_", "_mock.",
+    "test_",
+    "_test.",
+    ".spec.",
+    "/test/",
+    "/tests/",
+    "/spec/",
+    "_spec.",
+    "mock_",
+    "_mock.",
 )
 
 
@@ -87,9 +94,9 @@ def _is_mock_file(path: str) -> bool:
 
 
 def apply_phase_weights(
-    ranked_files: List[Tuple[str, float]],
+    ranked_files: list[tuple[str, float]],
     phase: AgentPhase,
-) -> List[Tuple[str, float]]:
+) -> list[tuple[str, float]]:
     """
     Re-weight a ranked file list according to the agent's current phase.
 
@@ -101,7 +108,7 @@ def apply_phase_weights(
         Re-sorted list with phase-specific score adjustments.
     """
     cfg = PHASE_WEIGHT_OVERRIDES[phase]
-    adjusted: List[Tuple[str, float]] = []
+    adjusted: list[tuple[str, float]] = []
 
     for path, score in ranked_files:
         new_score = score
@@ -120,7 +127,7 @@ def get_phase_config(phase: AgentPhase) -> PhaseWeightConfig:
     return PHASE_WEIGHT_OVERRIDES[phase]
 
 
-def parse_phase(value: Optional[str]) -> Optional[AgentPhase]:
+def parse_phase(value: str | None) -> AgentPhase | None:
     """Parse CLI --mode string into AgentPhase, or None if absent/invalid."""
     if not value:
         return None

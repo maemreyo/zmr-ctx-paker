@@ -9,79 +9,78 @@ embedding dependencies. In production, use real VectorIndex and
 RepoMapGraph implementations.
 """
 
-from typing import List, Tuple, Dict, Optional
-from ws_ctx_engine.models import CodeChunk
-from ws_ctx_engine.vector_index import VectorIndex
 from ws_ctx_engine.graph import RepoMapGraph
+from ws_ctx_engine.models import CodeChunk
 from ws_ctx_engine.retrieval import RetrievalEngine
+from ws_ctx_engine.vector_index import VectorIndex
 
 
 # Mock implementations for demonstration
 class MockVectorIndex(VectorIndex):
     """Mock VectorIndex for demonstration."""
-    
+
     def __init__(self):
         self.search_results = {}
-    
-    def build(self, chunks: List[CodeChunk]) -> None:
+
+    def build(self, chunks: list[CodeChunk]) -> None:
         # Simulate building index with mock scores
         self.search_results = {
             "src/auth.py": 0.95,
             "src/session.py": 0.75,
             "src/user.py": 0.60,
         }
-    
-    def search(self, query: str, top_k: int = 10) -> List[Tuple[str, float]]:
+
+    def search(self, query: str, top_k: int = 10) -> list[tuple[str, float]]:
         return list(self.search_results.items())[:top_k]
-    
+
     def save(self, path: str) -> None:
         pass
-    
+
     @classmethod
-    def load(cls, path: str) -> 'VectorIndex':
+    def load(cls, path: str) -> "VectorIndex":
         return cls()
 
 
 class MockRepoMapGraph(RepoMapGraph):
     """Mock RepoMapGraph for demonstration."""
-    
+
     def __init__(self):
         self.pagerank_scores = {}
-    
-    def build(self, chunks: List[CodeChunk]) -> None:
+
+    def build(self, chunks: list[CodeChunk]) -> None:
         # Simulate PageRank scores
         self.pagerank_scores = {
             "src/auth.py": 0.40,
             "src/session.py": 0.35,
             "src/user.py": 0.25,
         }
-    
-    def pagerank(self, changed_files: Optional[List[str]] = None) -> Dict[str, float]:
+
+    def pagerank(self, changed_files: list[str] | None = None) -> dict[str, float]:
         scores = self.pagerank_scores.copy()
-        
+
         # Boost changed files
         if changed_files:
             for file in changed_files:
                 if file in scores:
                     scores[file] *= 1.5
-            
+
             # Renormalize
             total = sum(scores.values())
             scores = {k: v / total for k, v in scores.items()}
-        
+
         return scores
-    
+
     def save(self, path: str) -> None:
         pass
-    
+
     @classmethod
-    def load(cls, path: str) -> 'RepoMapGraph':
+    def load(cls, path: str) -> "RepoMapGraph":
         return cls()
 
 
 def main():
     """Demonstrate RetrievalEngine usage."""
-    
+
     # Sample code chunks (in practice, these come from AST parsing)
     chunks = [
         CodeChunk(
@@ -91,7 +90,7 @@ def main():
             content="def authenticate(user, password):\n    # Authentication logic\n    pass",
             symbols_defined=["authenticate"],
             symbols_referenced=["hash_password", "verify_token"],
-            language="python"
+            language="python",
         ),
         CodeChunk(
             path="src/user.py",
@@ -100,7 +99,7 @@ def main():
             content="class User:\n    def __init__(self, username):\n        self.username = username",
             symbols_defined=["User"],
             symbols_referenced=[],
-            language="python"
+            language="python",
         ),
         CodeChunk(
             path="src/session.py",
@@ -109,50 +108,44 @@ def main():
             content="def create_session(user):\n    # Session creation\n    pass",
             symbols_defined=["create_session"],
             symbols_referenced=["User", "authenticate"],
-            language="python"
+            language="python",
         ),
     ]
-    
+
     # Build vector index for semantic search
     print("Building vector index...")
     vector_index = MockVectorIndex()
     vector_index.build(chunks)
-    
+
     # Build dependency graph for PageRank
     print("Building dependency graph...")
     graph = MockRepoMapGraph()
     graph.build(chunks)
-    
+
     # Create retrieval engine with custom weights
     print("\nCreating retrieval engine...")
     engine = RetrievalEngine(
         vector_index=vector_index,
         graph=graph,
         semantic_weight=0.6,  # 60% weight on semantic similarity
-        pagerank_weight=0.4   # 40% weight on structural importance
+        pagerank_weight=0.4,  # 40% weight on structural importance
     )
-    
+
     # Retrieve files for a query
     print("\nRetrieving files for query: 'authentication logic'")
     results = engine.retrieve(
-        query="authentication logic",
-        changed_files=["src/auth.py"],  # Boost changed files
-        top_k=10
+        query="authentication logic", changed_files=["src/auth.py"], top_k=10  # Boost changed files
     )
-    
+
     # Display results
     print("\nTop ranked files:")
     for i, (file_path, score) in enumerate(results, 1):
         print(f"{i}. {file_path}: {score:.3f}")
-    
+
     # Example with only PageRank (no query)
     print("\n\nRetrieving files based on structure only (no query):")
-    results_no_query = engine.retrieve(
-        query=None,
-        changed_files=["src/auth.py"],
-        top_k=10
-    )
-    
+    results_no_query = engine.retrieve(query=None, changed_files=["src/auth.py"], top_k=10)
+
     print("\nTop ranked files (PageRank only):")
     for i, (file_path, score) in enumerate(results_no_query, 1):
         print(f"{i}. {file_path}: {score:.3f}")

@@ -10,7 +10,7 @@ Reference: https://github.com/yichuan-w/LEANN
 import os
 import pickle
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any
 
 from ..logger import get_logger
 from ..models import CodeChunk
@@ -56,11 +56,11 @@ class NativeLEANNIndex(VectorIndex):
         self.overlap = overlap
         self.logger = get_logger()
 
-        self._builder = None
-        self._searcher = None
-        self._file_paths: List[str] = []
-        self._file_symbols: Dict[str, List[str]] = {}
-        self._chunk_to_file: Dict[int, str] = {}
+        self._builder: Any | None = None
+        self._searcher: Any | None = None
+        self._file_paths: list[str] = []
+        self._file_symbols: dict[str, list[str]] = {}
+        self._chunk_to_file: dict[int, str] = {}
 
         self._check_leann_available()
 
@@ -71,14 +71,17 @@ class NativeLEANNIndex(VectorIndex):
             ImportError: If leann library is not available
         """
         try:
-            from leann import LeannBuilder, LeannSearcher
+            from leann import (  # type: ignore[import-untyped]  # noqa: F401
+                LeannBuilder,
+                LeannSearcher,
+            )
         except ImportError:
             raise ImportError(
                 "leann library not available. "
                 "Install with: pip install leann or: pip install ws-ctx-engine[leann]"
-            )
+            ) from None
 
-    def build(self, chunks: List[CodeChunk]) -> None:
+    def build(self, chunks: list[CodeChunk]) -> None:
         """Build LEANN index from code chunks.
 
         Args:
@@ -100,7 +103,7 @@ class NativeLEANNIndex(VectorIndex):
         self._file_symbols = {}
         self._chunk_to_file = {}
 
-        file_to_chunks: Dict[str, List[CodeChunk]] = {}
+        file_to_chunks: dict[str, list[CodeChunk]] = {}
         for i, chunk in enumerate(chunks):
             if chunk.path not in file_to_chunks:
                 file_to_chunks[chunk.path] = []
@@ -117,10 +120,10 @@ class NativeLEANNIndex(VectorIndex):
                 metadata={
                     "path": file_path,
                     "num_chunks": len(file_chunks),
-                }
+                },
             )
 
-            symbols: List[str] = []
+            symbols: list[str] = []
             for chunk in file_chunks:
                 symbols.extend(chunk.symbols_defined)
             self._file_symbols[file_path] = symbols
@@ -134,9 +137,9 @@ class NativeLEANNIndex(VectorIndex):
             )
         except Exception as e:
             self.logger.error(f"Failed to build Native LEANN index: {e}")
-            raise RuntimeError(f"Native LEANN index build failed: {e}")
+            raise RuntimeError(f"Native LEANN index build failed: {e}") from e
 
-    def search(self, query: str, top_k: int = 10) -> List[Tuple[str, float]]:
+    def search(self, query: str, top_k: int = 10) -> list[tuple[str, float]]:
         """Search for relevant files using LEANN.
 
         Args:
@@ -161,29 +164,29 @@ class NativeLEANNIndex(VectorIndex):
             self._searcher = LeannSearcher(self.index_path)
             results = self._searcher.search(query, top_k=top_k * 2)
 
-            file_scores: Dict[str, float] = {}
+            file_scores: dict[str, float] = {}
             for result in results:
                 metadata = result.metadata
-                file_path = metadata.get('path', '') if isinstance(metadata, dict) else getattr(metadata, 'path', '')
+                file_path = (
+                    metadata.get("path", "")
+                    if isinstance(metadata, dict)
+                    else getattr(metadata, "path", "")
+                )
 
                 if file_path and file_path in self._file_paths:
-                    score = float(getattr(result, 'score', 0.0))
+                    score = float(getattr(result, "score", 0.0))
                     if file_path not in file_scores or score > file_scores[file_path]:
                         file_scores[file_path] = score
 
-            sorted_files = sorted(
-                file_scores.items(),
-                key=lambda x: x[1],
-                reverse=True
-            )[:top_k]
+            sorted_files = sorted(file_scores.items(), key=lambda x: x[1], reverse=True)[:top_k]
 
             return sorted_files
 
         except Exception as e:
             self.logger.error(f"Native LEANN search failed: {e}")
-            raise RuntimeError(f"Native LEANN search failed: {e}")
+            raise RuntimeError(f"Native LEANN search failed: {e}") from e
 
-    def get_file_symbols(self) -> Dict[str, List[str]]:
+    def get_file_symbols(self) -> dict[str, list[str]]:
         """Get mapping of file paths to symbols defined in those files."""
         return self._file_symbols
 
@@ -200,26 +203,26 @@ class NativeLEANNIndex(VectorIndex):
             os.makedirs(os.path.dirname(path), exist_ok=True)
 
             data = {
-                'backend': 'NativeLEANNIndex',
-                'index_path': self.index_path,
-                'backend_name': self.backend,
-                'chunk_size': self.chunk_size,
-                'overlap': self.overlap,
-                'file_paths': self._file_paths,
-                'file_symbols': self._file_symbols,
+                "backend": "NativeLEANNIndex",
+                "index_path": self.index_path,
+                "backend_name": self.backend,
+                "chunk_size": self.chunk_size,
+                "overlap": self.overlap,
+                "file_paths": self._file_paths,
+                "file_symbols": self._file_symbols,
             }
 
-            with open(path, 'wb') as f:
+            with open(path, "wb") as f:
                 pickle.dump(data, f)
 
             self.logger.info(f"Native LEANN metadata saved to {path}")
 
         except Exception as e:
             self.logger.error(f"Failed to save Native LEANN metadata: {e}")
-            raise IOError(f"Failed to save Native LEANN metadata: {e}")
+            raise OSError(f"Failed to save Native LEANN metadata: {e}") from e
 
     @classmethod
-    def load(cls, path: str) -> 'NativeLEANNIndex':
+    def load(cls, path: str) -> "NativeLEANNIndex":
         """Load Native LEANN index from disk.
 
         Args:
@@ -234,30 +237,28 @@ class NativeLEANNIndex(VectorIndex):
         logger = get_logger()
 
         try:
-            with open(path, 'rb') as f:
+            with open(path, "rb") as f:
                 data = pickle.load(f)
 
-            if data.get('backend') != 'NativeLEANNIndex':
-                raise ValueError(
-                    f"Invalid backend in saved index: {data.get('backend')}"
-                )
+            if data.get("backend") != "NativeLEANNIndex":
+                raise ValueError(f"Invalid backend in saved index: {data.get('backend')}")
 
             index = cls(
-                index_path=data['index_path'],
-                backend=data.get('backend_name', 'hnsw'),
-                chunk_size=data.get('chunk_size', 256),
-                overlap=data.get('overlap', 32),
+                index_path=data["index_path"],
+                backend=data.get("backend_name", "hnsw"),
+                chunk_size=data.get("chunk_size", 256),
+                overlap=data.get("overlap", 32),
             )
 
-            index._file_paths = data['file_paths']
-            index._file_symbols = data.get('file_symbols', {})
+            index._file_paths = data["file_paths"]
+            index._file_symbols = data.get("file_symbols", {})
 
             logger.info(f"Native LEANN index loaded from {path}")
             return index
 
         except Exception as e:
             logger.error(f"Failed to load Native LEANN index: {e}")
-            raise IOError(f"Failed to load Native LEANN index: {e}")
+            raise OSError(f"Failed to load Native LEANN index: {e}") from e
 
 
 def create_native_leann_index(
@@ -291,4 +292,4 @@ def create_native_leann_index(
         )
     except Exception as e:
         logger.error(f"Failed to create Native LEANN index: {e}")
-        raise RuntimeError(f"Failed to create Native LEANN index: {e}")
+        raise RuntimeError(f"Failed to create Native LEANN index: {e}") from e

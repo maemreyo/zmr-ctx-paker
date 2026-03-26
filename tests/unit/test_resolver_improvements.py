@@ -22,7 +22,7 @@ class TestPythonDecoratorExtraction:
         except ImportError:
             pytest.skip("TreeSitter not available")
 
-        code = '''
+        code = """
 @decorator
 def decorated_func():
     pass
@@ -30,7 +30,7 @@ def decorated_func():
 @classmethod
 class DecoratedClass:
     pass
-'''
+"""
         (temp_repo / "decorated.py").write_text(code)
         chunker = TreeSitterChunker()
         chunks = chunker.parse(str(temp_repo))
@@ -40,10 +40,12 @@ class DecoratedClass:
         for chunk in py_chunks:
             symbol_names.extend(chunk.symbols_defined)
 
-        assert 'decorated_func' in symbol_names, \
-            f"decorated_func should be extracted, got: {symbol_names}"
-        assert 'DecoratedClass' in symbol_names, \
-            f"DecoratedClass should be extracted, got: {symbol_names}"
+        assert (
+            "decorated_func" in symbol_names
+        ), f"decorated_func should be extracted, got: {symbol_names}"
+        assert (
+            "DecoratedClass" in symbol_names
+        ), f"DecoratedClass should be extracted, got: {symbol_names}"
 
     def test_extract_decorated_async_function(self, temp_repo):
         """Test that decorated async functions are extracted."""
@@ -52,11 +54,11 @@ class DecoratedClass:
         except ImportError:
             pytest.skip("TreeSitter not available")
 
-        code = '''
+        code = """
 @asyncDecorator
 async def async_decorated():
     await something()
-'''
+"""
         (temp_repo / "async_decorated.py").write_text(code)
         chunker = TreeSitterChunker()
         chunks = chunker.parse(str(temp_repo))
@@ -66,8 +68,9 @@ async def async_decorated():
         for chunk in py_chunks:
             symbol_names.extend(chunk.symbols_defined)
 
-        assert 'async_decorated' in symbol_names, \
-            f"async_decorated should be extracted, got: {symbol_names}"
+        assert (
+            "async_decorated" in symbol_names
+        ), f"async_decorated should be extracted, got: {symbol_names}"
 
 
 class TestJavaScriptExportExtraction:
@@ -86,7 +89,7 @@ class TestJavaScriptExportExtraction:
         except ImportError:
             pytest.skip("TreeSitter not available")
 
-        code = '''
+        code = """
 export function exportedFunc() {
     return 1;
 }
@@ -94,7 +97,7 @@ export function exportedFunc() {
 export class ExportedClass {
     constructor() {}
 }
-'''
+"""
         (temp_repo / "exports.js").write_text(code)
         chunker = TreeSitterChunker()
         chunks = chunker.parse(str(temp_repo))
@@ -104,10 +107,12 @@ export class ExportedClass {
         for chunk in js_chunks:
             symbol_names.extend(chunk.symbols_defined)
 
-        assert 'exportedFunc' in symbol_names, \
-            f"exportedFunc should be extracted, got: {symbol_names}"
-        assert 'ExportedClass' in symbol_names, \
-            f"ExportedClass should be extracted, got: {symbol_names}"
+        assert (
+            "exportedFunc" in symbol_names
+        ), f"exportedFunc should be extracted, got: {symbol_names}"
+        assert (
+            "ExportedClass" in symbol_names
+        ), f"ExportedClass should be extracted, got: {symbol_names}"
 
     def test_extract_default_export(self, temp_repo):
         """Test that default exported functions are extracted."""
@@ -116,11 +121,11 @@ export class ExportedClass {
         except ImportError:
             pytest.skip("TreeSitter not available")
 
-        code = '''
+        code = """
 export default function defaultFunc() {
     return 42;
 }
-'''
+"""
         (temp_repo / "default_export.js").write_text(code)
         chunker = TreeSitterChunker()
         chunks = chunker.parse(str(temp_repo))
@@ -130,8 +135,9 @@ export default function defaultFunc() {
         for chunk in js_chunks:
             symbol_names.extend(chunk.symbols_defined)
 
-        assert 'defaultFunc' in symbol_names, \
-            f"defaultFunc should be extracted, got: {symbol_names}"
+        assert (
+            "defaultFunc" in symbol_names
+        ), f"defaultFunc should be extracted, got: {symbol_names}"
 
 
 class TestTypeScriptInterfaceExtraction:
@@ -150,7 +156,7 @@ class TestTypeScriptInterfaceExtraction:
         except ImportError:
             pytest.skip("TreeSitter not available")
 
-        code = '''
+        code = """
 interface User {
     name: string;
     age: number;
@@ -162,7 +168,7 @@ enum Status {
     Active,
     Inactive
 }
-'''
+"""
         (temp_repo / "types.ts").write_text(code)
         chunker = TreeSitterChunker()
         chunks = chunker.parse(str(temp_repo))
@@ -172,12 +178,9 @@ enum Status {
         for chunk in ts_chunks:
             symbol_names.extend(chunk.symbols_defined)
 
-        assert 'User' in symbol_names, \
-            f"User interface should be extracted, got: {symbol_names}"
-        assert 'ID' in symbol_names, \
-            f"ID type alias should be extracted, got: {symbol_names}"
-        assert 'Status' in symbol_names, \
-            f"Status enum should be extracted, got: {symbol_names}"
+        assert "User" in symbol_names, f"User interface should be extracted, got: {symbol_names}"
+        assert "ID" in symbol_names, f"ID type alias should be extracted, got: {symbol_names}"
+        assert "Status" in symbol_names, f"Status enum should be extracted, got: {symbol_names}"
 
     def test_extract_export_interface(self, temp_repo):
         """Test that exported TypeScript interfaces are extracted."""
@@ -186,11 +189,11 @@ enum Status {
         except ImportError:
             pytest.skip("TreeSitter not available")
 
-        code = '''
+        code = """
 export interface ExportedInterface {
     id: number;
 }
-'''
+"""
         (temp_repo / "exported_types.ts").write_text(code)
         chunker = TreeSitterChunker()
         chunks = chunker.parse(str(temp_repo))
@@ -200,8 +203,9 @@ export interface ExportedInterface {
         for chunk in ts_chunks:
             symbol_names.extend(chunk.symbols_defined)
 
-        assert 'ExportedInterface' in symbol_names, \
-            f"ExportedInterface should be extracted, got: {symbol_names}"
+        assert (
+            "ExportedInterface" in symbol_names
+        ), f"ExportedInterface should be extracted, got: {symbol_names}"
 
 
 class TestRustImplAndTraitExtraction:
@@ -220,7 +224,7 @@ class TestRustImplAndTraitExtraction:
         except ImportError:
             pytest.skip("TreeSitter not available")
 
-        code = '''
+        code = """
 struct Foo {
     value: i32,
 }
@@ -230,7 +234,7 @@ impl Foo {
         Foo { value: 0 }
     }
 }
-'''
+"""
         (temp_repo / "impl_test.rs").write_text(code)
         chunker = TreeSitterChunker()
         chunks = chunker.parse(str(temp_repo))
@@ -240,10 +244,8 @@ impl Foo {
         for chunk in rs_chunks:
             symbol_names.extend(chunk.symbols_defined)
 
-        assert 'Foo' in symbol_names, \
-            f"Foo struct should be extracted, got: {symbol_names}"
-        assert 'new' in symbol_names, \
-            f"new method should be extracted, got: {symbol_names}"
+        assert "Foo" in symbol_names, f"Foo struct should be extracted, got: {symbol_names}"
+        assert "new" in symbol_names, f"new method should be extracted, got: {symbol_names}"
 
     def test_extract_rust_generic_impl(self, temp_repo):
         """Test that generic impl blocks are extracted."""
@@ -252,13 +254,13 @@ impl Foo {
         except ImportError:
             pytest.skip("TreeSitter not available")
 
-        code = '''
+        code = """
 impl<T> Vec<T> {
     pub fn new() -> Vec<T> {
         Vec
     }
 }
-'''
+"""
         (temp_repo / "generic_impl.rs").write_text(code)
         chunker = TreeSitterChunker()
         chunks = chunker.parse(str(temp_repo))
@@ -268,8 +270,7 @@ impl<T> Vec<T> {
         for chunk in rs_chunks:
             symbol_names.extend(chunk.symbols_defined)
 
-        assert 'new' in symbol_names, \
-            f"new method should be extracted, got: {symbol_names}"
+        assert "new" in symbol_names, f"new method should be extracted, got: {symbol_names}"
 
 
 class TestGlobalChunkDeduplication:
@@ -288,8 +289,8 @@ class TestGlobalChunkDeduplication:
         except ImportError:
             pytest.skip("TreeSitter not available")
 
-        (temp_repo / "file1.py").write_text('def foo(): pass')
-        (temp_repo / "file2.py").write_text('def foo(): pass')
+        (temp_repo / "file1.py").write_text("def foo(): pass")
+        (temp_repo / "file2.py").write_text("def foo(): pass")
 
         chunker = TreeSitterChunker()
         chunks = chunker.parse(str(temp_repo))
@@ -317,7 +318,7 @@ class TestRustScopedUseDeclarations:
         except ImportError:
             pytest.skip("TreeSitter not available")
 
-        code = '''
+        code = """
 use std::collections::{HashMap, HashSet};
 use std::io::Read;
 
@@ -326,7 +327,7 @@ fn read_file() {
     let mut contents = String::new();
     file.read_to_string(&mut contents).unwrap();
 }
-'''
+"""
         (temp_repo / "scoped_use.rs").write_text(code)
         chunker = TreeSitterChunker()
         chunks = chunker.parse(str(temp_repo))
@@ -336,5 +337,6 @@ fn read_file() {
         for chunk in rs_chunks:
             all_refs.extend(chunk.symbols_referenced)
 
-        assert 'HashMap' in all_refs or 'HashSet' in all_refs or 'Read' in all_refs, \
-            f"Scoped imports should be extracted, got: {all_refs}"
+        assert (
+            "HashMap" in all_refs or "HashSet" in all_refs or "Read" in all_refs
+        ), f"Scoped imports should be extracted, got: {all_refs}"

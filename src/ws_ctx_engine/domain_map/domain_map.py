@@ -4,7 +4,6 @@ import pickle
 import re
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Set
 
 from ..models import CodeChunk
 
@@ -17,27 +16,67 @@ class DomainKeywordMap:
     to classify queries and boost relevant directories.
     """
 
-    NOISE_WORDS: Set[str] = {
-        "py", "js", "ts", "rs", "jsx", "tsx", "pyc", "pyd",
-        "src", "lib", "bin", "obj", "dist", "build", "out",
-        "test", "tests", "spec", "example", "examples",
-        "init", "main", "index", "conf", "config",
-        "utils", "helpers", "base", "common", "core",
-        "impl", "interface", "abstract",
-        "model", "models", "schema",
-        "controller", "service", "repository",
-        "view", "views", "template", "templates",
-        "static", "assets", "public",
-        "private", "protected", "internal", "external",
-        "default", "unknown",
+    NOISE_WORDS: set[str] = {
+        "py",
+        "js",
+        "ts",
+        "rs",
+        "jsx",
+        "tsx",
+        "pyc",
+        "pyd",
+        "src",
+        "lib",
+        "bin",
+        "obj",
+        "dist",
+        "build",
+        "out",
+        "test",
+        "tests",
+        "spec",
+        "example",
+        "examples",
+        "init",
+        "main",
+        "index",
+        "conf",
+        "config",
+        "utils",
+        "helpers",
+        "base",
+        "common",
+        "core",
+        "impl",
+        "interface",
+        "abstract",
+        "model",
+        "models",
+        "schema",
+        "controller",
+        "service",
+        "repository",
+        "view",
+        "views",
+        "template",
+        "templates",
+        "static",
+        "assets",
+        "public",
+        "private",
+        "protected",
+        "internal",
+        "external",
+        "default",
+        "unknown",
     }
 
-    def __init__(self):
-        self._keyword_to_dirs: Dict[str, Set[str]] = defaultdict(set)
+    def __init__(self) -> None:
+        self._keyword_to_dirs: dict[str, set[str]] = defaultdict(set)
 
-    def build(self, chunks: List[CodeChunk]) -> None:
+    def build(self, chunks: list[CodeChunk]) -> None:
         """Build keyword→directories map from chunks."""
-        file_paths = set(chunk.path for chunk in chunks)
+        file_paths = {chunk.path for chunk in chunks}
 
         for file_path in file_paths:
             self._add_file(file_path)
@@ -53,9 +92,9 @@ class DomainKeywordMap:
             for kw in keywords:
                 self._keyword_to_dirs[kw].add(parent)
 
-    def _extract_keywords_from_part(self, part: str) -> List[str]:
+    def _extract_keywords_from_part(self, part: str) -> list[str]:
         """Extract keywords from a path part (filename or directory)."""
-        cleaned = re.sub(r'[-_\.]', ' ', part)
+        cleaned = re.sub(r"[-_\.]", " ", part)
         tokens = cleaned.split()
 
         keywords = []
@@ -67,11 +106,11 @@ class DomainKeywordMap:
         return keywords
 
     @property
-    def keywords(self) -> Set[str]:
+    def keywords(self) -> set[str]:
         """Return all registered keywords."""
         return set(self._keyword_to_dirs.keys())
 
-    def directories_for(self, keyword: str) -> List[str]:
+    def directories_for(self, keyword: str) -> list[str]:
         """Return list of directories associated with a keyword."""
         return list(self._keyword_to_dirs.get(keyword.lower(), set()))
 
@@ -90,7 +129,7 @@ class DomainKeywordMap:
 
     def save(self, path: str) -> None:
         """Save map to pickle file."""
-        with open(path, 'wb') as f:
+        with open(path, "wb") as f:
             pickle.dump(dict(self._keyword_to_dirs), f)
 
     @classmethod
@@ -98,7 +137,7 @@ class DomainKeywordMap:
         """Load map from pickle file."""
         instance = cls()
         if Path(path).exists():
-            with open(path, 'rb') as f:
+            with open(path, "rb") as f:
                 data = pickle.load(f)
                 instance._keyword_to_dirs = defaultdict(set, {k: set(v) for k, v in data.items()})
         return instance

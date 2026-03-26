@@ -12,7 +12,9 @@ def test_rate_limiter_refills_token_bucket_and_allows_again(monkeypatch) -> None
     limiter = RateLimiter({"search_codebase": 1})
 
     ticks = iter([100.0, 100.5, 161.0])
-    monkeypatch.setattr("ws_ctx_engine.mcp.security.rate_limiter.time.monotonic", lambda: next(ticks))
+    monkeypatch.setattr(
+        "ws_ctx_engine.mcp.security.rate_limiter.time.monotonic", lambda: next(ticks)
+    )
 
     first_allowed, _ = limiter.allow("search_codebase")
     assert first_allowed is True
@@ -37,7 +39,9 @@ def test_rate_limiter_retry_after_has_minimum_of_one(monkeypatch) -> None:
     limiter = RateLimiter({"search_codebase": 1})
 
     ticks = iter([100.0, 159.9])
-    monkeypatch.setattr("ws_ctx_engine.mcp.security.rate_limiter.time.monotonic", lambda: next(ticks))
+    monkeypatch.setattr(
+        "ws_ctx_engine.mcp.security.rate_limiter.time.monotonic", lambda: next(ticks)
+    )
 
     first_allowed, _ = limiter.allow("search_codebase")
     assert first_allowed is True
@@ -51,7 +55,9 @@ def test_rate_limiter_honors_bucket_capacity_burst(monkeypatch) -> None:
     limiter = RateLimiter({"search_codebase": 2})
 
     ticks = iter([100.0, 100.1, 100.2])
-    monkeypatch.setattr("ws_ctx_engine.mcp.security.rate_limiter.time.monotonic", lambda: next(ticks))
+    monkeypatch.setattr(
+        "ws_ctx_engine.mcp.security.rate_limiter.time.monotonic", lambda: next(ticks)
+    )
 
     first_allowed, _ = limiter.allow("search_codebase")
     second_allowed, _ = limiter.allow("search_codebase")

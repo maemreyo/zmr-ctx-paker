@@ -325,6 +325,6 @@ fn main() {
         hello_chunks = [c for c in chunks if c.path.endswith("hello.py")]
         if hello_chunks:
             chunk = hello_chunks[0]
-            lines = code.split('\n')
-            expected = '\n'.join(lines[chunk.start_line - 1:chunk.end_line])
+            lines = code.split("\n")
+            expected = "\n".join(lines[chunk.start_line - 1 : chunk.end_line])
             assert chunk.content.strip() == expected.strip()

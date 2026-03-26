@@ -12,5 +12,5 @@ def test_package_version():
 def test_package_imports():
     """Test that package can be imported."""
     import ws_ctx_engine
-    
+
     assert ws_ctx_engine is not None

@@ -1,8 +1,6 @@
 """Unit tests for DomainMapDB SQLite backend."""
 
-import tempfile
 import threading
-from pathlib import Path
 
 import pytest
 
@@ -25,9 +23,7 @@ class TestDomainMapDBInit:
         db = DomainMapDB(tmp_path / "test.db")
 
         conn = db._get_conn()
-        version = conn.execute(
-            "SELECT value FROM meta WHERE key = 'version'"
-        ).fetchone()
+        version = conn.execute("SELECT value FROM meta WHERE key = 'version'").fetchone()
 
         assert version is not None
         assert version["value"] == "1"
@@ -263,10 +259,7 @@ class TestDomainMapDBMigration:
     def test_migrate_nonexistent_pickle(self, tmp_path):
         """Test migration from nonexistent pickle raises error."""
         with pytest.raises(FileNotFoundError):
-            DomainMapDB.migrate_from_pickle(
-                tmp_path / "nonexistent.pkl",
-                tmp_path / "new.db"
-            )
+            DomainMapDB.migrate_from_pickle(tmp_path / "nonexistent.pkl", tmp_path / "new.db")
 
 
 class TestDomainMapDBConcurrent:
@@ -348,10 +341,11 @@ class TestDomainMapDBShadowRead:
         db_path = tmp_path / "domain_map.db"
 
         import pickle
+
         mapping = {
             "chunker": ["src/chunker/", "src/resolvers/"],
             "embed": ["src/embed/"],
-            "parser": ["src/parser/"]
+            "parser": ["src/parser/"],
         }
         with open(pkl_path, "wb") as f:
             pickle.dump(mapping, f)
@@ -370,17 +364,12 @@ class TestDomainMapDBShadowRead:
         db_path = tmp_path / "domain_map.db"
 
         import pickle
-        pickle_mapping = {
-            "chunker": ["src/chunker/", "src/resolvers/"],
-            "embed": ["src/embed/"]
-        }
+
+        pickle_mapping = {"chunker": ["src/chunker/", "src/resolvers/"], "embed": ["src/embed/"]}
         with open(pkl_path, "wb") as f:
             pickle.dump(pickle_mapping, f)
 
-        sqlite_mapping = {
-            "chunker": ["src/chunker/"],
-            "embed": ["src/embed/", "src/other/"]
-        }
+        sqlite_mapping = {"chunker": ["src/chunker/"], "embed": ["src/embed/", "src/other/"]}
 
         db = DomainMapDB(db_path)
         db.bulk_insert(sqlite_mapping)
@@ -396,16 +385,12 @@ class TestDomainMapDBShadowRead:
         db_path = tmp_path / "domain_map.db"
 
         import pickle
-        pickle_mapping = {
-            "chunker": ["src/chunker/"],
-            "embed": ["src/embed/"]
-        }
+
+        pickle_mapping = {"chunker": ["src/chunker/"], "embed": ["src/embed/"]}
         with open(pkl_path, "wb") as f:
             pickle.dump(pickle_mapping, f)
 
-        sqlite_mapping = {
-            "chunker": ["src/chunker/"]
-        }
+        sqlite_mapping = {"chunker": ["src/chunker/"]}
 
         db = DomainMapDB(db_path)
         db.bulk_insert(sqlite_mapping)
@@ -421,16 +406,12 @@ class TestDomainMapDBShadowRead:
         db_path = tmp_path / "domain_map.db"
 
         import pickle
-        pickle_mapping = {
-            "chunker": ["src/chunker/"]
-        }
+
+        pickle_mapping = {"chunker": ["src/chunker/"]}
         with open(pkl_path, "wb") as f:
             pickle.dump(pickle_mapping, f)
 
-        sqlite_mapping = {
-            "chunker": ["src/chunker/"],
-            "embed": ["src/embed/"]
-        }
+        sqlite_mapping = {"chunker": ["src/chunker/"], "embed": ["src/embed/"]}
 
         db = DomainMapDB(db_path)
         db.bulk_insert(sqlite_mapping)

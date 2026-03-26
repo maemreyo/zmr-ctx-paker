@@ -1,7 +1,7 @@
 from .graph import (
-    RepoMapGraph,
     IGraphRepoMap,
     NetworkXRepoMap,
+    RepoMapGraph,
     create_graph,
     load_graph,
 )

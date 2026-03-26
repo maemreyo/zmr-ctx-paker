@@ -1,8 +1,7 @@
 import logging
-import warnings
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import List, Optional
+from typing import Any
 
 from ..models import CodeChunk
 
@@ -11,9 +10,16 @@ logger = logging.getLogger("ws_ctx_engine")
 # M7: Optional Rust accelerated hot-paths (PyO3 extension).
 # The extension is optional — Python fallbacks are used when not available.
 try:
-    from ws_ctx_engine._rust import walk_files as _rust_walk_files  # type: ignore[import]
-    from ws_ctx_engine._rust import hash_content as _rust_hash_content  # type: ignore[import]
-    from ws_ctx_engine._rust import count_tokens as _rust_count_tokens  # type: ignore[import]
+    from ws_ctx_engine._rust import (  # type: ignore[import-not-found]
+        count_tokens as _rust_count_tokens,
+    )
+    from ws_ctx_engine._rust import (
+        hash_content as _rust_hash_content,
+    )
+    from ws_ctx_engine._rust import (
+        walk_files as _rust_walk_files,
+    )
+
     RUST_AVAILABLE = True
     logger.debug("Rust extension loaded — using accelerated hot-paths")
 except ImportError:
@@ -25,29 +31,31 @@ except ImportError:
 # Extensions with actual AST parsers available in this engine.
 # Files matching these extensions will be parsed with full AST support.
 # Any other extension will produce a [WARNING] during indexing.
-INDEXED_EXTENSIONS = frozenset({
-    ".py",    # Python — tree-sitter + regex fallback
-    ".js",    # JavaScript — tree-sitter + regex fallback
-    ".ts",    # TypeScript — tree-sitter + regex fallback
-    ".jsx",   # JSX — tree-sitter JavaScript
-    ".tsx",   # TSX — tree-sitter TypeScript
-    ".rs",    # Rust — tree-sitter + regex fallback
-})
+INDEXED_EXTENSIONS = frozenset(
+    {
+        ".py",  # Python — tree-sitter + regex fallback
+        ".js",  # JavaScript — tree-sitter + regex fallback
+        ".ts",  # TypeScript — tree-sitter + regex fallback
+        ".jsx",  # JSX — tree-sitter JavaScript
+        ".tsx",  # TSX — tree-sitter TypeScript
+        ".rs",  # Rust — tree-sitter + regex fallback
+    }
+)
 
 
 class ASTChunker(ABC):
     @abstractmethod
-    def parse(self, repo_path: str, config=None) -> List[CodeChunk]:
+    def parse(self, repo_path: str, config: Any = None) -> list[CodeChunk]:
         pass
 
 
-def collect_gitignore_patterns(root: Path) -> List[str]:
+def collect_gitignore_patterns(root: Path) -> list[str]:
     """
     Recursively discover all .gitignore files under *root* and collect patterns,
     prefixing sub-directory patterns with their relative directory path so that
     the resulting spec replicates Git's scoping rules.
     """
-    all_patterns: List[str] = []
+    all_patterns: list[str] = []
     for gitignore_path in sorted(root.rglob(".gitignore")):
         try:
             relative_dir = gitignore_path.parent.relative_to(root)
@@ -69,7 +77,7 @@ def collect_gitignore_patterns(root: Path) -> List[str]:
     return all_patterns
 
 
-def build_ignore_spec(patterns: List[str]):
+def build_ignore_spec(patterns: list[str]) -> Any:
     """
     Build a GitIgnoreSpec that replicates actual Git behaviour including
     re-include (!pattern) and last-pattern-wins semantics.
@@ -77,7 +85,8 @@ def build_ignore_spec(patterns: List[str]):
     Requires pathspec>=0.12 (GitIgnoreSpec).
     """
     try:
-        from pathspec import GitIgnoreSpec  # type: ignore[import-untyped]
+        from pathspec import GitIgnoreSpec
+
         return GitIgnoreSpec.from_lines(patterns)
     except ImportError:
         # Graceful fallback if pathspec is somehow unavailable at runtime.
@@ -88,7 +97,7 @@ def build_ignore_spec(patterns: List[str]):
         return None
 
 
-def get_files_to_include(root: Path, spec) -> List[str]:
+def get_files_to_include(root: Path, spec: Any) -> list[str]:
     """Return relative paths of files that are NOT matched by *spec* (i.e. not ignored)."""
     if spec is None:
         return []
@@ -114,9 +123,9 @@ def warn_non_indexed_extension(file_path: str) -> None:
 def _should_include_file(
     file_path: Path,
     repo_root: Path,
-    include_patterns: List[str],
-    exclude_patterns: List[str],
-    gitignore_spec: Optional[object] = None,
+    include_patterns: list[str],
+    exclude_patterns: list[str],
+    gitignore_spec: Any = None,
 ) -> bool:
     """
     Decide whether a file should be included.
@@ -127,7 +136,6 @@ def _should_include_file(
     2. Check explicit exclude_patterns (user config).
     3. Check include_patterns.
     """
-    import fnmatch
 
     relative_path = str(file_path.relative_to(repo_root))
     path_parts = relative_path.split("/")
@@ -153,7 +161,7 @@ def _should_include_file(
     return False
 
 
-def _match_pattern(relative_path: str, path_parts: List[str], pattern: str) -> bool:
+def _match_pattern(relative_path: str, path_parts: list[str], pattern: str) -> bool:
     import fnmatch
 
     if fnmatch.fnmatch(relative_path, pattern):

@@ -1,9 +1,6 @@
 """Unit tests for session deduplication cache (session/dedup_cache.py)."""
 
 import json
-from pathlib import Path
-
-import pytest
 
 from ws_ctx_engine.session.dedup_cache import SessionDeduplicationCache, clear_all_sessions
 
@@ -87,6 +84,7 @@ class TestSessionDeduplicationCache:
         _, marker = cache.check_and_mark("src/foo.py", content)
         # Marker should include 8-char hex hash
         import hashlib
+
         short_hash = hashlib.sha256(content.encode()).hexdigest()[:8]
         assert short_hash in marker
 

@@ -1,20 +1,13 @@
 #!/usr/bin/env python3
 """Test pattern matching."""
 
-from pathlib import Path
 import fnmatch
+from pathlib import Path
 
 # When run from the root of the repo
 repo_root = Path("examples/zmr-koe/source")
 
-include_patterns = [
-    "**/*.ts",
-    "**/*.tsx",
-    "**/*.js",
-    "**/*.jsx",
-    "**/*.json",
-    "**/*.md"
-]
+include_patterns = ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx", "**/*.json", "**/*.md"]
 
 exclude_patterns = [
     "*.min.js",
@@ -27,11 +20,11 @@ exclude_patterns = [
     "*.test.ts",
     "*.test.js",
     "*.spec.ts",
-    "*.spec.js"
+    "*.spec.js",
 ]
 
 # Find all TS/JS files
-for ext in ['.ts', '.tsx', '.js', '.jsx']:
+for ext in [".ts", ".tsx", ".js", ".jsx"]:
     for file_path in repo_root.rglob(f"*{ext}"):
         if not file_path.is_file():
             continue
@@ -42,9 +35,11 @@ for ext in ['.ts', '.tsx', '.js', '.jsx']:
         # Check exclude
         excluded = False
         for pattern in exclude_patterns:
-            if fnmatch.fnmatch(relative_path, pattern) or \
-               fnmatch.fnmatch(relative_path, pattern.replace("**/", "*/")) or \
-               fnmatch.fnmatch(relative_path, pattern.replace("**", "*")):
+            if (
+                fnmatch.fnmatch(relative_path, pattern)
+                or fnmatch.fnmatch(relative_path, pattern.replace("**/", "*/"))
+                or fnmatch.fnmatch(relative_path, pattern.replace("**", "*"))
+            ):
                 print(f"  ✗ EXCLUDED by: {pattern}")
                 excluded = True
                 break
@@ -55,12 +50,14 @@ for ext in ['.ts', '.tsx', '.js', '.jsx']:
         # Check include
         included = False
         for pattern in include_patterns:
-            if fnmatch.fnmatch(relative_path, pattern) or \
-               fnmatch.fnmatch(relative_path, pattern.replace("**/", "*/")) or \
-               fnmatch.fnmatch(relative_path, pattern.replace("**", "*")):
+            if (
+                fnmatch.fnmatch(relative_path, pattern)
+                or fnmatch.fnmatch(relative_path, pattern.replace("**/", "*/"))
+                or fnmatch.fnmatch(relative_path, pattern.replace("**", "*"))
+            ):
                 print(f"  ✓ INCLUDED by: {pattern}")
                 included = True
                 break
 
         if not included:
-            print(f"  ✗ NOT MATCHED by any include pattern")
+            print("  ✗ NOT MATCHED by any include pattern")

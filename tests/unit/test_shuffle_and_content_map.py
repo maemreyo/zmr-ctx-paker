@@ -3,8 +3,6 @@
 import os
 import tempfile
 
-import pytest
-
 from ws_ctx_engine.packer.xml_packer import XMLPacker, shuffle_for_model_recall
 
 

@@ -1,17 +1,14 @@
 """Unit tests for smart compression (output/compressor.py)."""
 
-import pytest
-
 from ws_ctx_engine.output.compressor import (
     BODY_MARKER,
     FULL_CONTENT_THRESHOLD,
     SIGNATURE_THRESHOLD,
-    compress_file_content,
-    apply_compression_to_selected_files,
-    _compress_python_regex,
     _compress_js_ts_regex,
+    _compress_python_regex,
+    apply_compression_to_selected_files,
+    compress_file_content,
 )
-
 
 PYTHON_SOURCE = '''\
 def greet(name: str) -> str:

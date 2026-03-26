@@ -5,7 +5,7 @@ Generates Repomix-style XML output with metadata and file contents.
 """
 
 import os
-from typing import Any, Dict, List, Optional, TypeVar
+from typing import Any, TypeVar
 
 import tiktoken
 from lxml import etree
@@ -16,10 +16,10 @@ T = TypeVar("T")
 
 
 def shuffle_for_model_recall(
-    files: List[T],
+    files: list[T],
     top_k: int = 3,
     bottom_k: int = 3,
-) -> List[T]:
+) -> list[T]:
     """
     Reorder files so highest-ranked appear at both top AND bottom of context.
 
@@ -51,12 +51,12 @@ def shuffle_for_model_recall(
 class XMLPacker:
     """
     Packer that generates Repomix-style XML output.
-    
+
     The XML structure includes:
     - Metadata header (repo name, file count, total tokens)
     - Individual file entries with paths and token counts
     - Properly escaped file contents
-    
+
     Example output:
         <repository>
           <metadata>
@@ -71,105 +71,100 @@ class XMLPacker:
           </files>
         </repository>
     """
-    
+
     def __init__(self, encoding: str = "cl100k_base"):
         """
         Initialize XMLPacker.
-        
+
         Args:
             encoding: Tiktoken encoding name for token counting
         """
         self.logger = get_logger()
         self.encoding = tiktoken.get_encoding(encoding)
-    
+
     def pack(
         self,
-        selected_files: List[str],
+        selected_files: list[str],
         repo_path: str,
-        metadata: Dict[str, Any],
-        secret_scanner: Optional[Any] = None,
-        content_map: Optional[Dict[str, str]] = None,
+        metadata: dict[str, Any],
+        secret_scanner: Any | None = None,
+        content_map: dict[str, str] | None = None,
     ) -> str:
         """
         Generate XML output from selected files.
-        
+
         Args:
             selected_files: List of file paths relative to repo_path
             repo_path: Absolute path to repository root
             metadata: Dictionary with repo_name, file_count, total_tokens, etc.
-        
+
         Returns:
             XML string with Repomix-style structure
-        
+
         Raises:
             IOError: If files cannot be read
             ValueError: If metadata is invalid
         """
         self.logger.info(f"Packing {len(selected_files)} files into XML format")
-        
+
         # Create root element
         root = etree.Element("repository")
-        
+
         # Add metadata section
         metadata_elem = self._create_metadata_element(metadata)
         root.append(metadata_elem)
-        
+
         # Add files section
         files_elem = etree.Element("files")
-        
+
         for file_path in selected_files:
             preloaded = content_map.get(file_path) if content_map else None
             file_elem = self._create_file_element(
                 file_path, repo_path, secret_scanner=secret_scanner, preloaded_content=preloaded
             )
             files_elem.append(file_elem)
-        
+
         root.append(files_elem)
-        
+
         # Generate XML string with pretty printing
         # Note: xml_declaration=True requires encoding to be bytes, not unicode
-        xml_bytes = etree.tostring(
-            root,
-            encoding="utf-8",
-            pretty_print=True,
-            xml_declaration=True
-        )
-        
+        xml_bytes = etree.tostring(root, encoding="utf-8", pretty_print=True, xml_declaration=True)
+
         # Convert bytes to string
-        xml_string = xml_bytes.decode('utf-8')
-        
+        xml_string: str = xml_bytes.decode("utf-8")
+
         self.logger.info("XML packing complete")
         return xml_string
-    
-    def _create_metadata_element(self, metadata: Dict[str, Any]) -> etree.Element:
+
+    def _create_metadata_element(self, metadata: dict[str, Any]) -> etree.Element:
         """
         Create metadata XML element.
-        
+
         Args:
             metadata: Dictionary with repo_name, file_count, total_tokens
-        
+
         Returns:
             XML element with metadata
         """
         metadata_elem = etree.Element("metadata")
-        
+
         # Add repo name
         name_elem = etree.SubElement(metadata_elem, "name")
         name_elem.text = str(metadata.get("repo_name", "unknown"))
-        
+
         # Add file count
         file_count_elem = etree.SubElement(metadata_elem, "file_count")
         file_count_elem.text = str(metadata.get("file_count", 0))
-        
+
         # Add total tokens
         total_tokens_elem = etree.SubElement(metadata_elem, "total_tokens")
         total_tokens_elem.text = str(metadata.get("total_tokens", 0))
-        
+
         # Add optional query if present
         if "query" in metadata and metadata["query"]:
             query_elem = etree.SubElement(metadata_elem, "query")
             query_elem.text = str(metadata["query"])
-        
+
         # Add optional changed files if present
         if "changed_files" in metadata and metadata["changed_files"]:
             changed_elem = etree.SubElement(metadata_elem, "changed_files")
@@ -184,15 +179,15 @@ class XMLPacker:
                     continue
                 field_elem = etree.SubElement(index_health_elem, field)
                 field_elem.text = str(value)
-        
+
         return metadata_elem
-    
+
     def _create_file_element(
         self,
         file_path: str,
         repo_path: str,
-        secret_scanner: Optional[Any] = None,
-        preloaded_content: Optional[str] = None,
+        secret_scanner: Any | None = None,
+        preloaded_content: str | None = None,
     ) -> etree.Element:
         """
         Create file XML element with content.
@@ -214,16 +209,16 @@ class XMLPacker:
         else:
             full_path = os.path.join(repo_path, file_path)
             try:
-                with open(full_path, 'r', encoding='utf-8') as f:
+                with open(full_path, encoding="utf-8") as f:
                     content = f.read()
             except UnicodeDecodeError:
                 self.logger.warning(f"UTF-8 decode failed for {file_path}, trying latin-1")
-                with open(full_path, 'r', encoding='latin-1') as f:
+                with open(full_path, encoding="latin-1") as f:
                     content = f.read()
             except Exception as e:
                 self.logger.error(f"Failed to read {file_path}: {e}")
                 raise
-        
+
         if secret_scanner is not None:
             scan_result = secret_scanner.scan(file_path)
             if scan_result.secrets_detected:
@@ -232,12 +227,12 @@ class XMLPacker:
 
         # Count tokens
         token_count = len(self.encoding.encode(content))
-        
+
         # Create file element with attributes
         file_elem = etree.Element("file", path=file_path, tokens=str(token_count))
-        
+
         # Add content as CDATA to preserve special characters
         # lxml automatically escapes content, but CDATA is cleaner for code
         file_elem.text = content
-        
+
         return file_elem

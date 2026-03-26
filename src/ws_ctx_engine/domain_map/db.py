@@ -8,12 +8,11 @@ Phase 4: Cleanup - remove pickle code
 
 from __future__ import annotations
 
-import json
 import pickle
 import sqlite3
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Dict, Iterator, List, Optional, Set
 
 from ..logger import get_logger
 
@@ -40,7 +39,7 @@ class DomainMapDB:
 
     def __init__(self, db_path: str | Path):
         self.db_path = Path(db_path)
-        self._conn: Optional[sqlite3.Connection] = None
+        self._conn: sqlite3.Connection | None = None
         self._init_db()
 
     def _get_conn(self) -> sqlite3.Connection:
@@ -71,7 +70,8 @@ class DomainMapDB:
     def _init_db(self) -> None:
         """Initialize database schema."""
         with self._transaction() as conn:
-            conn.executescript("""
+            conn.executescript(
+                """
                 CREATE TABLE IF NOT EXISTS meta (
                     key TEXT PRIMARY KEY,
                     value TEXT
@@ -97,14 +97,14 @@ class DomainMapDB:
                 CREATE INDEX IF NOT EXISTS idx_kw ON keywords(kw);
                 CREATE INDEX IF NOT EXISTS idx_kw_pfx ON keywords(kw COLLATE NOCASE);
                 CREATE INDEX IF NOT EXISTS idx_kd_kid ON keyword_dirs(keyword_id);
-            """)
-
-            conn.execute(
-                "INSERT OR IGNORE INTO meta VALUES ('version', ?)",
-                (str(self.DB_VERSION),)
+            """
             )
 
-    def insert(self, keyword: str, directories: List[str]) -> None:
+            conn.execute(
+                "INSERT OR IGNORE INTO meta VALUES ('version', ?)", (str(self.DB_VERSION),)
+            )
+
+    def insert(self, keyword: str, directories: list[str]) -> None:
         """
         Insert or replace a keyword with its directories.
 
@@ -116,10 +116,7 @@ class DomainMapDB:
             return
 
         with self._transaction() as conn:
-            conn.execute(
-                "INSERT OR REPLACE INTO keywords(kw) VALUES (?)",
-                (keyword.lower(),)
-            )
+            conn.execute("INSERT OR REPLACE INTO keywords(kw) VALUES (?)", (keyword.lower(),))
             kid = conn.execute(
                 "SELECT id FROM keywords WHERE kw = ?", (keyword.lower(),)
             ).fetchone()["id"]
@@ -127,18 +124,14 @@ class DomainMapDB:
             for path in directories:
                 normalized_path = str(Path(path))
                 conn.execute(
-                    "INSERT OR IGNORE INTO directories(path) VALUES (?)",
-                    (normalized_path,)
+                    "INSERT OR IGNORE INTO directories(path) VALUES (?)", (normalized_path,)
                 )
                 did = conn.execute(
                     "SELECT id FROM directories WHERE path = ?", (normalized_path,)
                 ).fetchone()["id"]
-                conn.execute(
-                    "INSERT OR IGNORE INTO keyword_dirs VALUES (?, ?)",
-                    (kid, did)
-                )
+                conn.execute("INSERT OR IGNORE INTO keyword_dirs VALUES (?, ?)", (kid, did))
 
-    def bulk_insert(self, mapping: Dict[str, List[str]]) -> None:
+    def bulk_insert(self, mapping: dict[str, list[str]]) -> None:
         """
         Fast bulk load from existing dict.
 
@@ -152,10 +145,7 @@ class DomainMapDB:
             for kw, dirs in mapping.items():
                 if not dirs:
                     continue
-                conn.execute(
-                    "INSERT OR IGNORE INTO keywords(kw) VALUES (?)",
-                    (kw.lower(),)
-                )
+                conn.execute("INSERT OR IGNORE INTO keywords(kw) VALUES (?)", (kw.lower(),))
 
             for dirs in mapping.values():
                 if not dirs:
@@ -163,8 +153,7 @@ class DomainMapDB:
                 for d in dirs:
                     normalized_path = str(Path(d))
                     conn.execute(
-                        "INSERT OR IGNORE INTO directories(path) VALUES (?)",
-                        (normalized_path,)
+                        "INSERT OR IGNORE INTO directories(path) VALUES (?)", (normalized_path,)
                     )
 
             for kw, dirs in mapping.items():
@@ -185,12 +174,9 @@ class DomainMapDB:
                     if did_row is None:
                         continue
                     did = did_row["id"]
-                    conn.execute(
-                        "INSERT OR IGNORE INTO keyword_dirs VALUES (?, ?)",
-                        (kid, did)
-                    )
+                    conn.execute("INSERT OR IGNORE INTO keyword_dirs VALUES (?, ?)", (kid, did))
 
-    def get(self, keyword: str) -> List[str]:
+    def get(self, keyword: str) -> list[str]:
         """
         Get directories for a keyword.
 
@@ -203,16 +189,19 @@ class DomainMapDB:
             List of directory paths, empty list if not found
         """
         conn = self._get_conn()
-        rows = conn.execute("""
+        rows = conn.execute(
+            """
             SELECT d.path
             FROM directories d
             JOIN keyword_dirs kd ON d.id = kd.dir_id
             JOIN keywords k ON k.id = kd.keyword_id
             WHERE k.kw = ?
-        """, (keyword.lower(),)).fetchall()
+        """,
+            (keyword.lower(),),
+        ).fetchall()
         return [r["path"] for r in rows]
 
-    def directories_for(self, keyword: str) -> List[str]:
+    def directories_for(self, keyword: str) -> list[str]:
         """
         Get directories for a keyword (alias for get()).
 
@@ -226,7 +215,7 @@ class DomainMapDB:
         """
         return self.get(keyword)
 
-    def prefix_search(self, prefix: str) -> Dict[str, List[str]]:
+    def prefix_search(self, prefix: str) -> dict[str, list[str]]:
         """
         Find all keywords starting with prefix.
 
@@ -237,28 +226,31 @@ class DomainMapDB:
             Dict of keyword -> list of directories
         """
         conn = self._get_conn()
-        rows = conn.execute("""
+        rows = conn.execute(
+            """
             SELECT k.kw, d.path
             FROM keywords k
             JOIN keyword_dirs kd ON k.id = kd.keyword_id
             JOIN directories d ON d.id = kd.dir_id
             WHERE k.kw LIKE ?
             ORDER BY k.kw
-        """, (f"{prefix.lower()}%",)).fetchall()
+        """,
+            (f"{prefix.lower()}%",),
+        ).fetchall()
 
-        result: Dict[str, List[str]] = {}
+        result: dict[str, list[str]] = {}
         for row in rows:
             result.setdefault(row["kw"], []).append(row["path"])
         return result
 
     @property
-    def keywords(self) -> Set[str]:
+    def keywords(self) -> set[str]:
         """Return all keywords in the database."""
         conn = self._get_conn()
         rows = conn.execute("SELECT kw FROM keywords").fetchall()
         return {r["kw"] for r in rows}
 
-    def stats(self) -> Dict:
+    def stats(self) -> dict:
         """Return database statistics."""
         conn = self._get_conn()
         return {
@@ -303,10 +295,10 @@ class DomainMapDB:
                 pass
         self._conn = None
 
-    def __enter__(self) -> "DomainMapDB":
+    def __enter__(self) -> DomainMapDB:
         return self
 
-    def __exit__(self, *_args) -> None:
+    def __exit__(self, *_args: object) -> None:
         if self._conn:
             try:
                 self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
@@ -316,7 +308,7 @@ class DomainMapDB:
         self._conn = None
 
     @classmethod
-    def migrate_from_pickle(cls, pkl_path: str | Path, db_path: str | Path) -> "DomainMapDB":
+    def migrate_from_pickle(cls, pkl_path: str | Path, db_path: str | Path) -> DomainMapDB:
         """
         Migrate from pickle file to SQLite.
 
@@ -332,7 +324,7 @@ class DomainMapDB:
             raise FileNotFoundError(f"Pickle file not found: {pkl_path}")
 
         with open(pkl_path, "rb") as f:
-            old_map: Dict[str, List[str]] = pickle.load(f)
+            old_map: dict[str, list[str]] = pickle.load(f)
 
         db = cls(db_path)
         db.bulk_insert(old_map)
@@ -359,7 +351,7 @@ class DomainMapDB:
 
         try:
             with open(pkl_path, "rb") as f:
-                pickle_data: Dict[str, List[str]] = pickle.load(f)
+                pickle_data: dict[str, list[str]] = pickle.load(f)
         except Exception:
             return False
 
@@ -374,7 +366,7 @@ class DomainMapDB:
         for kw, pickle_dirs in pickle_data.items():
             sqlite_dirs = self.get(kw)
             sqlite_dirs_set = set(sqlite_dirs)
-            pickle_dirs_set = set(str(Path(d)) for d in pickle_dirs)
+            pickle_dirs_set = {str(Path(d)) for d in pickle_dirs}
             if sqlite_dirs_set != pickle_dirs_set:
                 return False
 
@@ -389,29 +381,69 @@ class DomainKeywordMap:
     Use DomainMapDB for production after Phase 3.
     """
 
-    NOISE_WORDS: Set[str] = {
-        "py", "js", "ts", "rs", "jsx", "tsx", "pyc", "pyd",
-        "src", "lib", "bin", "obj", "dist", "build", "out",
-        "test", "tests", "spec", "example", "examples",
-        "init", "main", "index", "conf", "config",
-        "utils", "helpers", "base", "common", "core",
-        "impl", "interface", "abstract",
-        "model", "models", "schema",
-        "controller", "service", "repository",
-        "view", "views", "template", "templates",
-        "static", "assets", "public",
-        "private", "protected", "internal", "external",
-        "default", "unknown",
+    NOISE_WORDS: set[str] = {
+        "py",
+        "js",
+        "ts",
+        "rs",
+        "jsx",
+        "tsx",
+        "pyc",
+        "pyd",
+        "src",
+        "lib",
+        "bin",
+        "obj",
+        "dist",
+        "build",
+        "out",
+        "test",
+        "tests",
+        "spec",
+        "example",
+        "examples",
+        "init",
+        "main",
+        "index",
+        "conf",
+        "config",
+        "utils",
+        "helpers",
+        "base",
+        "common",
+        "core",
+        "impl",
+        "interface",
+        "abstract",
+        "model",
+        "models",
+        "schema",
+        "controller",
+        "service",
+        "repository",
+        "view",
+        "views",
+        "template",
+        "templates",
+        "static",
+        "assets",
+        "public",
+        "private",
+        "protected",
+        "internal",
+        "external",
+        "default",
+        "unknown",
     }
 
-    def __init__(self):
-        self._keyword_to_dirs: Dict[str, Set[str]] = {}
+    def __init__(self) -> None:
+        self._keyword_to_dirs: dict[str, set[str]] = {}
 
-    def build(self, chunks: List) -> None:
+    def build(self, chunks: list) -> None:
         """Build keyword→directories map from chunks."""
         from ..models import CodeChunk
 
-        file_paths = set(chunk.path for chunk in chunks if isinstance(chunk, CodeChunk))
+        file_paths = {chunk.path for chunk in chunks if isinstance(chunk, CodeChunk)}
 
         for file_path in file_paths:
             self._add_file(file_path)
@@ -429,11 +461,11 @@ class DomainKeywordMap:
             for kw in keywords:
                 self._keyword_to_dirs.setdefault(kw, set()).add(parent)
 
-    def _extract_keywords_from_part(self, part: str) -> List[str]:
+    def _extract_keywords_from_part(self, part: str) -> list[str]:
         """Extract keywords from a path part."""
         import re
 
-        cleaned = re.sub(r'[-_\.]', ' ', part)
+        cleaned = re.sub(r"[-_\.]", " ", part)
         tokens = cleaned.split()
 
         keywords = []
@@ -445,11 +477,11 @@ class DomainKeywordMap:
         return keywords
 
     @property
-    def keywords(self) -> Set[str]:
+    def keywords(self) -> set[str]:
         """Return all registered keywords."""
         return set(self._keyword_to_dirs.keys())
 
-    def directories_for(self, keyword: str) -> List[str]:
+    def directories_for(self, keyword: str) -> list[str]:
         """Return list of directories associated with a keyword."""
         return list(self._keyword_to_dirs.get(keyword.lower(), set()))
 
@@ -468,15 +500,15 @@ class DomainKeywordMap:
 
     def save(self, path: str) -> None:
         """Save map to pickle file."""
-        with open(path, 'wb') as f:
+        with open(path, "wb") as f:
             pickle.dump(dict(self._keyword_to_dirs), f)
 
     @classmethod
-    def load(cls, path: str) -> "DomainKeywordMap":
+    def load(cls, path: str) -> DomainKeywordMap:
         """Load map from pickle file."""
         instance = cls()
         if Path(path).exists():
-            with open(path, 'rb') as f:
+            with open(path, "rb") as f:
                 data = pickle.load(f)
                 instance._keyword_to_dirs = {k: set(v) for k, v in data.items()}
         return instance

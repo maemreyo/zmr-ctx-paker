@@ -15,7 +15,7 @@ def test_workspace_path_guard_blocks_path_traversal() -> None:
 
         try:
             guard.resolve_relative("../../etc/passwd")
-            assert False, "Expected traversal to be blocked"
+            raise AssertionError("Expected traversal to be blocked")
         except PermissionError as exc:
             assert "ACCESS_DENIED" in str(exc)
 
@@ -27,7 +27,7 @@ def test_workspace_path_guard_blocks_absolute_outside_workspace() -> None:
 
         try:
             guard.resolve_relative(str(outside))
-            assert False, "Expected absolute outside path to be blocked"
+            raise AssertionError("Expected absolute outside path to be blocked")
         except PermissionError as exc:
             assert "ACCESS_DENIED" in str(exc)
 
@@ -123,7 +123,14 @@ def test_get_file_context_obeys_rate_limit() -> None:
         src_dir.mkdir(parents=True, exist_ok=True)
         (src_dir / "safe.py").write_text("def ok() -> int:\n    return 1\n", encoding="utf-8")
 
-        config = MCPConfig(rate_limits={"search_codebase": 60, "get_file_context": 1, "get_domain_map": 10, "get_index_status": 10})
+        config = MCPConfig(
+            rate_limits={
+                "search_codebase": 60,
+                "get_file_context": 1,
+                "get_domain_map": 10,
+                "get_index_status": 10,
+            }
+        )
         service = MCPToolService(workspace=str(repo), config=config)
 
         first = service.call_tool("get_file_context", {"path": "src/safe.py"})
@@ -135,7 +142,14 @@ def test_get_file_context_obeys_rate_limit() -> None:
 
 def test_get_domain_map_cache_bypasses_rate_limit_until_expired() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
-        config = MCPConfig(rate_limits={"search_codebase": 60, "get_file_context": 120, "get_domain_map": 1, "get_index_status": 10})
+        config = MCPConfig(
+            rate_limits={
+                "search_codebase": 60,
+                "get_file_context": 120,
+                "get_domain_map": 1,
+                "get_index_status": 10,
+            }
+        )
         service = MCPToolService(workspace=tmpdir, config=config)
 
         calls = {"count": 0}
@@ -162,7 +176,14 @@ def test_get_domain_map_cache_bypasses_rate_limit_until_expired() -> None:
 
 def test_get_index_status_error_is_not_cached() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
-        config = MCPConfig(rate_limits={"search_codebase": 60, "get_file_context": 120, "get_domain_map": 10, "get_index_status": 1})
+        config = MCPConfig(
+            rate_limits={
+                "search_codebase": 60,
+                "get_file_context": 120,
+                "get_domain_map": 10,
+                "get_index_status": 1,
+            }
+        )
         service = MCPToolService(workspace=tmpdir, config=config)
 
         service._get_index_status = lambda: {"error": "INDEX_NOT_FOUND", "message": "missing"}  # type: ignore[method-assign]
@@ -178,7 +199,12 @@ def test_tool_registry_exposes_expected_tools() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         service = MCPToolService(workspace=tmpdir, config=MCPConfig())
         names = {tool["name"] for tool in service.tool_schemas()}
-        assert names == {"search_codebase", "get_file_context", "get_domain_map", "get_index_status"}
+        assert names == {
+            "search_codebase",
+            "get_file_context",
+            "get_domain_map",
+            "get_index_status",
+        }
 
 
 def test_call_tool_rejects_unknown_tool() -> None:

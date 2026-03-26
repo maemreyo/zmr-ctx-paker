@@ -6,20 +6,20 @@ Provides functions for querying indexes and generating output in XML or ZIP form
 
 import os
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ..budget import BudgetManager
 from ..config import Config
 from ..domain_map import DomainMapDB
-from .indexer import load_indexes
 from ..logger import get_logger
 from ..monitoring import PerformanceTracker
 from ..output import JSONFormatter, MarkdownFormatter, TOONFormatter, YAMLFormatter
-from ..retrieval import RetrievalEngine
 from ..packer import XMLPacker, ZIPPacker
+from ..retrieval import RetrievalEngine
 from ..secret_scanner import SecretScanner
+from .indexer import load_indexes
 
 logger = get_logger()
 
@@ -39,7 +39,7 @@ def _build_index_health(repo_path: str, metadata: Any) -> dict[str, Any]:
                 status = "current"
         except Exception:
             status = "unknown"
-    
+
     return {
         "status": status,
         "stale_reason": stale_reason,
@@ -64,7 +64,7 @@ def _build_summary(repo_path: str, file_path: str) -> str:
         return ""
 
     try:
-        with open(full_path, "r", encoding="utf-8", errors="ignore") as f:
+        with open(full_path, encoding="utf-8", errors="ignore") as f:
             for raw_line in f:
                 line = raw_line.strip()
                 if not line or line.startswith("#") or line.startswith("//"):
@@ -77,13 +77,13 @@ def _build_summary(repo_path: str, file_path: str) -> str:
 
 
 def _utc_now() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def _read_file_content(repo_path: str, file_path: str) -> str:
     full_path = Path(repo_path) / file_path
     try:
-        with open(full_path, "r", encoding="utf-8", errors="ignore") as f:
+        with open(full_path, encoding="utf-8", errors="ignore") as f:
             return f.read()
     except Exception:
         return ""
@@ -105,7 +105,9 @@ def _graph_neighbors(graph: Any, file_path: str) -> tuple[list[str], list[str]]:
             if vertex is None:
                 return [], []
             deps = sorted(str(graph.vertex_to_file[v]) for v in graph_obj.successors(vertex))
-            dependents = sorted(str(graph.vertex_to_file[v]) for v in graph_obj.predecessors(vertex))
+            dependents = sorted(
+                str(graph.vertex_to_file[v]) for v in graph_obj.predecessors(vertex)
+            )
             return deps, dependents
     except Exception:
         return [], []
@@ -120,11 +122,15 @@ def _build_file_payload(
     domain: str,
     summary: str,
     graph: Any,
-    secret_scanner: Optional[SecretScanner],
+    secret_scanner: SecretScanner | None,
     secrets_scan: bool,
-    preloaded_content: Optional[str] = None,
+    preloaded_content: str | None = None,
 ) -> dict[str, Any]:
-    content = preloaded_content if preloaded_content is not None else _read_file_content(repo_path, file_path)
+    content: str | None = (
+        preloaded_content
+        if preloaded_content is not None
+        else _read_file_content(repo_path, file_path)
+    )
     scan_result = None
     if secrets_scan and secret_scanner is not None:
         scan_result = secret_scanner.scan(file_path)
@@ -152,9 +158,9 @@ def _build_file_payload(
 def search_codebase(
     repo_path: str,
     query: str,
-    config: Optional[Config] = None,
+    config: Config | None = None,
     limit: int = 10,
-    domain_filter: Optional[str] = None,
+    domain_filter: str | None = None,
     index_dir: str = ".ws-ctx-engine",
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     if not os.path.exists(repo_path):
@@ -182,6 +188,7 @@ def search_codebase(
         domain_map = DomainMapDB(str(domain_map_db_path))
     except Exception:
         from ..domain_map import DomainKeywordMap
+
         domain_map = DomainKeywordMap()
 
     retrieval_engine = RetrievalEngine(
@@ -202,12 +209,14 @@ def search_codebase(
         if normalized_domain_filter and inferred_domain != normalized_domain_filter:
             continue
 
-        results.append({
-            "path": file_path,
-            "score": round(float(score), 4),
-            "domain": inferred_domain,
-            "summary": _build_summary(repo_path, file_path),
-        })
+        results.append(
+            {
+                "path": file_path,
+                "score": round(float(score), 4),
+                "domain": inferred_domain,
+                "summary": _build_summary(repo_path, file_path),
+            }
+        )
 
         if len(results) >= limit:
             break
@@ -220,42 +229,42 @@ def search_codebase(
 
 def query_and_pack(
     repo_path: str,
-    query: Optional[str] = None,
-    changed_files: Optional[List[str]] = None,
-    config: Optional[Config] = None,
+    query: str | None = None,
+    changed_files: list[str] | None = None,
+    config: Config | None = None,
     index_dir: str = ".ws-ctx-engine",
     secrets_scan: bool = False,
     compress: bool = False,
     shuffle: bool = True,
-    agent_phase: Optional[str] = None,
-    session_id: Optional[str] = None,
+    agent_phase: str | None = None,
+    session_id: str | None = None,
 ) -> tuple[str, dict[str, Any]]:
     """
     Query indexes and generate output in configured format.
-    
+
     This function implements the query phase workflow:
     1. Load indexes with auto-detection
     2. Retrieve candidates with hybrid ranking
     3. Select files within budget
     4. Pack output in configured format (XML or ZIP)
-    
+
     Args:
         repo_path: Path to the repository root directory
         query: Optional natural language query for semantic search
         changed_files: Optional list of changed files for PageRank boosting
         config: Configuration instance (uses defaults if None)
         index_dir: Directory containing indexes (default: .ws-ctx-engine)
-    
+
     Returns:
         Tuple of (output_path, PerformanceTracker with query metrics)
-    
+
     Raises:
         FileNotFoundError: If indexes don't exist
         ValueError: If repo_path is invalid
         RuntimeError: If query phase fails
-    
+
     Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 5.1, 5.2, 5.3, 6.1, 7.1, 13.2, 13.3
-    
+
     Example:
         >>> output_path, tracker = query_and_pack(
         ...     repo_path="/path/to/repo",
@@ -267,26 +276,26 @@ def query_and_pack(
     """
     if not os.path.exists(repo_path):
         raise ValueError(f"Repository path does not exist: {repo_path}")
-    
+
     if not os.path.isdir(repo_path):
         raise ValueError(f"Repository path is not a directory: {repo_path}")
-    
+
     # Load configuration
     if config is None:
         config = Config.load()
-    
+
     # Initialize performance tracker
     tracker = PerformanceTracker()
     tracker.start_query()
-    
+
     logger.info(f"Starting query phase for repository: {repo_path}")
     start_time = time.time()
-    
+
     # Phase 1: Load indexes with auto-detection
     logger.info("Phase 1: Loading indexes")
     tracker.start_phase("index_loading")
     load_start = time.time()
-    
+
     try:
         vector_index, graph, metadata = load_indexes(
             repo_path=repo_path,
@@ -297,12 +306,12 @@ def query_and_pack(
         load_duration = time.time() - load_start
         tracker.end_phase("index_loading")
         tracker.track_memory()
-        
+
         logger.log_phase(
             phase="index_loading",
             duration=load_duration,
             backend=metadata.backend,
-            file_count=metadata.file_count
+            file_count=metadata.file_count,
         )
     except FileNotFoundError as e:
         logger.error(f"Indexes not found: {e}")
@@ -311,20 +320,22 @@ def query_and_pack(
     except Exception as e:
         logger.log_error(e, {"phase": "index_loading", "repo_path": repo_path})
         raise RuntimeError(f"Failed to load indexes: {e}") from e
-    
+
     # Phase 2: Retrieve candidates with hybrid ranking
     logger.info("Phase 2: Retrieving candidates with hybrid ranking")
     tracker.start_phase("retrieval")
     retrieval_start = time.time()
-    
+
     try:
         domain_map_db_path = Path(repo_path) / index_dir / "domain_map.db"
+        domain_map: Any
         try:
             domain_map = DomainMapDB(str(domain_map_db_path))
             logger.info(f"Domain map DB loaded: {domain_map.stats()['keywords']} keywords")
         except Exception as e:
             logger.warning(f"Could not load domain map DB: {e}. Using empty domain map.")
             from ..domain_map import DomainKeywordMap
+
             domain_map = DomainKeywordMap()
 
         retrieval_engine = RetrievalEngine(
@@ -345,7 +356,8 @@ def query_and_pack(
         # Apply phase-aware re-weighting if --mode is specified
         if agent_phase:
             try:
-                from ..ranking.phase_ranker import AgentPhase, apply_phase_weights, parse_phase
+                from ..ranking.phase_ranker import apply_phase_weights, parse_phase
+
                 phase = parse_phase(agent_phase)
                 if phase is not None:
                     ranked_files = apply_phase_weights(ranked_files, phase)
@@ -360,47 +372,44 @@ def query_and_pack(
             raise RuntimeError("No files retrieved from indexes")
 
         logger.log_phase(
-            phase="retrieval",
-            duration=retrieval_duration,
-            files_ranked=len(ranked_files)
+            phase="retrieval", duration=retrieval_duration, files_ranked=len(ranked_files)
         )
     except Exception as e:
         logger.log_error(e, {"phase": "retrieval", "repo_path": repo_path})
         raise RuntimeError(f"Failed to retrieve candidates: {e}") from e
-    
+
     # Phase 3: Select files within budget
     logger.info("Phase 3: Selecting files within token budget")
     tracker.start_phase("budget_selection")
     budget_start = time.time()
-    
+
     try:
         budget_manager = BudgetManager(token_budget=config.token_budget)
         selected_files, total_tokens = budget_manager.select_files(
-            ranked_files=ranked_files,
-            repo_path=repo_path
+            ranked_files=ranked_files, repo_path=repo_path
         )
         budget_duration = time.time() - budget_start
         tracker.end_phase("budget_selection")
         tracker.track_memory()
-        
+
         if not selected_files:
             raise RuntimeError("No files selected within budget")
-        
+
         # Track query metrics
         tracker.set_files_selected(len(selected_files))
         tracker.set_total_tokens(total_tokens)
-        
+
         logger.log_phase(
             phase="budget_selection",
             duration=budget_duration,
             files_selected=len(selected_files),
             total_tokens=total_tokens,
-            budget_used_pct=f"{(total_tokens / budget_manager.content_budget) * 100:.1f}%"
+            budget_used_pct=f"{(total_tokens / budget_manager.content_budget) * 100:.1f}%",
         )
     except Exception as e:
         logger.log_error(e, {"phase": "budget_selection", "repo_path": repo_path})
         raise RuntimeError(f"Failed to select files within budget: {e}") from e
-    
+
     # Phase 4: Pack output in configured format
     logger.info(f"Phase 4: Packing output in {config.format.upper()} format")
     tracker.start_phase("packing")
@@ -422,11 +431,14 @@ def query_and_pack(
         if session_id is not None:
             try:
                 from ..session.dedup_cache import SessionDeduplicationCache
+
                 dedup_cache = SessionDeduplicationCache(
                     session_id=session_id,
                     cache_dir=Path(repo_path) / index_dir,
                 )
-                logger.info(f"Session dedup cache loaded: {dedup_cache.size} entries (session={session_id})")
+                logger.info(
+                    f"Session dedup cache loaded: {dedup_cache.size} entries (session={session_id})"
+                )
             except Exception as exc:
                 logger.warning(f"Session dedup cache init failed (ignored): {exc}")
 
@@ -437,18 +449,20 @@ def query_and_pack(
         if shuffle and config.format == "xml":
             try:
                 from ..packer.xml_packer import shuffle_for_model_recall
+
                 effective_files = shuffle_for_model_recall(effective_files)
             except Exception as exc:
                 logger.warning(f"Context shuffle failed (ignored): {exc}")
 
         # Build content map: file_path → (possibly compressed / deduplicated) content
-        content_map: Dict[str, str] = {}
+        content_map: dict[str, str] = {}
         ranked_scores = dict(ranked_files)
 
         if compress or dedup_cache is not None:
             try:
                 if compress:
                     from ..output.compressor import apply_compression_to_selected_files
+
                     compressed_pairs = apply_compression_to_selected_files(
                         selected_files=effective_files,
                         ranked_scores=ranked_scores,
@@ -489,42 +503,44 @@ def query_and_pack(
 
         # Pack based on format
         if config.format == "xml":
-            packer = XMLPacker()
-            output_content = packer.pack(
+            xml_packer = XMLPacker()
+            xml_content: str = xml_packer.pack(
                 selected_files=effective_files,
                 repo_path=repo_path,
                 metadata=output_metadata,
                 secret_scanner=scanner,
                 content_map=content_map if content_map else None,
             )
+            output_content: str | bytes = xml_content
 
             output_path = output_dir / "repomix-output.xml"
-            with open(output_path, 'w', encoding='utf-8') as f:
-                f.write(output_content)
+            with open(output_path, "w", encoding="utf-8") as f:
+                f.write(xml_content)
 
         elif config.format == "zip":
-            packer = ZIPPacker()
+            zip_packer = ZIPPacker()
             importance_scores = dict(ranked_files)
-            output_content = packer.pack(
+            zip_content: bytes = zip_packer.pack(
                 selected_files=effective_files,
                 repo_path=repo_path,
                 metadata=output_metadata,
                 importance_scores=importance_scores,
                 secret_scanner=scanner,
             )
+            output_content = zip_content
 
             output_path = output_dir / "ws-ctx-engine.zip"
-            with open(output_path, 'wb') as f:
-                f.write(output_content)
+            with open(output_path, "wb") as f:
+                f.write(zip_content)
 
         elif config.format in {"json", "md", "yaml", "toon"}:
             ranked_lookup = dict(ranked_files)
             domain_map_db_path = Path(repo_path) / index_dir / "domain_map.db"
-            domain_map: Any
             try:
                 domain_map = DomainMapDB(str(domain_map_db_path))
             except Exception:
                 from ..domain_map import DomainKeywordMap
+
                 domain_map = DomainKeywordMap()
 
             files_payload = [
@@ -546,7 +562,9 @@ def query_and_pack(
                 domain_map.close()
 
             if config.format == "json":
-                formatter = JSONFormatter()
+                formatter: JSONFormatter | YAMLFormatter | TOONFormatter | MarkdownFormatter = (
+                    JSONFormatter()
+                )
                 output_content = formatter.render(output_metadata, files_payload)
                 output_path = output_dir / "ws-ctx-engine.json"
             elif config.format == "yaml":
@@ -562,33 +580,32 @@ def query_and_pack(
                 output_content = formatter.render(output_metadata, files_payload)
                 output_path = output_dir / "ws-ctx-engine.md"
 
-            with open(output_path, 'w', encoding='utf-8') as f:
+            with open(output_path, "w", encoding="utf-8") as f:
                 f.write(output_content)
 
         else:
             raise ValueError(f"Unsupported format: {config.format}")
-        
+
         pack_duration = time.time() - pack_start
         tracker.end_phase("packing")
-        
+
         logger.log_phase(
             phase="packing",
             duration=pack_duration,
             format=config.format,
-            output_path=str(output_path)
+            output_path=str(output_path),
         )
     except Exception as e:
         logger.log_error(e, {"phase": "packing", "repo_path": repo_path})
         raise RuntimeError(f"Failed to pack output: {e}") from e
-    
+
     # End query tracking
     tracker.end_query()
 
     # Log completion with metrics
     total_duration = time.time() - start_time
     logger.info(
-        f"Query phase complete | total_duration={total_duration:.2f}s | "
-        f"output={output_path}"
+        f"Query phase complete | total_duration={total_duration:.2f}s | " f"output={output_path}"
     )
     logger.info(f"\n{tracker.format_metrics('query')}")
 

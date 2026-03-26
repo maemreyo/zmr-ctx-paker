@@ -48,7 +48,9 @@ def test_init_cli_main_sets_executable_and_runs_script(monkeypatch) -> None:
 
 
 def test_init_cli_main_exits_with_subprocess_return_code(monkeypatch) -> None:
-    monkeypatch.setattr(init_cli.os.path, "abspath", lambda _: "/repo/src/ws_ctx_engine/init_cli.py")
+    monkeypatch.setattr(
+        init_cli.os.path, "abspath", lambda _: "/repo/src/ws_ctx_engine/init_cli.py"
+    )
     monkeypatch.setattr(init_cli.os.path, "dirname", lambda _: "/repo/src/ws_ctx_engine")
     monkeypatch.setattr(init_cli.os, "stat", lambda _: type("_S", (), {"st_mode": 0o755})())
     monkeypatch.setattr(init_cli.os, "chmod", lambda *_: None)

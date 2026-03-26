@@ -4,8 +4,6 @@ Backend selection with automatic fallback logic.
 Provides centralized backend selection for all components with graceful degradation.
 """
 
-from typing import Optional
-
 from ..config import Config
 from ..graph import RepoMapGraph, create_graph
 from ..logger import get_logger
@@ -24,23 +22,23 @@ class BackendSelector:
     - Level 5: NetworkX + FAISS + API embeddings
     - Level 6: File size ranking only (no graph)
     """
-    
-    def __init__(self, config: Optional[Config] = None):
+
+    def __init__(self, config: Config | None = None):
         """
         Initialize backend selector with configuration.
-        
+
         Args:
             config: Configuration instance (uses defaults if None)
         """
         self.config = config or Config()
         self.logger = get_logger()
-    
+
     def select_vector_index(
         self,
-        model_name: Optional[str] = None,
-        device: Optional[str] = None,
-        batch_size: Optional[int] = None,
-        index_path: Optional[str] = None
+        model_name: str | None = None,
+        device: str | None = None,
+        batch_size: int | None = None,
+        index_path: str | None = None,
     ) -> VectorIndex:
         """
         Select vector index backend with fallback chain.
@@ -75,56 +73,50 @@ class BackendSelector:
                 model_name=model_name,
                 device=device,
                 batch_size=batch_size,
-                index_path=index_path
+                index_path=index_path,
             )
         except RuntimeError as e:
             self.logger.error(f"All vector index backends failed: {e}")
             raise
-    
-    def select_graph(
-        self,
-        boost_factor: Optional[float] = None
-    ) -> RepoMapGraph:
+
+    def select_graph(self, boost_factor: float | None = None) -> RepoMapGraph:
         """
         Select graph backend with fallback chain.
-        
+
         Tries backends in order based on configuration:
         1. igraph (if configured or auto)
         2. NetworkX (if igraph fails or configured)
         3. File size ranking (minimal fallback if all fail)
-        
+
         Args:
             boost_factor: Factor to boost changed file scores (default: 2.0)
-        
+
         Returns:
             RepoMapGraph instance with selected backend
-        
+
         Raises:
             RuntimeError: If all backends fail
         """
         boost_factor = boost_factor or 2.0
         backend_config = self.config.backends["graph"]
-        
+
         # Use existing create_graph which already implements fallback
         try:
-            return create_graph(
-                backend=backend_config,
-                boost_factor=boost_factor
-            )
+            return create_graph(backend=backend_config, boost_factor=boost_factor)
         except RuntimeError as e:
             # All backends failed
             self.logger.error(f"All graph backends failed: {e}")
             raise
-    
+
     def select_embeddings_backend(self) -> str:
         """
         Select embeddings backend based on configuration.
-        
+
         Returns:
             Backend name: 'local', 'api', or 'auto'
         """
         return self.config.backends["embeddings"]
-    
+
     def get_fallback_level(self) -> int:
         """
         Determine current fallback level based on available backends.
@@ -173,7 +165,7 @@ class BackendSelector:
             3: "Acceptable (NetworkX + LEANNIndex + local embeddings)",
             4: "Degraded (NetworkX + FAISS + local embeddings)",
             5: "Minimal (NetworkX + FAISS + API embeddings)",
-            6: "Fallback only (file size ranking)"
+            6: "Fallback only (file size ranking)",
         }
 
         self.logger.info(
@@ -185,13 +177,13 @@ class BackendSelector:
         )
 
 
-def create_backend_selector(config: Optional[Config] = None) -> BackendSelector:
+def create_backend_selector(config: Config | None = None) -> BackendSelector:
     """
     Create a BackendSelector instance.
-    
+
     Args:
         config: Configuration instance (uses defaults if None)
-    
+
     Returns:
         BackendSelector instance
     """

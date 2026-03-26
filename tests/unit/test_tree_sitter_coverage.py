@@ -17,12 +17,12 @@ class TestTreeSitterImportCollection:
 
     def test_python_dotted_imports(self, temp_repo):
         """Test Python dotted imports like from collections import defaultdict."""
-        code = '''from collections import defaultdict
+        code = """from collections import defaultdict
 import os.path
 
 def hello():
     pass
-'''
+"""
         (temp_repo / "test.py").write_text(code)
 
         try:
@@ -38,16 +38,16 @@ def hello():
         for chunk in py_chunks:
             all_refs.extend(chunk.symbols_referenced)
 
-        assert 'defaultdict' in all_refs or 'collections' in all_refs or 'os' in all_refs
+        assert "defaultdict" in all_refs or "collections" in all_refs or "os" in all_refs
 
     def test_python_multiple_from_imports(self, temp_repo):
         """Test Python multiple imports from same module."""
-        code = '''from os.path import join, split
+        code = """from os.path import join, split
 from collections import Counter, OrderedDict
 
 def func():
     pass
-'''
+"""
         (temp_repo / "multi_import.py").write_text(code)
 
         try:
@@ -63,16 +63,16 @@ def func():
         for chunk in py_chunks:
             all_refs.extend(chunk.symbols_referenced)
 
-        assert 'join' in all_refs or 'split' in all_refs or 'Counter' in all_refs
+        assert "join" in all_refs or "split" in all_refs or "Counter" in all_refs
 
     def test_rust_use_with_braces(self, temp_repo):
         """Test Rust use declarations with braces."""
-        code = '''use std::collections::HashMap;
+        code = """use std::collections::HashMap;
 
 fn main() {
     println!("Hello");
 }
-'''
+"""
         (temp_repo / "use_braces.rs").write_text(code)
 
         try:
@@ -88,7 +88,7 @@ fn main() {
         for chunk in rs_chunks:
             all_refs.extend(chunk.symbols_referenced)
 
-        assert 'HashMap' in all_refs or 'std' in all_refs
+        assert "HashMap" in all_refs or "std" in all_refs
 
 
 class TestTreeSitterNonCodeExtensions:
@@ -117,7 +117,7 @@ class TestTreeSitterNonCodeExtensions:
 
     def test_yaml_file_not_parsed(self, temp_repo):
         """Test that YAML files are ignored."""
-        (temp_repo / "config.yaml").write_text('key: value')
+        (temp_repo / "config.yaml").write_text("key: value")
 
         try:
             from ws_ctx_engine.chunker import TreeSitterChunker
@@ -132,7 +132,7 @@ class TestTreeSitterNonCodeExtensions:
 
     def test_txt_file_not_parsed(self, temp_repo):
         """Test that TXT files are ignored."""
-        (temp_repo / "notes.txt").write_text('Some notes here.')
+        (temp_repo / "notes.txt").write_text("Some notes here.")
 
         try:
             from ws_ctx_engine.chunker import TreeSitterChunker
@@ -157,7 +157,7 @@ class TestTreeSitterReadError:
 
     def test_binary_file_handling(self, temp_repo):
         """Test handling of binary files."""
-        (temp_repo / "binary.bin").write_bytes(b'\x00\x01\x02\x03')
+        (temp_repo / "binary.bin").write_bytes(b"\x00\x01\x02\x03")
 
         try:
             from ws_ctx_engine.chunker import TreeSitterChunker
@@ -295,8 +295,8 @@ def second():
 
         py_chunks = [c for c in chunks if c.path.endswith("span.py")]
         for chunk in py_chunks:
-            lines = code.split('\n')
-            spanned = '\n'.join(lines[chunk.start_line - 1:chunk.end_line])
+            lines = code.split("\n")
+            spanned = "\n".join(lines[chunk.start_line - 1 : chunk.end_line])
             assert spanned.strip() in code or chunk.content.strip() in code
 
 
@@ -311,14 +311,14 @@ class TestTreeSitterResolverCoverage:
 
     def test_python_class_method(self, temp_repo):
         """Test extracting Python class methods."""
-        code = '''class MyClass:
+        code = """class MyClass:
     def method(self):
         pass
 
     @classmethod
     def class_method(cls):
         pass
-'''
+"""
         (temp_repo / "methods.py").write_text(code)
 
         try:
@@ -333,11 +333,11 @@ class TestTreeSitterResolverCoverage:
         symbols = []
         for chunk in py_chunks:
             symbols.extend(chunk.symbols_defined)
-        assert 'MyClass' in symbols
+        assert "MyClass" in symbols
 
     def test_javascript_method_definition(self, temp_repo):
         """Test extracting JavaScript method definitions."""
-        code = '''class Calculator {
+        code = """class Calculator {
     add(a, b) {
         return a + b;
     }
@@ -346,7 +346,7 @@ class TestTreeSitterResolverCoverage:
         return a * b;
     }
 }
-'''
+"""
         (temp_repo / "methods.js").write_text(code)
 
         try:
@@ -361,17 +361,17 @@ class TestTreeSitterResolverCoverage:
         symbols = []
         for chunk in js_chunks:
             symbols.extend(chunk.symbols_defined)
-        assert 'Calculator' in symbols
-        assert 'add' in symbols or 'multiply' in symbols
+        assert "Calculator" in symbols
+        assert "add" in symbols or "multiply" in symbols
 
     def test_typescript_method_definition(self, temp_repo):
         """Test extracting TypeScript method definitions."""
-        code = '''class Greeter {
+        code = """class Greeter {
     greet(name: string): string {
         return `Hello, ${name}`;
     }
 }
-'''
+"""
         (temp_repo / "methods.ts").write_text(code)
 
         try:
@@ -386,5 +386,5 @@ class TestTreeSitterResolverCoverage:
         symbols = []
         for chunk in ts_chunks:
             symbols.extend(chunk.symbols_defined)
-        assert 'Greeter' in symbols
-        assert 'greet' in symbols
+        assert "Greeter" in symbols
+        assert "greet" in symbols

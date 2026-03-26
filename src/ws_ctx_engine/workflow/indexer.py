@@ -10,7 +10,6 @@ import os
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
 
 from ..backend_selector import BackendSelector
 from ..chunker import parse_with_fallback
@@ -28,7 +27,7 @@ logger = get_logger()
 def _detect_incremental_changes(
     repo_path: str,
     index_path: Path,
-) -> tuple[bool, List[str], List[str]]:
+) -> tuple[bool, list[str], list[str]]:
     """
     Compare stored file hashes against current disk state.
 
@@ -51,8 +50,8 @@ def _detect_incremental_changes(
     if not stored_hashes:
         return False, [], []
 
-    changed: List[str] = []
-    deleted: List[str] = []
+    changed: list[str] = []
+    deleted: list[str] = []
 
     for rel_path, old_hash in stored_hashes.items():
         full_path = Path(repo_path) / rel_path
@@ -72,7 +71,7 @@ def _detect_incremental_changes(
 
 def index_repository(
     repo_path: str,
-    config: Optional[Config] = None,
+    config: Config | None = None,
     index_dir: str = ".ws-ctx-engine",
     domain_only: bool = False,
     incremental: bool = False,
@@ -133,8 +132,8 @@ def index_repository(
     parse_start = time.time()
 
     # Detect changed/deleted files when incremental=True
-    _changed_paths: List[str] = []
-    _deleted_paths: List[str] = []
+    _changed_paths: list[str] = []
+    _deleted_paths: list[str] = []
     _incremental_mode_active = False
 
     if incremental:
@@ -156,14 +155,14 @@ def index_repository(
         if not chunks:
             raise RuntimeError("No code chunks extracted from repository")
 
-        unique_files = len(set(chunk.path for chunk in chunks))
+        unique_files = len({chunk.path for chunk in chunks})
         tracker.set_files_processed(unique_files)
 
         logger.log_phase(
             phase="parsing",
             duration=parse_duration,
             chunks_extracted=len(chunks),
-            unique_files=unique_files
+            unique_files=unique_files,
         )
     except Exception as e:
         logger.log_error(e, {"phase": "parsing", "repo_path": repo_path})
@@ -185,13 +184,14 @@ def index_repository(
                 model_name=config.embeddings["model"],
                 device=config.embeddings["device"],
                 batch_size=config.embeddings["batch_size"],
-                index_path=str(index_path / "leann_index")
+                index_path=str(index_path / "leann_index"),
             )
 
             # Load and use embedding cache when available
             embedding_cache = None
             try:
                 from ..vector_index.embedding_cache import EmbeddingCache
+
                 embedding_cache = EmbeddingCache(cache_dir=index_path)
                 embedding_cache.load()
             except Exception:
@@ -203,7 +203,8 @@ def index_repository(
                 try:
                     vector_index_path = str(index_path / "vector.idx")
                     from ..vector_index.vector_index import FAISSIndex
-                    if hasattr(FAISSIndex, 'load') and Path(vector_index_path).exists():
+
+                    if hasattr(FAISSIndex, "load") and Path(vector_index_path).exists():
                         vector_index = FAISSIndex.load(vector_index_path)
                         vector_index.update_incremental(
                             deleted_paths=_deleted_paths + _changed_paths,
@@ -213,7 +214,9 @@ def index_repository(
                     else:
                         vector_index.build(chunks)
                 except Exception as inc_exc:
-                    logger.warning(f"Incremental update failed, falling back to full rebuild: {inc_exc}")
+                    logger.warning(
+                        f"Incremental update failed, falling back to full rebuild: {inc_exc}"
+                    )
                     vector_index.build(chunks)
             else:
                 vector_index.build(chunks)
@@ -231,7 +234,7 @@ def index_repository(
             logger.log_phase(
                 phase="vector_indexing",
                 duration=vector_duration,
-                backend=vector_index.__class__.__name__
+                backend=vector_index.__class__.__name__,
             )
         except Exception as e:
             logger.log_error(e, {"phase": "vector_indexing", "repo_path": repo_path})
@@ -259,9 +262,7 @@ def index_repository(
             graph.save(graph_path)
 
             logger.log_phase(
-                phase="graph_building",
-                duration=graph_duration,
-                backend=graph.__class__.__name__
+                phase="graph_building", duration=graph_duration, backend=graph.__class__.__name__
             )
         except Exception as e:
             logger.log_error(e, {"phase": "graph_building", "repo_path": repo_path})
@@ -284,33 +285,31 @@ def index_repository(
         metadata = IndexMetadata(
             created_at=datetime.now(),
             repo_path=os.path.abspath(repo_path),
-            file_count=len(set(chunk.path for chunk in chunks)),
+            file_count=len({chunk.path for chunk in chunks}),
             backend=backend_str,
-            file_hashes=file_hashes
+            file_hashes=file_hashes,
         )
 
         # Save metadata
         metadata_path = index_path / "metadata.json"
-        with open(metadata_path, 'w') as f:
+        with open(metadata_path, "w") as f:
             json.dump(
                 {
-                    'created_at': metadata.created_at.isoformat(),
-                    'repo_path': metadata.repo_path,
-                    'file_count': metadata.file_count,
-                    'backend': metadata.backend,
-                    'file_hashes': metadata.file_hashes
+                    "created_at": metadata.created_at.isoformat(),
+                    "repo_path": metadata.repo_path,
+                    "file_count": metadata.file_count,
+                    "backend": metadata.backend,
+                    "file_hashes": metadata.file_hashes,
                 },
                 f,
-                indent=2
+                indent=2,
             )
 
         metadata_duration = time.time() - metadata_start
         tracker.end_phase("metadata_saving")
 
         logger.log_phase(
-            phase="metadata_saving",
-            duration=metadata_duration,
-            files_hashed=len(file_hashes)
+            phase="metadata_saving", duration=metadata_duration, files_hashed=len(file_hashes)
         )
     except Exception as e:
         logger.log_error(e, {"phase": "metadata_saving", "repo_path": repo_path})
@@ -327,7 +326,7 @@ def index_repository(
 
         db_path = str(index_path / "domain_map.db")
         db = DomainMapDB(db_path)
-        mapping = dict(domain_map._keyword_to_dirs)
+        mapping = {k: list(v) for k, v in domain_map._keyword_to_dirs.items()}
         db.bulk_insert(mapping)
         db.close()
 
@@ -338,7 +337,7 @@ def index_repository(
             phase="domain_map_building",
             duration=domain_map_duration,
             keywords=len(domain_map.keywords),
-            db_keywords=len(mapping)
+            db_keywords=len(mapping),
         )
     except Exception as e:
         logger.log_error(e, {"phase": "domain_map_building", "repo_path": repo_path})
@@ -353,15 +352,14 @@ def index_repository(
     # Log completion with metrics
     total_duration = time.time() - start_time
     logger.info(
-        f"Index phase complete | total_duration={total_duration:.2f}s | "
-        f"index_dir={index_path}"
+        f"Index phase complete | total_duration={total_duration:.2f}s | " f"index_dir={index_path}"
     )
     logger.info(f"\n{tracker.format_metrics('indexing')}")
 
     return tracker
 
 
-def _compute_file_hashes(chunks: List[CodeChunk], repo_path: str) -> dict:
+def _compute_file_hashes(chunks: list[CodeChunk], repo_path: str) -> dict:
     """
     Compute SHA256 hashes for all files in chunks.
 
@@ -373,17 +371,17 @@ def _compute_file_hashes(chunks: List[CodeChunk], repo_path: str) -> dict:
         Dictionary mapping file paths to SHA256 hashes
     """
     file_hashes = {}
-    unique_files = set(chunk.path for chunk in chunks)
+    unique_files = {chunk.path for chunk in chunks}
 
     for file_path in unique_files:
         full_path = os.path.join(repo_path, file_path)
 
         try:
-            with open(full_path, 'rb') as f:
+            with open(full_path, "rb") as f:
                 content = f.read()
                 file_hash = hashlib.sha256(content).hexdigest()
                 file_hashes[file_path] = file_hash
-        except (IOError, OSError) as e:
+        except OSError as e:
             logger.warning(f"Failed to hash file {file_path}: {e}")
             # Use empty hash for files we can't read
             file_hashes[file_path] = ""
@@ -395,7 +393,7 @@ def load_indexes(
     repo_path: str,
     index_dir: str = ".ws-ctx-engine",
     auto_rebuild: bool = True,
-    config: Optional[Config] = None,
+    config: Config | None = None,
 ) -> tuple[VectorIndex, RepoMapGraph, IndexMetadata]:
     """
     Load indexes from disk with automatic staleness detection and rebuild.
@@ -432,15 +430,15 @@ def load_indexes(
 
     # Load metadata
     logger.info("Loading index metadata")
-    with open(metadata_path, 'r') as f:
+    with open(metadata_path) as f:
         metadata_dict = json.load(f)
 
     metadata = IndexMetadata(
-        created_at=datetime.fromisoformat(metadata_dict['created_at']),
-        repo_path=metadata_dict['repo_path'],
-        file_count=metadata_dict['file_count'],
-        backend=metadata_dict['backend'],
-        file_hashes=metadata_dict['file_hashes']
+        created_at=datetime.fromisoformat(metadata_dict["created_at"]),
+        repo_path=metadata_dict["repo_path"],
+        file_count=metadata_dict["file_count"],
+        backend=metadata_dict["backend"],
+        file_hashes=metadata_dict["file_hashes"],
     )
 
     # Check staleness
@@ -459,11 +457,13 @@ def load_indexes(
         # Load vector index with auto-detection
         logger.info(f"Loading vector index from {vector_index_path}")
         from ..vector_index import load_vector_index
+
         vector_index = load_vector_index(str(vector_index_path))
 
         # Load graph with auto-detection
         logger.info(f"Loading graph from {graph_path}")
         from ..graph import load_graph
+
         graph = load_graph(str(graph_path))
     except Exception as e:
         if auto_rebuild:

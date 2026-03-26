@@ -11,7 +11,9 @@ from ws_ctx_engine.mcp_server import run_mcp_server as run_mcp_server_wrapper
 def test_initialize_response_shape() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         server = MCPStdioServer(workspace=tmpdir)
-        response = server._handle_request({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}})
+        response = server._handle_request(
+            {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}
+        )
 
         assert response is not None
         assert response["jsonrpc"] == "2.0"
@@ -32,7 +34,9 @@ def test_tools_list_uses_service_schemas(monkeypatch) -> None:
         server = MCPStdioServer(workspace=tmpdir)
         monkeypatch.setattr(server._service, "tool_schemas", lambda: [{"name": "search_codebase"}])
 
-        response = server._handle_request({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}})
+        response = server._handle_request(
+            {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}
+        )
 
         assert response is not None
         assert response["result"]["tools"] == [{"name": "search_codebase"}]
@@ -41,7 +45,11 @@ def test_tools_list_uses_service_schemas(monkeypatch) -> None:
 def test_tools_call_returns_structured_content(monkeypatch) -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         server = MCPStdioServer(workspace=tmpdir)
-        monkeypatch.setattr(server._service, "call_tool", lambda name, args: {"ok": True, "tool": name, "args": args})
+        monkeypatch.setattr(
+            server._service,
+            "call_tool",
+            lambda name, args: {"ok": True, "tool": name, "args": args},
+        )
 
         response = server._handle_request(
             {
@@ -63,15 +71,21 @@ def test_invalid_method_and_params_return_errors() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         server = MCPStdioServer(workspace=tmpdir)
 
-        bad_method = server._handle_request({"jsonrpc": "2.0", "id": 4, "method": 123, "params": {}})
+        bad_method = server._handle_request(
+            {"jsonrpc": "2.0", "id": 4, "method": 123, "params": {}}
+        )
         assert bad_method is not None
         assert bad_method["error"]["code"] == -32600
 
-        bad_params = server._handle_request({"jsonrpc": "2.0", "id": 5, "method": "tools/list", "params": []})
+        bad_params = server._handle_request(
+            {"jsonrpc": "2.0", "id": 5, "method": "tools/list", "params": []}
+        )
         assert bad_params is not None
         assert bad_params["error"]["code"] == -32602
 
-        not_found = server._handle_request({"jsonrpc": "2.0", "id": 6, "method": "unknown", "params": {}})
+        not_found = server._handle_request(
+            {"jsonrpc": "2.0", "id": 6, "method": "unknown", "params": {}}
+        )
         assert not_found is not None
         assert not_found["error"]["code"] == -32601
 
@@ -132,7 +146,12 @@ def test_tools_call_rejects_missing_name_and_invalid_arguments_shape() -> None:
         assert missing_name["error"]["code"] == -32602
 
         invalid_args = server._handle_request(
-            {"jsonrpc": "2.0", "id": 8, "method": "tools/call", "params": {"name": "search_codebase", "arguments": []}}
+            {
+                "jsonrpc": "2.0",
+                "id": 8,
+                "method": "tools/call",
+                "params": {"name": "search_codebase", "arguments": []},
+            }
         )
         assert invalid_args is not None
         assert invalid_args["error"]["code"] == -32602
@@ -142,7 +161,7 @@ def test_run_loop_ignores_bad_json_and_writes_valid_response(monkeypatch) -> Non
     with tempfile.TemporaryDirectory() as tmpdir:
         server = MCPStdioServer(workspace=tmpdir)
 
-        fake_stdin = io.StringIO("\nnot-json\n{\"id\": 1, \"method\": \"initialize\", \"params\": {}}\n")
+        fake_stdin = io.StringIO('\nnot-json\n{"id": 1, "method": "initialize", "params": {}}\n')
         fake_stdout = io.StringIO()
 
         monkeypatch.setattr("sys.stdin", fake_stdin)
@@ -176,7 +195,9 @@ def test_mcp_server_wrapper_forwards_arguments(monkeypatch) -> None:
 
     monkeypatch.setattr("ws_ctx_engine.mcp_server._run_mcp_server", _fake_run_mcp_server)
 
-    run_mcp_server_wrapper(workspace="/tmp/work", config_path="/tmp/cfg.json", rate_limit={"search_codebase": 10})
+    run_mcp_server_wrapper(
+        workspace="/tmp/work", config_path="/tmp/cfg.json", rate_limit={"search_codebase": 10}
+    )
 
     assert captured == {
         "workspace": "/tmp/work",
@@ -188,7 +209,9 @@ def test_mcp_server_wrapper_forwards_arguments(monkeypatch) -> None:
 def test_handle_request_accepts_none_params_for_tools_list() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         server = MCPStdioServer(workspace=tmpdir)
-        response = server._handle_request({"jsonrpc": "2.0", "id": 9, "method": "tools/list", "params": None})
+        response = server._handle_request(
+            {"jsonrpc": "2.0", "id": 9, "method": "tools/list", "params": None}
+        )
 
     assert response is not None
     assert response["result"]["tools"]
@@ -198,7 +221,7 @@ def test_run_loop_skips_notification_with_no_response(monkeypatch) -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         server = MCPStdioServer(workspace=tmpdir)
 
-        fake_stdin = io.StringIO("{\"id\": 1, \"method\": \"initialized\", \"params\": {}}\n")
+        fake_stdin = io.StringIO('{"id": 1, "method": "initialized", "params": {}}\n')
         fake_stdout = io.StringIO()
 
         monkeypatch.setattr("sys.stdin", fake_stdin)
@@ -225,7 +248,9 @@ def test_run_mcp_server_constructs_server_and_calls_run(monkeypatch) -> None:
 
     monkeypatch.setattr(server_module, "MCPStdioServer", _FakeServer)
 
-    server_module.run_mcp_server(workspace="/tmp/ws", config_path="/tmp/cfg", rate_limit={"search_codebase": 1})
+    server_module.run_mcp_server(
+        workspace="/tmp/ws", config_path="/tmp/cfg", rate_limit={"search_codebase": 1}
+    )
 
     assert called["run"] == 1
 
@@ -233,7 +258,9 @@ def test_run_mcp_server_constructs_server_and_calls_run(monkeypatch) -> None:
 def test_tools_call_uses_default_empty_arguments_when_not_provided(monkeypatch) -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         server = MCPStdioServer(workspace=tmpdir)
-        monkeypatch.setattr(server._service, "call_tool", lambda name, args: {"name": name, "args": args})
+        monkeypatch.setattr(
+            server._service, "call_tool", lambda name, args: {"name": name, "args": args}
+        )
 
         response = server._handle_request(
             {

@@ -4,14 +4,19 @@ import importlib.metadata
 import json
 import sys
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from .config import MCPConfig
 from .tools import MCPToolService
 
 
 class MCPStdioServer:
-    def __init__(self, workspace: Optional[str] = None, config_path: Optional[str] = None, rate_limit: Optional[dict[str, int]] = None) -> None:
+    def __init__(
+        self,
+        workspace: str | None = None,
+        config_path: str | None = None,
+        rate_limit: dict[str, int] | None = None,
+    ) -> None:
         bootstrap_workspace = str(Path(workspace or ".").resolve())
         config = MCPConfig.load(
             workspace=bootstrap_workspace,
@@ -23,7 +28,9 @@ class MCPStdioServer:
         if workspace is None and config_path:
             workspace_base = str(Path(config_path).resolve().parent)
 
-        effective_workspace = config.resolve_workspace(runtime_workspace=workspace, bootstrap_workspace=workspace_base)
+        effective_workspace = config.resolve_workspace(
+            runtime_workspace=workspace, bootstrap_workspace=workspace_base
+        )
         effective_workspace_path = Path(effective_workspace)
         if not effective_workspace_path.exists() or not effective_workspace_path.is_dir():
             raise ValueError(f"Invalid workspace path: {effective_workspace}")
@@ -47,7 +54,7 @@ class MCPStdioServer:
             sys.stdout.write(json.dumps(response, ensure_ascii=False) + "\n")
             sys.stdout.flush()
 
-    def _handle_request(self, request: dict[str, Any]) -> Optional[dict[str, Any]]:
+    def _handle_request(self, request: dict[str, Any]) -> dict[str, Any] | None:
         req_id = request.get("id")
         method = request.get("method")
         params = request.get("params")
@@ -119,6 +126,10 @@ class MCPStdioServer:
             return "unknown"
 
 
-def run_mcp_server(workspace: Optional[str] = None, config_path: Optional[str] = None, rate_limit: Optional[dict[str, int]] = None) -> None:
+def run_mcp_server(
+    workspace: str | None = None,
+    config_path: str | None = None,
+    rate_limit: dict[str, int] | None = None,
+) -> None:
     server = MCPStdioServer(workspace=workspace, config_path=config_path, rate_limit=rate_limit)
     server.run()

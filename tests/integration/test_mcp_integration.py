@@ -148,10 +148,12 @@ def test_mcp_server_tools_call_integration(mcp_indexed_repo: Path) -> None:
     assert isinstance(structured["results"], list)
 
 
-def test_mcp_server_uses_workspace_from_config_when_runtime_missing(mcp_indexed_repo: Path, tmp_path: Path) -> None:
+def test_mcp_server_uses_workspace_from_config_when_runtime_missing(
+    mcp_indexed_repo: Path, tmp_path: Path
+) -> None:
     cfg_path = tmp_path / "mcp-config.json"
     cfg_path.write_text(
-        '{"workspace": "%s"}' % str(mcp_indexed_repo),
+        f'{{"workspace": "{mcp_indexed_repo!s}"}}',
         encoding="utf-8",
     )
 
@@ -175,13 +177,15 @@ def test_mcp_server_uses_workspace_from_config_when_runtime_missing(mcp_indexed_
     assert len(structured["results"]) > 0
 
 
-def test_mcp_server_runtime_workspace_precedence_over_config(mcp_indexed_repo: Path, tmp_path: Path) -> None:
+def test_mcp_server_runtime_workspace_precedence_over_config(
+    mcp_indexed_repo: Path, tmp_path: Path
+) -> None:
     empty_workspace = tmp_path / "empty-workspace"
     empty_workspace.mkdir(parents=True, exist_ok=True)
 
     cfg_path = tmp_path / "mcp-config.json"
     cfg_path.write_text(
-        '{"workspace": "%s"}' % str(mcp_indexed_repo),
+        f'{{"workspace": "{mcp_indexed_repo!s}"}}',
         encoding="utf-8",
     )
 

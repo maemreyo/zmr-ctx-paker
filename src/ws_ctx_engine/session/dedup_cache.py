@@ -30,7 +30,6 @@ import json
 import os
 import tempfile
 from pathlib import Path
-from typing import Dict, Tuple
 
 
 class SessionDeduplicationCache:
@@ -41,21 +40,19 @@ class SessionDeduplicationCache:
     between separate CLI invocations that share the same *session_id*.
     """
 
-    MARKER_TEMPLATE = (
-        "[DEDUPLICATED: {path} — already sent in this session. Hash: {short_hash}]"
-    )
+    MARKER_TEMPLATE = "[DEDUPLICATED: {path} — already sent in this session. Hash: {short_hash}]"
 
     def __init__(self, session_id: str, cache_dir: Path) -> None:
         self.session_id = session_id
         cache_dir.mkdir(parents=True, exist_ok=True)
         self.cache_file = cache_dir / f".ws-ctx-engine-session-{session_id}.json"
-        self.seen_hashes: Dict[str, str] = self._load()
+        self.seen_hashes: dict[str, str] = self._load()
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
-    def check_and_mark(self, file_path: str, content: str) -> Tuple[bool, str]:
+    def check_and_mark(self, file_path: str, content: str) -> tuple[bool, str]:
         """
         Check whether *file_path*'s content has already been sent this session.
 
@@ -96,9 +93,10 @@ class SessionDeduplicationCache:
     # Persistence helpers
     # ------------------------------------------------------------------
 
-    def _load(self) -> Dict[str, str]:
+    def _load(self) -> dict[str, str]:
         try:
-            return json.loads(self.cache_file.read_text(encoding="utf-8"))
+            result = json.loads(self.cache_file.read_text(encoding="utf-8"))
+            return dict(result) if isinstance(result, dict) else {}
         except (FileNotFoundError, json.JSONDecodeError, OSError):
             return {}
 
@@ -107,9 +105,7 @@ class SessionDeduplicationCache:
             payload = json.dumps(self.seen_hashes, ensure_ascii=False)
             # Atomic write: write to a sibling temp file, then rename to avoid
             # corruption when concurrent agent calls hit the cache simultaneously.
-            fd, tmp_path = tempfile.mkstemp(
-                dir=self.cache_file.parent, suffix=".tmp"
-            )
+            fd, tmp_path = tempfile.mkstemp(dir=self.cache_file.parent, suffix=".tmp")
             try:
                 with os.fdopen(fd, "w", encoding="utf-8") as f:
                     f.write(payload)

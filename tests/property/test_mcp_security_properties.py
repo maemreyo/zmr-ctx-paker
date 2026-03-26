@@ -6,24 +6,26 @@ import tempfile
 from pathlib import Path
 
 import pytest
-from hypothesis import given, strategies as st
+from hypothesis import given
+from hypothesis import strategies as st
 
 from ws_ctx_engine.mcp.security.path_guard import WorkspacePathGuard
 from ws_ctx_engine.mcp.security.rade_delimiter import RADESession
 
-
-_SEGMENT = st.sampled_from([
-    "..",
-    ".",
-    "src",
-    "auth",
-    "tmp",
-    "etc",
-    "passwd",
-    "nested",
-    "file.py",
-    "safe.txt",
-])
+_SEGMENT = st.sampled_from(
+    [
+        "..",
+        ".",
+        "src",
+        "auth",
+        "tmp",
+        "etc",
+        "passwd",
+        "nested",
+        "file.py",
+        "safe.txt",
+    ]
+)
 
 
 @given(parts=st.lists(_SEGMENT, min_size=1, max_size=8))
@@ -63,7 +65,10 @@ def test_rade_delimiter_uses_session_token_boundary(attacker_token: str) -> None
 
 
 def test_workspace_path_guard_blocks_symlink_escape() -> None:
-    with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as outside_dir:
+    with (
+        tempfile.TemporaryDirectory() as workspace_dir,
+        tempfile.TemporaryDirectory() as outside_dir,
+    ):
         root = Path(workspace_dir)
         outside = Path(outside_dir) / "outside_target_mcp_test.txt"
         outside.write_text("outside\n", encoding="utf-8")

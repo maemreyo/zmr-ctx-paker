@@ -18,25 +18,17 @@ logger.log_fallback(
     component="vector_index",
     primary="LEANN",
     fallback="FAISS",
-    reason="ImportError: No module named 'leann'"
+    reason="ImportError: No module named 'leann'",
 )
 
 # Log phase completion with metrics
-logger.log_phase(
-    phase="parsing",
-    duration=2.5,
-    files_processed=100,
-    chunks_created=500
-)
+logger.log_phase(phase="parsing", duration=2.5, files_processed=100, chunks_created=500)
 
 # Log error with context
 try:
     raise ValueError("Example error")
 except ValueError as e:
-    logger.log_error(
-        error=e,
-        context={"file_path": "example.py", "line_number": 42}
-    )
+    logger.log_error(error=e, context={"file_path": "example.py", "line_number": 42})
 
 print("\nLogs written to .ws-ctx-engine/logs/")
 print("Console shows INFO and above")

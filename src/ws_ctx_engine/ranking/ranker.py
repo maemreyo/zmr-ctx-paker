@@ -7,18 +7,19 @@ They should appear in every pack regardless of the user's query.
 """
 
 from pathlib import Path
-from typing import List, Optional
 
 # Canonical set of AI rule file names/paths that should always be included.
-AI_RULE_FILES: frozenset[str] = frozenset({
-    ".cursorrules",
-    "AI_RULES.md",
-    "llm.txt",
-    "AGENTS.md",
-    ".claude/instructions.md",
-    ".github/copilot-instructions.md",
-    "CLAUDE.md",
-})
+AI_RULE_FILES: frozenset[str] = frozenset(
+    {
+        ".cursorrules",
+        "AI_RULES.md",
+        "llm.txt",
+        "AGENTS.md",
+        ".claude/instructions.md",
+        ".github/copilot-instructions.md",
+        "CLAUDE.md",
+    }
+)
 
 # Score override — large enough to always outrank any relevance score.
 AI_RULE_BOOST: float = 10.0
@@ -27,7 +28,7 @@ AI_RULE_BOOST: float = 10.0
 def apply_ai_rule_boost(
     file_path: str,
     base_score: float,
-    extra_files: Optional[List[str]] = None,
+    extra_files: list[str] | None = None,
     boost: float = AI_RULE_BOOST,
 ) -> float:
     """
@@ -61,10 +62,10 @@ def apply_ai_rule_boost(
 
 
 def apply_ai_rule_boost_to_ranked(
-    ranked_files: List[tuple[str, float]],
-    extra_files: Optional[List[str]] = None,
+    ranked_files: list[tuple[str, float]],
+    extra_files: list[str] | None = None,
     boost: float = AI_RULE_BOOST,
-) -> List[tuple[str, float]]:
+) -> list[tuple[str, float]]:
     """
     Apply AI rule boost to a full ranked list and re-sort descending by score.
 
