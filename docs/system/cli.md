@@ -594,5 +594,8 @@ Suggestion: Run 'ws-ctx-engine index' first to build indexes
 
 - **[Workflow](workflow.md)**: Core functions called by CLI commands
 - **[Config](config.md)**: Configuration management
+- **[Output Formatters](output-formatters.md)**: Format options for `--format` flag; compression for `--compress`
+- **[Secret Scanner](secret-scanner.md)**: Backend for `--secrets-scan` flag
+- **[Ranking](ranking.md)**: AI rule boosting applied during pack
 - **[MCP](supporting-modules.md#mcp)**: Model Context Protocol server
-- **[Session](supporting-modules.md#session)**: Deduplication cache
+- **[Session](supporting-modules.md#session)**: Deduplication cache (`--session-id`, `--no-dedup`)

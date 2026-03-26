@@ -335,14 +335,14 @@ _STOP_WORDS = frozenset({
 
 ## Test File Patterns
 
-Regex patterns identifying test files:
+Regex patterns identifying test files (from `retrieval.py:_TEST_FILE_PATTERNS`):
 
-| Pattern      | Matches    |
-| ------------ | ---------- | ----------------------------- | ----- | ----------------- |
-| `(^          | /)tests?/` | `tests/`, `test/` directories |
-| `(^          | /)test\_`  | `test_*.py` files             |
-| `\_test\.(py | js         | ts                            | rs)$` | `*_test.py` files |
-| `\.spec\.(js | ts)$`      | `*.spec.js` files             |
+| Pattern (simplified) | Full Regex | Matches |
+| -------------------- | ---------- | ------- |
+| `tests?/` at path boundary | `(^|/)tests?/` | `tests/`, `test/` directories |
+| `test_` at path boundary | `(^|/)test_` | `test_*.py` style files |
+| `_test.EXT` at end | `_test\.(py|js|ts|rs)$` | `*_test.py` style files |
+| `.spec.EXT` at end | `\.spec\.(js|ts)$` | `*.spec.ts` style files |
 
 ## Code Examples
 
@@ -551,3 +551,4 @@ def _merge_scores(
 - [Chunker](./chunker.md) - Provides CodeChunks for indexing
 - [Vector Index](./vector-index.md) - Semantic search component
 - [Graph](./graph.md) - PageRank computation
+- [Ranking](./ranking.md) - AI rule boost applied after retrieval scores

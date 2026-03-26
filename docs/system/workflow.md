@@ -425,6 +425,10 @@ from ..vector_index import VectorIndex
 from ..budget import BudgetManager
 from ..retrieval import RetrievalEngine
 from ..packer import XMLPacker, ZIPPacker
+from ..output import JSONFormatter, YAMLFormatter, MarkdownFormatter, TOONFormatter
+from ..output.compressor import apply_compression_to_selected_files
+from ..ranking.ranker import apply_ai_rule_boost_to_ranked
+from ..secret_scanner import SecretScanner
 
 # Standard library
 import hashlib
@@ -477,6 +481,9 @@ performance:
 - **[Graph](graph.md)**: Dependency graph and PageRank
 - **[Retrieval](retrieval.md)**: Hybrid ranking algorithm
 - **[Budget](budget.md)**: Token-aware file selection
-- **[Packer](packer.md)**: Output generation
+- **[Packer](packer.md)**: Output generation (XML, ZIP)
+- **[Output Formatters](output-formatters.md)**: Alternative formats (JSON, YAML, Markdown, TOON) and smart compression
+- **[Ranking](ranking.md)**: AI rule file boosting applied after retrieval
+- **[Secret Scanner](secret-scanner.md)**: Credential detection and redaction
 - **[Config](config.md)**: Configuration management
 - **[CLI](cli.md)**: User-facing commands
