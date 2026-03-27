@@ -11,9 +11,19 @@
 - [packer.md](file://docs/reference/packer.md)
 - [ranking.md](file://docs/reference/ranking.md)
 - [logging.md](file://docs/guides/logging.md)
+- [cozo_store.py](file://src/ws_ctx_engine/graph/cozo_store.py)
+- [metrics.py](file://src/ws_ctx_engine/graph/metrics.py)
+- [tools.py](file://src/ws_ctx_engine/mcp/tools.py)
 - [__init__.py](file://src/ws_ctx_engine/workflow/__init__.py)
 - [__init__.py](file://src/ws_ctx_engine/packer/__init__.py)
 </cite>
+
+## Update Summary
+**Changes Made**
+- Added new `graph` sub-application with dedicated backup command
+- Enhanced `status` command with comprehensive graph store health reporting
+- Added graph store management capabilities with node counts, edge statistics, and health metrics
+- Updated configuration to support graph store settings and persistence options
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -30,8 +40,10 @@
 ## Introduction
 This document is the comprehensive CLI reference for ws-ctx-engine. It documents all commands, their parameters, options, and usage patterns. It explains output formats, token budget management, compression, shuffling, agent-phase modes, configuration integration, logging, and error handling. Practical workflows for code review, bug investigation, and documentation generation are included, along with troubleshooting and performance optimization guidance.
 
+**Updated** The CLI now includes a dedicated graph sub-application with backup functionality and enhanced status reporting with graph store health information, node counts, and edge statistics.
+
 ## Project Structure
-The CLI is implemented as a Typer application with subcommands for doctor, index, search, query, pack, status, vacuum, reindex-domain, init-config, mcp, and session management. The CLI delegates to workflow functions and integrates with configuration, packer, ranking, and logger modules.
+The CLI is implemented as a Typer application with subcommands for doctor, index, search, query, pack, status, vacuum, reindex-domain, init-config, mcp, session management, and the new graph sub-application. The CLI delegates to workflow functions and integrates with configuration, packer, ranking, logger, and graph store modules.
 
 ```mermaid
 graph TB
@@ -46,20 +58,27 @@ CLI --> ReindexDomain["reindex-domain"]
 CLI --> InitConfig["init-config"]
 CLI --> MCP["mcp"]
 CLI --> Session["session.clear"]
+CLI --> Graph["graph.backup"]
+Graph --> GraphStore["GraphStore (CozoDB)"]
 Index --> WFIndex["workflow.index_repository"]
 Search --> WFSearch["workflow.search_codebase"]
 Query --> WFQuery["workflow.query_and_pack"]
 Pack --> WFQuery2["workflow.query_and_pack"]
 Status --> Stats["index metadata reader"]
+Status --> GraphStats["Graph store health reporter"]
 Vacuum --> DB["DomainMapDB (SQLite)"]
 ReindexDomain --> WFIndex2["workflow.indexer (domain_only)"]
 InitConfig --> SmartCfg["_build_smart_config"]
 MCP --> MCPServer["mcp_server.run_mcp_server"]
 Session --> Dedup["session.dedup_cache.SessionDeduplicationCache"]
+GraphStore --> Metrics["GraphMetrics"]
+GraphStore --> Cozo["CozoDB Storage"]
 ```
 
 **Diagram sources**
-- [cli.py:329-1656](file://src/ws_ctx_engine/cli/cli.py#L329-L1656)
+- [cli.py:329-1792](file://src/ws_ctx_engine/cli/cli.py#L329-L1792)
+- [cozo_store.py:1-364](file://src/ws_ctx_engine/graph/cozo_store.py#L1-L364)
+- [metrics.py:1-33](file://src/ws_ctx_engine/graph/metrics.py#L1-L33)
 - [__init__.py:1-5](file://src/ws_ctx_engine/workflow/__init__.py#L1-L5)
 - [__init__.py:1-9](file://src/ws_ctx_engine/packer/__init__.py#L1-L9)
 
@@ -74,10 +93,15 @@ Session --> Dedup["session.dedup_cache.SessionDeduplicationCache"]
 - Ranking: AI rule boost and phase-aware adjustments.
 - Logger: Structured dual-output logging (console + file) with levels and metrics.
 - Session Dedup: Best-effort semantic deduplication cache for agent sessions.
+- Graph Store: Persistent graph storage with health monitoring and backup capabilities.
+
+**Updated** The graph store provides persistent storage for code relationships with health monitoring, metrics collection, and backup functionality.
 
 **Section sources**
 - [cli.py:22-36](file://src/ws_ctx_engine/cli/cli.py#L22-L36)
-- [config.py:16-111](file://src/ws_ctx_engine/config/config.py#L16-L111)
+- [config.py:16-111](file://src/ws_ctx_engine/config/config.py#L16-L119)
+- [cozo_store.py:1-364](file://src/ws_ctx_engine/graph/cozo_store.py#L1-L364)
+- [metrics.py:1-33](file://src/ws_ctx_engine/graph/metrics.py#L1-L33)
 - [__init__.py:1-5](file://src/ws_ctx_engine/workflow/__init__.py#L1-L5)
 - [packer.md:1-27](file://docs/reference/packer.md#L1-L27)
 - [ranking.md:1-16](file://docs/reference/ranking.md#L1-L16)
@@ -89,30 +113,36 @@ The CLI orchestrates three major phases:
 2. Retrieval: Searches indexes and ranks files.
 3. Packing: Selects files by token budget, optionally shuffles and compresses, and writes output.
 
+**Updated** The architecture now includes graph store management with backup capabilities and enhanced status reporting.
+
 ```mermaid
 sequenceDiagram
 participant U as "User"
 participant CLI as "CLI"
 participant CFG as "Config"
 participant WF as "Workflow"
+participant GS as "GraphStore"
 participant PK as "Packer"
-U->>CLI : "ws-ctx-engine pack <repo> -q <query>"
+U->>CLI : "ws-ctx-engine graph backup <dest>"
 CLI->>CFG : "_load_config()"
-CLI->>WF : "index_repository() if needed"
-CLI->>WF : "query_and_pack(query, config, compress, shuffle, agent_phase, session_id)"
-WF->>WF : "search_codebase() and ranking"
-WF->>WF : "BudgetManager.select_files()"
-WF->>PK : "pack(selected_files, metadata, secret_scanner?)"
-PK-->>CLI : "output_path, meta"
-CLI-->>U : "Success message and NDJSON (optional)"
+CLI->>GS : "Load graph store"
+GS->>GS : "Check health & stats"
+GS-->>CLI : "Node/edge counts, metrics"
+CLI->>CLI : "Backup to destination"
+CLI-->>U : "Success message with size"
+U->>CLI : "ws-ctx-engine status <repo>"
+CLI->>CFG : "_load_config()"
+CLI->>GS : "Load graph store"
+GS->>GS : "Collect stats"
+GS-->>CLI : "Health, node_count, edge_count"
+CLI-->>U : "Enhanced status report"
 ```
 
 **Diagram sources**
-- [cli.py:934-1195](file://src/ws_ctx_engine/cli/cli.py#L934-L1195)
-- [cli.py:778-931](file://src/ws_ctx_engine/cli/cli.py#L778-L931)
-- [cli.py:405-501](file://src/ws_ctx_engine/cli/cli.py#L405-L501)
-- [__init__.py:1-5](file://src/ws_ctx_engine/workflow/__init__.py#L1-L5)
-- [packer.md:107-147](file://docs/reference/packer.md#L107-L147)
+- [cli.py:1686-1735](file://src/ws_ctx_engine/cli/cli.py#L1686-L1735)
+- [cli.py:1210-1364](file://src/ws_ctx_engine/cli/cli.py#L1210-L1364)
+- [cozo_store.py:142-162](file://src/ws_ctx_engine/graph/cozo_store.py#L142-L162)
+- [metrics.py:26-33](file://src/ws_ctx_engine/graph/metrics.py#L26-L33)
 
 ## Detailed Command Reference
 
@@ -218,7 +248,7 @@ Options:
 - --stdout: Write output to stdout instead of file.
 - --copy: Copy output to clipboard after packing.
 - --compress: Apply smart compression.
-- --shuffle/--no-shuffle: Reorder files to combat “Lost in the Middle.”
+- --shuffle/--no-shuffle: Reorder files to combat "Lost in the Middle."
 - --mode discovery|edit|test: Adjust ranking weights for agent phases.
 - --session-id ID: Session identifier for semantic deduplication.
 - --no-dedup: Disable session-level semantic deduplication.
@@ -270,7 +300,7 @@ Practical examples:
 - [cli.md:210-256](file://docs/reference/cli.md#L210-L256)
 
 ### status
-Purpose: Show index status and statistics.
+Purpose: Show index status and statistics with enhanced graph store reporting.
 
 Usage:
 - ws-ctx-engine status <repo_path> [--config PATH | -c PATH] [--agent-mode]
@@ -278,11 +308,21 @@ Usage:
 Behavior:
 - Validates repo path and index presence.
 - Reads metadata.json and computes sizes.
+- **Updated** Displays comprehensive graph store health information including node counts, edge statistics, and schema version.
 - Prints human-friendly stats or emits NDJSON.
 
+**Updated** The status command now provides detailed graph store information:
+- Graph store availability and health status
+- Node count and edge count statistics
+- Schema version information
+- Query metrics (query_count, error_count, average latency)
+- Overall readiness indicators (vector + graph, vector only, or no)
+
 **Section sources**
-- [cli.py:1198-1328](file://src/ws_ctx_engine/cli/cli.py#L1198-L1328)
+- [cli.py:1210-1364](file://src/ws_ctx_engine/cli/cli.py#L1210-L1364)
 - [cli.md:260-298](file://docs/reference/cli.md#L260-L298)
+- [cozo_store.py:142-162](file://src/ws_ctx_engine/graph/cozo_store.py#L142-L162)
+- [metrics.py:26-33](file://src/ws_ctx_engine/graph/metrics.py#L26-L33)
 
 ### vacuum
 Purpose: Optimize SQLite database by running VACUUM.
@@ -294,7 +334,7 @@ Behavior:
 - Requires domain_map.db; runs VACUUM and reports new size.
 
 **Section sources**
-- [cli.py:1331-1393](file://src/ws_ctx_engine/cli/cli.py#L1331-L1393)
+- [cli.py:1375-1459](file://src/ws_ctx_engine/cli/cli.py#L1375-L1459)
 - [cli.md:301-326](file://docs/reference/cli.md#L301-L326)
 
 ### reindex-domain
@@ -307,7 +347,7 @@ Behavior:
 - Rebuilds domain_map.db without touching vector/graph indexes.
 
 **Section sources**
-- [cli.py:1396-1459](file://src/ws_ctx_engine/cli/cli.py#L1396-L1459)
+- [cli.py:1462-1525](file://src/ws_ctx_engine/cli/cli.py#L1462-L1525)
 - [cli.md:330-351](file://docs/reference/cli.md#L330-L351)
 
 ### init-config
@@ -321,7 +361,7 @@ Behavior:
 - Writes .ws-ctx-engine.yaml and updates .gitignore with ws-ctx-engine artifact patterns.
 
 **Section sources**
-- [cli.py:1462-1557](file://src/ws_ctx_engine/cli/cli.py#L1462-L1557)
+- [cli.py:1528-1600](file://src/ws_ctx_engine/cli/cli.py#L1528-L1600)
 - [cli.md:354-386](file://docs/reference/cli.md#L354-L386)
 
 ### mcp
@@ -348,8 +388,36 @@ Behavior:
 - Clears a specific session cache or all session caches in .ws-ctx-engine.
 
 **Section sources**
-- [cli.py:1610-1633](file://src/ws_ctx_engine/cli/cli.py#L1610-L1633)
+- [cli.py:1746-1769](file://src/ws_ctx_engine/cli/cli.py#L1746-L1769)
 - [cli.md:418-446](file://docs/reference/cli.md#L418-L446)
+
+### graph backup
+Purpose: Back up the graph store to a destination directory.
+
+Usage:
+- ws-ctx-engine graph backup <dest> [--workspace PATH | -w PATH]
+
+Arguments:
+- dest: Destination directory for the backup.
+
+Options:
+- --workspace PATH, -w PATH: Workspace path (defaults to current directory).
+
+Behavior:
+- **New** Validates graph store configuration and health.
+- **New** Supports RocksDB and SQLite persistent storage backends.
+- **New** Provides graceful error handling for missing sources, existing destinations, and memory stores.
+- **New** Copies graph store data and reports backup size.
+
+**Updated** The graph backup command provides:
+- Memory store detection and appropriate error messages
+- Source path validation and workspace resolution
+- Destination existence checking
+- Robust error handling with clear failure messages
+- Backup size reporting in kilobytes
+
+**Section sources**
+- [cli.py:1686-1735](file://src/ws_ctx_engine/cli/cli.py#L1686-L1735)
 
 ## Dependency Analysis
 Runtime dependency preflight resolves backends and validates environment requirements. It supports auto-selection among available modules and reports warnings/errors.
@@ -374,6 +442,14 @@ IGraph --> |Yes| IGraphDep["python-igraph required"]
 IGraph --> |No| NX{"networkx?"}
 NX --> |Yes| NXDep["networkx required"]
 NX --> |No| AutoGr["auto: choose igraph or networkx if available"]
+Start --> CheckGraphStore["Check graph store settings"]
+CheckGraphStore --> RocksDB{"rocksdb?"}
+RocksDB --> |Yes| RocksDep["pycozo required"]
+RocksDB --> |No| SQLite{"sqlite?"}
+SQLite --> |Yes| SQLiteDep["pycozo required"]
+SQLite --> |No| Mem{"mem?"}
+Mem --> |Yes| NoDep["No external deps"]
+Start --> CheckGraphStore
 ST --> ResolveEmb["Resolve embeddings backend"]
 OA --> ResolveEmb
 AutoEmb --> ResolveEmb
@@ -392,14 +468,13 @@ AutoGr --> Done(["Proceed"])
 - [cli.py:256-326](file://src/ws_ctx_engine/cli/cli.py#L256-L326)
 
 ## Performance Considerations
-- Token budget: Tune token_budget to match your LLM’s context window. The Budget module reserves ~80% for content and 20% for metadata/manifest.
+- Token budget: Tune token_budget to match your LLM's context window. The Budget module reserves ~80% for content and 20% for metadata/manifest.
 - Compression: Use --compress to reduce output size by retaining full content for high-relevance files and signatures for others.
 - Shuffling: Enable --shuffle to improve recall by placing top-ranked files at both ends of the context window.
 - Incremental indexing: Use --incremental to re-index only changed files after initial index.
 - Backend selection: Auto-resolution chooses the fastest available backends; install recommended packages for optimal performance.
 - Verbosity: Use --verbose to capture timing metrics for profiling.
-
-[No sources needed since this section provides general guidance]
+- **Updated** Graph store performance: Monitor node_count and edge_count in status output to gauge graph complexity. Use --verbose for detailed timing metrics.
 
 ## Troubleshooting Guide
 Common issues and resolutions:
@@ -409,6 +484,7 @@ Common issues and resolutions:
 - Dependency errors: Run ws-ctx-engine doctor to check required packages; install recommended extras.
 - Permission errors: Ensure write permissions to .ws-ctx-engine and output directories.
 - Clipboard issues: Some systems lack clipboard tools; the CLI warns and continues.
+- **Updated** Graph store backup failures: Check that graph_store_storage is not "mem" and that source path exists. Ensure destination directory does not already exist.
 
 Logging:
 - Dual output: Console shows INFO and above; file captures DEBUG and above with structured timestamps.
@@ -420,12 +496,11 @@ Logging:
 - [cli.py:632-643](file://src/ws_ctx_engine/cli/cli.py#L632-L643)
 - [cli.py:810-822](file://src/ws_ctx_engine/cli/cli.py#L810-L822)
 - [cli.py:1052-1064](file://src/ws_ctx_engine/cli/cli.py#L1052-L1064)
+- [cli.py:1714-1735](file://src/ws_ctx_engine/cli/cli.py#L1714-L1735)
 - [logging.md:81-100](file://docs/guides/logging.md#L81-L100)
 
 ## Conclusion
-The ws-ctx-engine CLI provides a complete toolkit for indexing, searching, and packaging repository context for LLMs. With flexible output formats, token-aware budgeting, compression, shuffling, and agent-phase modes, it supports diverse workflows from code review to documentation generation. Use configuration files, logging, and the dependency doctor to tailor performance and reliability to your environment.
-
-[No sources needed since this section summarizes without analyzing specific files]
+The ws-ctx-engine CLI provides a complete toolkit for indexing, searching, and packaging repository context for LLMs. With flexible output formats, token-aware budgeting, compression, shuffling, and agent-phase modes, it supports diverse workflows from code review to documentation generation. **Updated** The new graph sub-application enhances operational capabilities with backup functionality and comprehensive status reporting. Use configuration files, logging, and the dependency doctor to tailor performance and reliability to your environment.
 
 ## Appendices
 
@@ -461,4 +536,28 @@ The ws-ctx-engine CLI provides a complete toolkit for indexing, searching, and p
 - [cli.py:854-859](file://src/ws_ctx_engine/cli/cli.py#L854-L859)
 - [cli.py:1096-1101](file://src/ws_ctx_engine/cli/cli.py#L1096-L1101)
 - [cli.py:677-680](file://src/ws_ctx_engine/cli/cli.py#L677-L680)
-- [cli.py:1616-1620](file://src/ws_ctx_engine/cli/cli.py#L1616-L1620)
+- [cli.py:1752-1756](file://src/ws_ctx_engine/cli/cli.py#L1752-L1756)
+
+### Graph Store Configuration
+**New** The graph store provides persistent storage for code relationships with the following configuration options:
+
+- graph_store_enabled: Enable/disable graph store functionality
+- graph_store_storage: Storage backend ("mem", "rocksdb", or "sqlite")
+- graph_store_path: Path to graph store data directory
+
+**Section sources**
+- [config.py:115-119](file://src/ws_ctx_engine/config/config.py#L115-L119)
+- [cozo_store.py:41-56](file://src/ws_ctx_engine/graph/cozo_store.py#L41-L56)
+
+### Graph Store Health Monitoring
+**New** The graph store includes comprehensive health monitoring and metrics:
+
+- Node count and edge count statistics
+- Schema version tracking
+- Query metrics (query_count, error_count, average latency)
+- Health status reporting
+- Graceful degradation when unhealthy
+
+**Section sources**
+- [cozo_store.py:142-162](file://src/ws_ctx_engine/graph/cozo_store.py#L142-L162)
+- [metrics.py:8-33](file://src/ws_ctx_engine/graph/metrics.py#L8-L33)

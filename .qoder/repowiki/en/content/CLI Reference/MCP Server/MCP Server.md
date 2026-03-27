@@ -5,10 +5,10 @@
 - [mcp_server.py](file://src/ws_ctx_engine/mcp_server.py)
 - [server.py](file://src/ws_ctx_engine/mcp/server.py)
 - [tools.py](file://src/ws_ctx_engine/mcp/tools.py)
+- [graph_tools.py](file://src/ws_ctx_engine/mcp/graph_tools.py)
 - [config.py](file://src/ws_ctx_engine/mcp/config.py)
 - [path_guard.py](file://src/ws_ctx_engine/mcp/security/path_guard.py)
 - [rate_limiter.py](file://src/ws_ctx_engine/mcp/security/rate_limiter.py)
-- [rade_delimiter.py](file://src/ws_ctx_engine/mcp/security/rade_delimiter.py)
 - [model_registry.py](file://src/ws_ctx_engine/vector_index/model_registry.py)
 - [cli.py](file://src/ws_ctx_engine/cli/cli.py)
 - [mcp-server.md](file://docs/integrations/mcp-server.md)
@@ -32,6 +32,8 @@
 - Integrated comprehensive error handling with fallback strategies and graceful degradation
 - Updated performance optimization framework with ONNX backend support and memory management
 - Improved server lifecycle with background initialization and resource management
+- Added new graph tools integration with find_callers, impact_analysis, graph_search, and call_chain
+- Enhanced tool definitions with get_status for comprehensive server readiness monitoring
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -51,7 +53,7 @@
 ## Introduction
 This document explains the Model Context Protocol (MCP) server functionality in the repository. It covers the mcp command, workspace binding, configuration and rate limiting, MCP protocol integration, tool definitions, security controls, server lifecycle, error handling, debugging techniques, comprehensive testing infrastructure, development configuration, performance optimization strategies, and best practices for agent integration and production deployments.
 
-**Updated** The MCP server now features enhanced performance with background model pre-warming, persistent connections, thread-safe concurrent access handling, and comprehensive error handling with fallback strategies.
+**Updated** The MCP server now features enhanced performance with background model pre-warming, persistent connections, thread-safe concurrent access handling, and comprehensive error handling with fallback strategies. New graph tools integration provides advanced code analysis capabilities including call chain tracing and impact analysis.
 
 ## Project Structure
 The MCP server is implemented as a thin stdio-based MCP server that integrates with the broader codebase's indexing, retrieval, and packaging workflows. The CLI exposes the mcp command, which delegates to a dedicated MCP server module. The server composes a configuration loader, a tool service, and security helpers. A comprehensive testing infrastructure provides automated compliance and performance validation.
@@ -70,8 +72,10 @@ end
 subgraph "Security & Utilities"
 PATHG["mcp/security/path_guard.py<br/>WorkspacePathGuard"]
 RL["mcp/security/rate_limiter.py<br/>RateLimiter"]
-RADE["mcp/security/rade_delimiter.py<br/>RADESession"]
 MR["vector_index/model_registry.py<br/>ModelRegistry"]
+end
+subgraph "Graph Tools"
+GT["mcp/graph_tools.py<br/>Graph Tool Handlers"]
 end
 subgraph "Testing Infrastructure"
 COMP["mcp_comprehensive_test.py<br/>Comprehensive Test Suite"]
@@ -87,8 +91,8 @@ SRV --> CFG
 SRV --> SVC
 SVC --> PATHG
 SVC --> RL
-SVC --> RADE
 SVC --> MR
+SVC --> GT
 COMP --> RESULTS
 STRESS --> RESULTS
 WINDSURF --> CLI
@@ -102,8 +106,8 @@ WINDSURF --> CLI
 - [tools.py:30-765](file://src/ws_ctx_engine/mcp/tools.py#L30-L765)
 - [path_guard.py:6-31](file://src/ws_ctx_engine/mcp/security/path_guard.py#L6-L31)
 - [rate_limiter.py:14-45](file://src/ws_ctx_engine/mcp/security/rate_limiter.py#L14-L45)
-- [rade_delimiter.py:6-23](file://src/ws_ctx_engine/mcp/security/rade_delimiter.py#L6-L23)
 - [model_registry.py:84-207](file://src/ws_ctx_engine/vector_index/model_registry.py#L84-L207)
+- [graph_tools.py:1-103](file://src/ws_ctx_engine/mcp/graph_tools.py#L1-L103)
 - [mcp_comprehensive_test.py:1-948](file://scripts/mcp/mcp_comprehensive_test.py#L1-L948)
 - [mcp_stress_test.py:1-378](file://scripts/mcp/mcp_stress_test.py#L1-L378)
 - [mcp_config.json:1-9](file://.windsurf/mcp_config.json#L1-L9)
@@ -116,13 +120,14 @@ WINDSURF --> CLI
 - MCPStdioServer: Reads JSON-RPC requests from stdin, dispatches to handlers, writes JSON-RPC responses to stdout, and manages background model pre-warming.
 - MCPToolService: Implements MCP tools with thread-safe concurrent access, persistent index caching, and comprehensive error handling with fallback strategies.
 - MCPConfig: Loads and validates MCP configuration (rate limits, cache TTL, workspace), supports overrides, and resolves the effective workspace.
-- Security helpers: WorkspacePathGuard prevents path traversal; RateLimiter implements token-bucket rate limiting; RADESession wraps file content with safe delimiters.
+- Security helpers: WorkspacePathGuard prevents path traversal; RateLimiter implements token-bucket rate limiting.
 - ModelRegistry: Thread-safe singleton registry for embedding models with ONNX backend support and memory management.
+- Graph tools: New graph analysis tools including find_callers, impact_analysis, graph_search, and call_chain for advanced code navigation.
 
 Key capabilities:
 - Protocol: JSON-RPC 2.0 over stdio, with initialize and tools/* methods.
-- Tools: search_codebase, get_file_context, get_domain_map, get_index_status/index_status, pack_context, session_clear.
-- Security: read-only, path guard, secret scanning, content wrapping, per-tool rate limiting, caching.
+- Tools: search_codebase, get_file_context, get_domain_map, get_index_status/index_status, get_status, pack_context, session_clear, find_callers, impact_analysis, graph_search, call_chain.
+- Security: read-only, path guard, secret scanning, per-tool rate limiting, caching.
 - Performance: Background model pre-warming, persistent connections, thread-safe concurrent access, ONNX backend acceleration.
 - Testing: Comprehensive compliance suite, stress testing, performance benchmarking.
 - Development: Automated integration with development tools like Windsurf.
@@ -133,8 +138,8 @@ Key capabilities:
 - [config.py:22-129](file://src/ws_ctx_engine/mcp/config.py#L22-L129)
 - [path_guard.py:6-31](file://src/ws_ctx_engine/mcp/security/path_guard.py#L6-L31)
 - [rate_limiter.py:14-45](file://src/ws_ctx_engine/mcp/security/rate_limiter.py#L14-L45)
-- [rade_delimiter.py:6-23](file://src/ws_ctx_engine/mcp/security/rade_delimiter.py#L6-L23)
 - [model_registry.py:84-207](file://src/ws_ctx_engine/vector_index/model_registry.py#L84-L207)
+- [graph_tools.py:1-103](file://src/ws_ctx_engine/mcp/graph_tools.py#L1-L103)
 
 ## Architecture Overview
 The MCP server runs as a long-lived process that reads requests from stdin and writes responses to stdout. It initializes configuration, binds to a single workspace, and exposes a curated set of read-only tools. The architecture supports comprehensive testing and development workflows with enhanced performance through background model pre-warming and thread-safe concurrent access.
@@ -146,6 +151,7 @@ participant Stdin as "stdin"
 participant Server as "MCPStdioServer"
 participant Service as "MCPToolService"
 participant Registry as "ModelRegistry"
+participant Graph as "Graph Store"
 participant Sec as "Security Helpers"
 participant Test as "Test Infrastructure"
 Agent->>Stdin : "JSON-RPC request"
@@ -162,6 +168,7 @@ else "tools/call"
 Server->>Service : "call_tool(name, arguments)"
 Service->>Sec : "validate inputs, path guard, rate limit"
 Service->>Service : "thread-safe concurrent access"
+Service->>Graph : "graph operations (if needed)"
 Service-->>Server : "structuredContent payload"
 Server-->>Agent : "{jsonrpc,id,result{structuredContent,...}}"
 else "test/validation"
@@ -256,13 +263,19 @@ Available tools:
 - get_file_context: Returns file content with dependency/dependent lists; redacts secrets and wraps content safely; guarded by path guard and secret scanner.
 - get_domain_map: Returns top architecture domains inferred from the domain map index; cached with TTL.
 - get_index_status/index_status: Returns index health and recommendation; alias shares canonical name for rate limiting; cached with TTL.
+- get_status: Returns comprehensive server readiness status including index state, graph store health, and overall system status.
 - pack_context: Executes query-and-pack with format, token budget, and agent phase; returns output path and metrics.
 - session_clear: Clears session deduplication cache files; validates session_id allowlist.
+- find_callers: Finds all functions and files that call a given function (graph tool).
+- impact_analysis: Returns files that would be affected if a given file is modified (graph tool).
+- graph_search: Lists all symbols defined in a given file (graph tool).
+- call_chain: Traces call path between two functions via BFS (graph tool).
 
 Inputs and validations:
 - Each tool validates required and typed inputs; returns INVALID_ARGUMENT with message on violations.
 - get_file_context validates booleans and path existence; blocks traversal and symlink escapes.
 - pack_context validates format, token budget, and agent phase.
+- Graph tools validate required parameters and check graph store availability.
 
 Outputs:
 - tools/call returns structuredContent payload; server wraps it in a JSON-RPC result with text content for compatibility.
@@ -270,6 +283,7 @@ Outputs:
 **Section sources**
 - [tools.py:51-139](file://src/ws_ctx_engine/mcp/tools.py#L51-L139)
 - [tools.py:197-765](file://src/ws_ctx_engine/mcp/tools.py#L197-L765)
+- [graph_tools.py:28-103](file://src/ws_ctx_engine/mcp/graph_tools.py#L28-L103)
 - [test_mcp_tools.py:198-211](file://tests/unit/test_mcp_tools.py#L198-L211)
 - [test_mcp_tools.py:220-244](file://tests/unit/test_mcp_tools.py#L220-L244)
 - [test_mcp_tools.py:246-277](file://tests/unit/test_mcp_tools.py#L246-L277)
@@ -279,7 +293,6 @@ Outputs:
 ### Security Controls
 - WorkspacePathGuard: Ensures all requested paths resolve within the bound workspace; raises on traversal attempts.
 - Secret scanning: Detects sensitive content; omits content and returns sanitized error when secrets are found.
-- Content wrapping: RADESession wraps file content with unique delimiters to mark boundaries.
 - Rate limiting: Token-bucket limiter per tool; alias tools share buckets with canonical names.
 - Caching: TTL-based cache for domain map and index status; excludes error results.
 
@@ -292,28 +305,23 @@ class WorkspacePathGuard {
 class RateLimiter {
 +allow(key) (bool, int)
 }
-class RADESession {
-+markers_for(path) (str,str)
-+wrap(path, content) dict
-}
 class MCPToolService {
 -_path_guard : WorkspacePathGuard
 -_rate_limiter : RateLimiter
 -_scanner
--_rade : RADESession
 +_index_cache : tuple
 +_index_lock : Lock
++_graph_store_cache : Any
++_graph_store_loaded : bool
 +call_tool(name, args) dict
 }
 MCPToolService --> WorkspacePathGuard : "uses"
 MCPToolService --> RateLimiter : "uses"
-MCPToolService --> RADESession : "uses"
 ```
 
 **Diagram sources**
 - [path_guard.py:6-31](file://src/ws_ctx_engine/mcp/security/path_guard.py#L6-L31)
 - [rate_limiter.py:14-45](file://src/ws_ctx_engine/mcp/security/rate_limiter.py#L14-L45)
-- [rade_delimiter.py:6-23](file://src/ws_ctx_engine/mcp/security/rade_delimiter.py#L6-L23)
 - [tools.py:30-765](file://src/ws_ctx_engine/mcp/tools.py#L30-L765)
 
 **Section sources**
@@ -387,10 +395,21 @@ Enhanced error handling with fallback strategies:
 - **Memory Guards**: Prevents model loading when insufficient RAM available
 - **Environment Variable Controls**: WSCTX_DISABLE_MODEL_PRELOAD for testing
 
+#### New Graph Tools Integration
+The MCP server now includes advanced graph analysis tools:
+
+- **find_callers**: Identifies all functions and files that call a specified function
+- **impact_analysis**: Determines files affected by modifications to a given file
+- **graph_search**: Lists all symbols (functions, classes, constants) defined in a file
+- **call_chain**: Traces call paths between functions using BFS algorithm
+- **Lazy Loading**: Graph store loaded only when graph tools are accessed
+- **Health Checking**: Automatic validation of graph store availability
+
 **Section sources**
 - [server.py:47-65](file://src/ws_ctx_engine/mcp/server.py#L47-L65)
 - [tools.py:44-49](file://src/ws_ctx_engine/mcp/tools.py#L44-L49)
 - [model_registry.py:130-145](file://src/ws_ctx_engine/vector_index/model_registry.py#L130-L145)
+- [graph_tools.py:28-103](file://src/ws_ctx_engine/mcp/graph_tools.py#L28-L103)
 
 ### Examples and Usage Patterns
 - Starting the server:
@@ -406,6 +425,8 @@ Enhanced error handling with fallback strategies:
 - Performance optimization:
   - Set WSCTX_EMBEDDING_MODEL for custom model selection.
   - Configure WSCTX_MEMORY_THRESHOLD_MB for memory management.
+- Graph analysis:
+  - Use find_callers, impact_analysis, graph_search, and call_chain for advanced code navigation.
 
 **Section sources**
 - [cli.md:390-415](file://docs/reference/cli.md#L390-L415)
@@ -429,6 +450,7 @@ The comprehensive test suite evaluates MCP server compliance across multiple dim
 - **Structured Content**: Response format validation, content type compliance, metadata handling
 - **Timeout & Limits**: Resource limit enforcement, timeout handling, graceful termination
 - **Rate Limiting**: Token bucket validation, overflow detection, backoff mechanisms
+- **Graph Tools**: Advanced code analysis functionality validation
 
 #### Test Execution and Reporting
 The testing infrastructure provides automated execution with detailed reporting:
@@ -475,6 +497,7 @@ Recent comprehensive testing revealed:
 - **Performance**: Significant latency issues with search operations averaging 10,023ms
 - **Security**: Strong protection against injection attacks and path traversal
 - **Concurrency**: Reliable handling of parallel requests with 100% success rate
+- **Graph Tools**: New graph analysis tools functioning correctly with proper validation
 
 #### Stress Test Results
 The stress testing demonstrates robust operation under load:
@@ -661,8 +684,9 @@ export WSCTX_MEMORY_THRESHOLD_MB=1024
 ## Dependency Analysis
 - CLI depends on mcp_server to run the MCP stdio server.
 - MCPStdioServer depends on MCPConfig and MCPToolService.
-- MCPToolService depends on WorkspacePathGuard, RateLimiter, RADESession, and internal workflows.
+- MCPToolService depends on WorkspacePathGuard, RateLimiter, and internal workflows.
 - ModelRegistry provides thread-safe model caching with ONNX backend support.
+- Graph tools depend on the graph store and provide validation and error handling.
 - Testing infrastructure depends on CLI for server execution and test result generation.
 - Development configuration integrates with Windsurf for automated server discovery.
 
@@ -674,8 +698,8 @@ SRV --> CFG["mcp/config.py:MCPConfig"]
 SRV --> SVC["mcp/tools.py:MCPToolService"]
 SVC --> PATHG["mcp/security/path_guard.py"]
 SVC --> RL["mcp/security/rate_limiter.py"]
-SVC --> RADE["mcp/security/rade_delimiter.py"]
 SVC --> MR["vector_index/model_registry.py"]
+SVC --> GT["mcp/graph_tools.py"]
 COMP["mcp_comprehensive_test.py"] --> CLI
 STRESS["mcp_stress_test.py"] --> CLI
 WINDSURF["mcp_config.json"] --> CLI
@@ -701,6 +725,7 @@ WINDSURF["mcp_config.json"] --> CLI
 - **Performance Optimization**: Recent testing identified critical latency issues requiring immediate optimization.
 - **Background Pre-warming**: ModelRegistry provides thread-safe model caching with ONNX backend support.
 - **Thread Safety**: MCPToolService uses locks and double-checked locking for concurrent access.
+- **Graph Tools**: New graph analysis tools provide advanced functionality with lazy loading and health checking.
 - **Testing Infrastructure**: Comprehensive test suite provides performance baseline and regression detection.
 - **Development Integration**: Automated testing and monitoring support continuous performance improvement.
 
@@ -726,6 +751,7 @@ Common issues and diagnostics:
 - **Performance Issues**: High latency in search operations indicates need for optimization.
 - **Model Loading Failures**: Pre-warming failures are caught and logged, server continues operating.
 - **Memory Issues**: Insufficient RAM triggers memory guards and skips model loading.
+- **Graph Store Issues**: Graph tools return GRAPH_UNAVAILABLE when store is not enabled or healthy.
 - **Testing Failures**: Comprehensive test suite provides detailed error analysis and debugging information.
 
 ### Testing and Validation Procedures
@@ -734,6 +760,7 @@ Common issues and diagnostics:
 - **Regression Testing**: Automated tests prevent performance regressions after changes
 - **Load Testing**: Stress tests validate server stability under concurrent usage
 - **Security Validation**: Injection testing ensures robust security controls
+- **Graph Tools Testing**: Validate new graph analysis functionality with proper error handling
 
 ### Debugging Techniques
 - **Test Result Analysis**: Review detailed test reports for specific failure patterns
@@ -752,14 +779,14 @@ Common issues and diagnostics:
 - [mcp_stress_test.py:1-378](file://scripts/mcp/mcp_stress_test.py#L1-L378)
 
 ## Conclusion
-The MCP server provides a secure, read-only, stdio-bound interface to the codebase's indexing and retrieval capabilities. It integrates cleanly with agents via JSON-RPC, enforces strong security boundaries, and offers configurable rate limiting and caching to support production-grade usage. The enhanced architecture now features background model pre-warming, persistent connections, thread-safe concurrent access handling, and comprehensive error handling with fallback strategies. The comprehensive testing infrastructure ensures reliability, while the performance optimization framework addresses critical latency issues. Development configuration enables seamless integration with modern development workflows and automated testing processes.
+The MCP server provides a secure, read-only, stdio-bound interface to the codebase's indexing and retrieval capabilities. It integrates cleanly with agents via JSON-RPC, enforces strong security boundaries, and offers configurable rate limiting and caching to support production-grade usage. The enhanced architecture now features background model pre-warming, persistent connections, thread-safe concurrent access handling, and comprehensive error handling with fallback strategies. The new graph tools integration provides advanced code analysis capabilities including call chain tracing and impact analysis. The comprehensive testing infrastructure ensures reliability, while the performance optimization framework addresses critical latency issues. Development configuration enables seamless integration with modern development workflows and automated testing processes.
 
 ## Appendices
 
 ### MCP Protocol and Tool Reference
 - Protocol: JSON-RPC 2.0 over stdio; initialize, tools/list, tools/call.
-- Tools: search_codebase, get_file_context, get_domain_map, get_index_status/index_status, pack_context, session_clear.
-- Errors: TOOL_NOT_FOUND, INVALID_ARGUMENT, INDEX_NOT_FOUND, FILE_NOT_FOUND, FILE_READ_FAILED, RATE_LIMIT_EXCEEDED, SEARCH_FAILED.
+- Tools: search_codebase, get_file_context, get_domain_map, get_index_status/index_status, get_status, pack_context, session_clear, find_callers, impact_analysis, graph_search, call_chain.
+- Errors: TOOL_NOT_FOUND, INVALID_ARGUMENT, INDEX_NOT_FOUND, FILE_NOT_FOUND, FILE_READ_FAILED, RATE_LIMIT_EXCEEDED, SEARCH_FAILED, GRAPH_UNAVAILABLE.
 
 **Section sources**
 - [mcp-server.md:1-94](file://docs/integrations/mcp-server.md#L1-L94)
@@ -792,7 +819,9 @@ The MCP server provides a secure, read-only, stdio-bound interface to the codeba
 - **Memory Management**: Environment variable controls for resource allocation
 - **Monitoring Framework**: Automated performance tracking and alerting systems
 - **Configuration Control**: Environment variables for optimization behavior management
+- **Graph Tools**: Advanced code analysis with lazy loading and health validation
 
 **Section sources**
 - [MCP_PERFORMANCE_OPTIMIZATION.md:1-253](file://docs/performance/MCP_PERFORMANCE_OPTIMIZATION.md#L1-L253)
 - [model_registry.py:84-207](file://src/ws_ctx_engine/vector_index/model_registry.py#L84-L207)
+- [graph_tools.py:1-103](file://src/ws_ctx_engine/mcp/graph_tools.py#L1-L103)

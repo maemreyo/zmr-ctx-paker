@@ -19,20 +19,29 @@
 - [test_regex_edge_cases.py](file://tests/unit/test_regex_edge_cases.py)
 </cite>
 
+## Update Summary
+**Changes Made**
+- Added Python 3.12 forward compatibility section documenting the `from __future__ import annotations` additions
+- Updated all resolver implementation sections to reflect the new import statements
+- Enhanced troubleshooting guide with Python 3.12 compatibility considerations
+
 ## Table of Contents
 1. [Introduction](#introduction)
 2. [Project Structure](#project-structure)
 3. [Core Components](#core-components)
 4. [Architecture Overview](#architecture-overview)
 5. [Detailed Component Analysis](#detailed-component-analysis)
-6. [Dependency Analysis](#dependency-analysis)
-7. [Performance Considerations](#performance-considerations)
-8. [Troubleshooting Guide](#troubleshooting-guide)
-9. [Conclusion](#conclusion)
-10. [Appendices](#appendices)
+6. [Python 3.12 Forward Compatibility](#python-312-forward-compatibility)
+7. [Dependency Analysis](#dependency-analysis)
+8. [Performance Considerations](#performance-considerations)
+9. [Troubleshooting Guide](#troubleshooting-guide)
+10. [Conclusion](#conclusion)
+11. [Appendices](#appendices)
 
 ## Introduction
 This document explains the language-specific resolver system used by the AST chunking pipeline. It covers the resolver pattern, the base resolver interface, and the concrete implementations for Python, JavaScript, TypeScript, and Rust. It also documents symbol extraction algorithms, function/method identification, class boundary detection, and variable scope analysis per language. The document details fallback mechanisms when Tree-sitter parsing fails, regex-based fallback strategies, and content preservation techniques. Finally, it provides usage examples, guidelines for developing custom resolvers, integration with the AST chunking pipeline, language-specific edge cases, performance optimizations, and debugging techniques for resolver failures.
+
+**Updated** Added comprehensive coverage of Python 3.12 forward compatibility improvements that ensure seamless operation across Python versions.
 
 ## Project Structure
 The resolver system resides under the chunker module and integrates with Tree-sitter and regex-based chunkers. The high-level structure is:
@@ -156,7 +165,7 @@ Key behaviors:
 - Line numbers are 1-indexed
 - Content bytes are sliced to preserve original encoding
 - Symbols_defined includes the extracted symbol name when present
-- Symbols_referenced is populated by the resolver’s reference collector
+- Symbols_referenced is populated by the resolver's reference collector
 
 **Section sources**
 - [base.py:7-69](file://src/ws_ctx_engine/chunker/resolvers/base.py#L7-L69)
@@ -290,7 +299,7 @@ Reference extraction:
 
 Scope and boundaries:
 - Function bodies and blocks are captured by slicing content between start_byte/end_byte.
-- Scoped use declarations are handled in the Tree-sitter chunker’s import extraction.
+- Scoped use declarations are handled in the Tree-sitter chunker's import extraction.
 
 Edge cases covered by tests:
 - Impl blocks with and without generics
@@ -333,6 +342,49 @@ Fallback behavior:
 **Section sources**
 - [models.py:10-84](file://src/ws_ctx_engine/models/models.py#L10-L84)
 
+## Python 3.12 Forward Compatibility
+
+**Updated** All resolver modules have been updated to support Python 3.12's postponed evaluation of annotations through the addition of `from __future__ import annotations`.
+
+The resolver system now includes forward-compatible type annotations that work seamlessly across Python versions:
+
+### Implementation Details
+Each resolver module begins with the forward compatibility import:
+```python
+from __future__ import annotations
+```
+
+This ensures that:
+- Type hints are stored as strings rather than being evaluated immediately
+- Backward compatibility with Python < 3.12 is maintained
+- Forward compatibility with Python 3.12+ is achieved
+- No runtime performance impact on older Python versions
+
+### Affected Modules
+All resolver modules have been updated:
+- `src/ws_ctx_engine/chunker/resolvers/base.py`
+- `src/ws_ctx_engine/chunker/resolvers/python.py`
+- `src/ws_ctx_engine/chunker/resolvers/javascript.py`
+- `src/ws_ctx_engine/chunker/resolvers/typescript.py`
+- `src/ws_ctx_engine/chunker/resolvers/rust.py`
+- `src/ws_ctx_engine/chunker/resolvers/__init__.py`
+- `src/ws_ctx_engine/chunker/tree_sitter.py`
+
+### Benefits
+- **Seamless Migration**: Projects can upgrade to Python 3.12 without resolver code modifications
+- **Enhanced Type Safety**: Full type hint support in modern Python versions
+- **Future-Proof Design**: Maintains compatibility with upcoming Python releases
+- **Zero Runtime Overhead**: The `__future__` import has no performance impact
+
+**Section sources**
+- [base.py:1](file://src/ws_ctx_engine/chunker/resolvers/base.py#L1)
+- [python.py:1](file://src/ws_ctx_engine/chunker/resolvers/python.py#L1)
+- [javascript.py:1](file://src/ws_ctx_engine/chunker/resolvers/javascript.py#L1)
+- [typescript.py:1](file://src/ws_ctx_engine/chunker/resolvers/typescript.py#L1)
+- [rust.py:1](file://src/ws_ctx_engine/chunker/resolvers/rust.py#L1)
+- [__init__.py:1](file://src/ws_ctx_engine/chunker/resolvers/__init__.py#L1)
+- [tree_sitter.py:1](file://src/ws_ctx_engine/chunker/tree_sitter.py#L1)
+
 ## Dependency Analysis
 The resolver system is decoupled from the chunkers via the LanguageResolver interface. The Tree-sitter chunker depends on resolvers and import extraction logic, while the regex chunker operates independently. The fallback mechanism ensures robustness.
 
@@ -374,8 +426,7 @@ PF --> RG
 - Regex fallback is slower and less accurate; it is intended for environments without Tree-sitter or for files that fail Tree-sitter parsing.
 - Content slicing uses byte offsets to minimize string copies; ensure content is read once per file.
 - Deduplication across files is ensured by the chunker to avoid redundant processing.
-
-[No sources needed since this section provides general guidance]
+- **Updated** Python 3.12 forward compatibility has zero runtime performance impact and maintains optimal performance characteristics.
 
 ## Troubleshooting Guide
 Common failure modes and debugging techniques:
@@ -389,6 +440,10 @@ Common failure modes and debugging techniques:
   - Confirm import extraction is enabled for the language and that reference collectors traverse all identifier nodes.
 - Regex edge cases:
   - Review regex patterns for comments, strings, and template literals. Tests demonstrate handling of braces in strings, comments, and multiline constructs.
+- **Updated** Python 3.12 compatibility issues:
+  - All resolver modules include `from __future__ import annotations` for forward compatibility
+  - No manual intervention required for Python 3.12+ upgrades
+  - Type hints work correctly in both old and new Python versions
 
 **Section sources**
 - [__init__.py:17-37](file://src/ws_ctx_engine/chunker/__init__.py#L17-L37)
@@ -397,9 +452,7 @@ Common failure modes and debugging techniques:
 - [test_regex_edge_cases.py:20-254](file://tests/unit/test_regex_edge_cases.py#L20-L254)
 
 ## Conclusion
-The resolver system provides a clean, extensible pattern for language-specific code extraction. By leveraging Tree-sitter for accurate AST parsing and falling back to regex-based strategies, it achieves robustness across diverse environments. The modular design allows easy addition of new languages and refinement of existing resolvers.
-
-[No sources needed since this section summarizes without analyzing specific files]
+The resolver system provides a clean, extensible pattern for language-specific code extraction. By leveraging Tree-sitter for accurate AST parsing and falling back to regex-based strategies, it achieves robustness across diverse environments. The modular design allows easy addition of new languages and refinement of existing resolvers. **Updated** The recent Python 3.12 forward compatibility improvements ensure seamless operation across Python versions while maintaining optimal performance characteristics.
 
 ## Appendices
 
@@ -431,6 +484,7 @@ The resolver system provides a clean, extensible pattern for language-specific c
 - Integrate with TreeSitterChunker by registering the resolver in ALL_RESOLVERS
 - Add language mapping in TreeSitterChunker and import extraction logic if needed
 - Write unit tests covering symbol extraction, reference extraction, and edge cases
+- **Updated** Include `from __future__ import annotations` at the top of new resolver modules for Python 3.12 compatibility
 
 **Section sources**
 - [base.py:7-69](file://src/ws_ctx_engine/chunker/resolvers/base.py#L7-L69)
