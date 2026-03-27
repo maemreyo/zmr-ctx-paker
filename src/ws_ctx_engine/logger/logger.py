@@ -4,6 +4,8 @@ Logging infrastructure for ws-ctx-engine.
 Provides structured logging with dual output (console + file) and configurable log levels.
 """
 
+from __future__ import annotations
+
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -28,10 +30,25 @@ class WsCtxEngineLogger:
             name: Logger name (default: ws_ctx_engine)
         """
         self.log_dir = Path(log_dir)
-        self.log_dir.mkdir(parents=True, exist_ok=True)
+        self._initialized = False
+        self._name = name
 
+    def _ensure_initialized(self) -> None:
+        """Lazily initialize logger handlers on first use."""
+        if self._initialized:
+            return
+        
+        try:
+            self.log_dir.mkdir(parents=True, exist_ok=True)
+        except (OSError, FileNotFoundError) as e:
+            # If we can't create the log directory, skip file logging
+            # but still allow console logging to work
+            self._setup_console_only()
+            self._initialized = True
+            return
+        
         # Create logger
-        self.logger = logging.getLogger(name)
+        self.logger = logging.getLogger(self._name)
         self.logger.setLevel(logging.DEBUG)
 
         # Prevent propagation to avoid pytest capturing
@@ -60,7 +77,26 @@ class WsCtxEngineLogger:
         # Add handlers
         self.logger.addHandler(console_handler)
         self.logger.addHandler(file_handler)
-
+        self._initialized = True
+    
+    def _setup_console_only(self) -> None:
+        """Setup console-only logging when file logging is unavailable."""
+        self.logger = logging.getLogger(self._name)
+        self.logger.setLevel(logging.DEBUG)
+        self.logger.propagate = False
+        self.logger.handlers.clear()
+        
+        # Console handler (INFO and above)
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)
+        
+        formatter = logging.Formatter(
+            "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+        )
+        console_handler.setFormatter(formatter)
+        
+        self.logger.addHandler(console_handler)
+    
     def log_fallback(self, component: str, primary: str, fallback: str, reason: str) -> None:
         """
         Log backend fallback with context.
@@ -71,6 +107,7 @@ class WsCtxEngineLogger:
             fallback: Fallback backend being used
             reason: Reason for fallback (exception message)
         """
+        self._ensure_initialized()
         self.logger.warning(
             f"Fallback triggered | component={component} | "
             f"primary={primary} | fallback={fallback} | reason={reason}"
@@ -85,6 +122,7 @@ class WsCtxEngineLogger:
             duration: Phase duration in seconds
             **metrics: Additional metrics to log (e.g., files_processed=100)
         """
+        self._ensure_initialized()
         metrics_str = " | ".join(f"{k}={v}" for k, v in metrics.items())
         if metrics_str:
             self.logger.info(
@@ -101,6 +139,7 @@ class WsCtxEngineLogger:
             error: Exception that occurred
             context: Additional context (e.g., file_path, line_number)
         """
+        self._ensure_initialized()
         if context:
             context_str = " | ".join(f"{k}={v}" for k, v in context.items())
             self.logger.error(f"Error occurred | {context_str}", exc_info=True)
@@ -109,18 +148,22 @@ class WsCtxEngineLogger:
 
     def debug(self, message: str) -> None:
         """Log debug message."""
+        self._ensure_initialized()
         self.logger.debug(message)
 
     def info(self, message: str) -> None:
         """Log info message."""
+        self._ensure_initialized()
         self.logger.info(message)
 
     def warning(self, message: str) -> None:
         """Log warning message."""
+        self._ensure_initialized()
         self.logger.warning(message)
 
     def error(self, message: str) -> None:
         """Log error message."""
+        self._ensure_initialized()
         self.logger.error(message)
 
 
