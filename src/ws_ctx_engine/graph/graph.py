@@ -12,6 +12,7 @@ from typing import Any
 
 from ..logger import get_logger
 from ..models import CodeChunk
+from ..perf import timed
 
 logger = get_logger()
 
@@ -125,6 +126,7 @@ class IGraphRepoMap(RepoMapGraph):
         self.graph: ig.Graph | None = None
         self.file_to_vertex: dict[str, int] = {}
         self.vertex_to_file: dict[int, str] = {}
+        self._pagerank_cache: dict[tuple[str, ...], dict[str, float]] = {}
 
     def build(self, chunks: list[CodeChunk]) -> None:
         """
@@ -181,16 +183,19 @@ class IGraphRepoMap(RepoMapGraph):
                 self.graph.add_edges(edges)
 
             logger.info(f"Built igraph with {len(unique_files)} nodes and {len(edges)} edges")
+            self._pagerank_cache.clear()
 
         except Exception as e:
             raise RuntimeError(f"Failed to build igraph: {e}") from e
 
+    @timed("igraph_pagerank")
     def pagerank(self, changed_files: list[str] | None = None) -> dict[str, float]:
         """
         Compute PageRank scores using igraph's C++ backend.
 
         Computes PageRank scores for all files. If changed_files are provided,
         their scores are boosted by multiplying by boost_factor and renormalizing.
+        Results are cached per (changed_files) key and invalidated on build().
 
         Args:
             changed_files: Optional list of file paths that have changed
@@ -204,6 +209,11 @@ class IGraphRepoMap(RepoMapGraph):
         """
         if self.graph is None:
             raise ValueError("Graph has not been built yet. Call build() first.")
+
+        cache_key = tuple(sorted(changed_files)) if changed_files else ()
+        if cache_key in self._pagerank_cache:
+            logger.debug("igraph_pagerank: returning cached PageRank scores")
+            return self._pagerank_cache[cache_key]
 
         try:
             # Compute PageRank using igraph
@@ -225,6 +235,7 @@ class IGraphRepoMap(RepoMapGraph):
                         file: score / total for file, score in pagerank_scores.items()
                     }
 
+            self._pagerank_cache[cache_key] = pagerank_scores
             return pagerank_scores
 
         except Exception as e:
@@ -343,6 +354,7 @@ class NetworkXRepoMap(RepoMapGraph):
 
         self.boost_factor = boost_factor
         self.graph: nx.DiGraph | None = None
+        self._pagerank_cache: dict[tuple[str, ...], dict[str, float]] = {}
 
     def build(self, chunks: list[CodeChunk]) -> None:
         """
@@ -395,10 +407,12 @@ class NetworkXRepoMap(RepoMapGraph):
             logger.info(
                 f"Built NetworkX graph with {len(unique_files)} nodes and {len(edges)} edges"
             )
+            self._pagerank_cache.clear()
 
         except Exception as e:
             raise RuntimeError(f"Failed to build NetworkX graph: {e}") from e
 
+    @timed("networkx_pagerank")
     def pagerank(self, changed_files: list[str] | None = None) -> dict[str, float]:
         """
         Compute PageRank scores using NetworkX's pure Python implementation.
@@ -418,6 +432,11 @@ class NetworkXRepoMap(RepoMapGraph):
         """
         if self.graph is None:
             raise ValueError("Graph has not been built yet. Call build() first.")
+
+        cache_key = tuple(sorted(changed_files)) if changed_files else ()
+        if cache_key in self._pagerank_cache:
+            logger.debug("networkx_pagerank: returning cached PageRank scores")
+            return self._pagerank_cache[cache_key]
 
         try:
             # Compute PageRank using NetworkX
@@ -443,7 +462,9 @@ class NetworkXRepoMap(RepoMapGraph):
                         file: score / total for file, score in pagerank_scores.items()
                     }
 
-            return dict(pagerank_scores)
+            result = dict(pagerank_scores)
+            self._pagerank_cache[cache_key] = result
+            return result
 
         except Exception as e:
             raise RuntimeError(f"Failed to compute PageRank: {e}") from e

@@ -12,13 +12,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Install for development
 pip install -e ".[dev]"
 
-# Run tests
-pytest                                    # All tests
-pytest tests/unit/                        # Unit tests only
-pytest tests/integration/                 # Integration tests only
+# Run tests — fast (~3s, parallel, no coverage)
+pytest tests/unit/ -n auto -q            # All unit tests in parallel
+pytest tests/unit/test_foo.py::test_bar  # Single test
+
+# Run tests — with coverage (slow, use before commit / in CI)
+pytest tests/unit/ --cov=ws_ctx_engine --cov-report=term-missing  # unit only
+pytest --cov=ws_ctx_engine --cov-report=term-missing              # all tests
+pytest --cov=ws_ctx_engine --cov-report=html                      # HTML report → htmlcov/
+pytest --hypothesis-profile=ci           # CI hypothesis profile (100 examples)
+
+# Other test targets
+pytest tests/integration/                 # Integration tests
 pytest -m property                        # Property-based tests (hypothesis)
 pytest -m benchmark --benchmark-only      # Performance benchmarks
-pytest tests/unit/test_foo.py::test_bar   # Single test
 
 # Code quality (all required before commit)
 black .                                   # Format (100-char line length)

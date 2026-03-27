@@ -25,6 +25,7 @@ Output:
 
 import json
 import subprocess
+import threading
 import time
 import sys
 import os
@@ -35,6 +36,111 @@ from pathlib import Path
 from typing import Dict, List, Any, Tuple
 from dataclasses import dataclass, asdict
 from enum import Enum
+
+
+class PersistentMCPSession:
+    """Keep a single ``wsctx mcp`` process alive across multiple requests.
+
+    This measures **warm-path** latency — what real Claude Code users
+    experience after the first model load — rather than per-subprocess
+    cold-start cost (~12 s).
+
+    Usage::
+
+        with PersistentMCPSession(WORKSPACE) as session:
+            # warm-up (absorbs cold-start)
+            session.call("search_codebase", {"query": "init", "limit": 1})
+            # now measure warm latency
+            result, ms = session.call("search_codebase", {"query": "mcp"})
+    """
+
+    COLD_START_TIMEOUT = 60  # seconds — generous budget for first model load
+
+    def __init__(self, workspace: str, cmd: str = "wsctx") -> None:
+        self._workspace = workspace
+        self._cmd = cmd
+        self._proc: subprocess.Popen | None = None
+        self._req_id = 0
+
+    # ------------------------------------------------------------------
+
+    def __enter__(self) -> "PersistentMCPSession":
+        env = os.environ.copy()
+        env.setdefault("TOKENIZERS_PARALLELISM", "false")
+        env.setdefault("OMP_NUM_THREADS", "1")
+        self._proc = subprocess.Popen(
+            [self._cmd, "mcp", "--workspace", self._workspace],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=env,
+        )
+        # MCP handshake — fast, no model load needed
+        self._send_request("initialize", {
+            "protocolVersion": "2024-11-05",
+            "capabilities": {},
+            "clientInfo": {"name": "perf-session", "version": "1.0"},
+        }, timeout=10)
+        return self
+
+    def __exit__(self, *_: Any) -> None:
+        if self._proc and self._proc.stdin:
+            try:
+                self._proc.stdin.close()
+                self._proc.wait(timeout=5)
+            except Exception:
+                self._proc.kill()
+
+    # ------------------------------------------------------------------
+
+    def call(
+        self, tool: str, arguments: dict, timeout: float | None = None
+    ) -> Tuple[Dict, float]:
+        """Call a tool and return ``(response_dict, elapsed_ms)``."""
+        effective_timeout = timeout or self.COLD_START_TIMEOUT
+        return self._send_request(
+            "tools/call",
+            {"name": tool, "arguments": arguments},
+            timeout=effective_timeout,
+        )
+
+    def _send_request(
+        self, method: str, params: dict, timeout: float
+    ) -> Tuple[Dict, float]:
+        self._req_id += 1
+        req = json.dumps({
+            "jsonrpc": "2.0",
+            "id": self._req_id,
+            "method": method,
+            "params": params,
+        }) + "\n"
+
+        result_holder: list = [None]
+
+        def _read() -> None:
+            try:
+                result_holder[0] = self._proc.stdout.readline()
+            except Exception as exc:
+                result_holder[0] = json.dumps({"error": str(exc)})
+
+        t0 = time.time()
+        assert self._proc and self._proc.stdin
+        self._proc.stdin.write(req)
+        self._proc.stdin.flush()
+
+        reader = threading.Thread(target=_read, daemon=True)
+        reader.start()
+        reader.join(timeout=timeout)
+        elapsed_ms = (time.time() - t0) * 1000
+
+        raw = result_holder[0]
+        if raw is None:
+            return {"error": f"timeout after {timeout}s"}, elapsed_ms
+        try:
+            return json.loads(raw), elapsed_ms
+        except json.JSONDecodeError:
+            return {"error": "invalid json", "raw": raw[:200]}, elapsed_ms
 
 
 class TestCategory(Enum):
@@ -543,67 +649,131 @@ class MCPTestSuite:
         )
     
     def test_performance_search_latency(self) -> TestResult:
-        """Measure search operation latency (typically slower)."""
-        latencies = []
-        
-        for query in ["mcp", "config", "test", "search"]:
-            result, duration = self.run_mcp_request("tools/call", {
-                "name": "search_codebase",
-                "arguments": {"query": query, "limit": 10}
-            })
-            if "result" in result:
-                latencies.append(duration)
-        
-        if latencies:
-            avg_latency = statistics.mean(latencies)
-            max_latency = max(latencies)
+        """Measure warm-path search latency using a persistent MCP process.
+
+        A single ``wsctx mcp`` subprocess is kept alive for the whole test.
+        The first request is discarded (absorbs cold-start / model load).
+        Subsequent requests measure real steady-state latency.
+
+        Thresholds (warm path after ONNX model load):
+            ≤ 500 ms  — excellent
+            ≤ 2 000 ms — good
+            ≤ 5 000 ms — acceptable
+            > 5 000 ms — fail
+        """
+        warm_latencies: list[float] = []
+        cold_start_ms: float = 0.0
+        error_message = ""
+
+        try:
+            with PersistentMCPSession(self.WORKSPACE, self.WSCTX_CMD) as session:
+                # Warm-up: absorb cold-start (model load + LEANN init).
+                # Use a generous timeout; the result is not counted.
+                warmup_result, cold_start_ms = session.call(
+                    "search_codebase",
+                    {"query": "mcp server", "limit": 5},
+                    timeout=PersistentMCPSession.COLD_START_TIMEOUT,
+                )
+
+                if "error" in warmup_result and "result" not in warmup_result:
+                    error_message = f"warm-up failed: {warmup_result.get('error')}"
+                else:
+                    # Warm measurements — model is loaded, LEANN searcher is cached.
+                    for query in ["config", "logger", "retrieval", "chunker"]:
+                        result, ms = session.call(
+                            "search_codebase",
+                            {"query": query, "limit": 10},
+                            timeout=10,
+                        )
+                        if "result" in result:
+                            warm_latencies.append(ms)
+
+        except Exception as exc:
+            error_message = str(exc)
+
+        if warm_latencies:
+            avg_latency = statistics.mean(warm_latencies)
+            max_latency = max(warm_latencies)
+            p99_latency = sorted(warm_latencies)[int(len(warm_latencies) * 0.99)] if len(warm_latencies) > 1 else max_latency
         else:
-            avg_latency = max_latency = 0
-        
-        score = 1.0 if avg_latency < 3000 else 0.8 if avg_latency < 6000 else 0.5 if avg_latency < 10000 else 0.0
-        
+            avg_latency = max_latency = p99_latency = 0.0
+
+        score = (
+            1.0 if avg_latency < 500
+            else 0.8 if avg_latency < 2000
+            else 0.5 if avg_latency < 5000
+            else 0.0
+        )
+
         return TestResult(
             category=TestCategory.PERFORMANCE.value,
             test_name="performance/search_latency",
-            passed=avg_latency < 10000,  # Search can be slower
+            passed=avg_latency < 5000 and bool(warm_latencies),
             score=score,
             details={
-                "avg_latency_ms": avg_latency,
-                "max_latency_ms": max_latency,
-                "samples": len(latencies)
+                "mode": "warm-path (persistent process)",
+                "cold_start_ms": round(cold_start_ms, 1),
+                "avg_warm_ms": round(avg_latency, 1),
+                "max_warm_ms": round(max_latency, 1),
+                "p99_warm_ms": round(p99_latency, 1),
+                "samples": len(warm_latencies),
+                "error": error_message,
             },
-            duration_ms=avg_latency
+            duration_ms=avg_latency,
+            error_message=error_message,
         )
-    
+
     def test_performance_pack_context(self) -> TestResult:
-        """Measure pack_context operation latency."""
-        latencies = []
-        
-        for format_type in ["json", "xml", "md"]:
-            result, duration = self.run_mcp_request("tools/call", {
-                "name": "pack_context",
-                "arguments": {"query": "mcp config", "format": format_type}
-            })
-            if "result" in result:
-                latencies.append(duration)
-        
-        if latencies:
-            avg_latency = statistics.mean(latencies)
-        else:
-            avg_latency = 0
-        
-        score = 1.0 if avg_latency < 5000 else 0.7 if avg_latency < 15000 else 0.4 if avg_latency < 30000 else 0.0
-        
+        """Measure warm-path pack_context latency using a persistent MCP process."""
+        warm_latencies: list[float] = []
+        cold_start_ms: float = 0.0
+        error_message = ""
+
+        try:
+            with PersistentMCPSession(self.WORKSPACE, self.WSCTX_CMD) as session:
+                # Warm-up — not counted
+                _, cold_start_ms = session.call(
+                    "search_codebase",
+                    {"query": "init", "limit": 1},
+                    timeout=PersistentMCPSession.COLD_START_TIMEOUT,
+                )
+
+                for format_type in ["json", "xml", "md"]:
+                    result, ms = session.call(
+                        "pack_context",
+                        {"query": "mcp config", "format": format_type},
+                        timeout=30,
+                    )
+                    if "result" in result:
+                        warm_latencies.append(ms)
+
+        except Exception as exc:
+            error_message = str(exc)
+
+        avg_latency = statistics.mean(warm_latencies) if warm_latencies else 0.0
+
+        # pack_context does I/O (write output file) so thresholds are looser
+        score = (
+            1.0 if avg_latency < 2000
+            else 0.8 if avg_latency < 5000
+            else 0.5 if avg_latency < 10000
+            else 0.0
+        )
+
         return TestResult(
             category=TestCategory.PERFORMANCE.value,
             test_name="performance/pack_context_latency",
-            passed=avg_latency < 30000,
+            passed=avg_latency < 10000 and bool(warm_latencies),
             score=score,
             details={
-                "avg_latency_ms": avg_latency,
-                "samples": len(latencies)
+                "mode": "warm-path (persistent process)",
+                "cold_start_ms": round(cold_start_ms, 1),
+                "avg_warm_ms": round(avg_latency, 1),
+                "samples": len(warm_latencies),
+                "error": error_message,
             },
-            duration_ms=avg_latency
+            duration_ms=avg_latency,
+            error_message=error_message,
         )
     
     # =========================================================================

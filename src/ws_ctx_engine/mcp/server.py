@@ -2,9 +2,17 @@ from __future__ import annotations
 
 import importlib.metadata
 import json
+import os
 import sys
+import threading
 from pathlib import Path
 from typing import Any
+
+# Prevent macOS segfaults from PyTorch tokenizer parallelism when this module
+# is used as an entry point directly (e.g. python -m ws_ctx_engine.mcp.server).
+# The CLI entry point also sets these, but guard here for robustness.
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+os.environ.setdefault("OMP_NUM_THREADS", "1")
 
 from .config import MCPConfig
 from .tools import MCPToolService
@@ -35,6 +43,26 @@ class MCPStdioServer:
         if not effective_workspace_path.exists() or not effective_workspace_path.is_dir():
             raise ValueError(f"Invalid workspace path: {effective_workspace}")
         self._service = MCPToolService(workspace=str(effective_workspace_path), config=config)
+
+        # Kick off model loading in the background so it overlaps with the
+        # MCP initialize handshake (~200ms).  By the time the first
+        # search_codebase call arrives the model is likely already warm.
+        self._prewarm_thread = threading.Thread(
+            target=self._prewarm_model,
+            daemon=True,
+            name="ws-ctx-prewarm",
+        )
+        self._prewarm_thread.start()
+
+    @staticmethod
+    def _prewarm_model() -> None:
+        """Load the embedding model in a daemon thread (non-fatal on failure)."""
+        try:
+            from ..vector_index.model_registry import DEFAULT_MODEL, ModelRegistry
+
+            ModelRegistry.get_model(DEFAULT_MODEL)
+        except Exception:
+            pass  # pre-warm is best-effort; the main path handles load failures
 
     def run(self) -> None:
         for raw_line in sys.stdin:

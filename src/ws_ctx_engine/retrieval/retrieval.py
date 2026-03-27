@@ -17,7 +17,11 @@ import re
 from typing import Any
 
 from ws_ctx_engine.graph import RepoMapGraph
+from ws_ctx_engine.perf import timed
 from ws_ctx_engine.vector_index import VectorIndex
+from .bm25_index import BM25Index
+from .hybrid_engine import HybridSearchEngine
+from .reranker import CrossEncoderReranker
 
 logger = logging.getLogger(__name__)
 
@@ -200,6 +204,9 @@ class RetrievalEngine:
         test_penalty: float = 0.5,
         domain_map: Any = None,
         config: Any | None = None,
+        bm25_index: BM25Index | None = None,
+        content_map: dict[str, str] | None = None,
+        reranker: CrossEncoderReranker | None = None,
     ):
         """
         Initialize RetrievalEngine with indexes and weights.
@@ -235,6 +242,14 @@ class RetrievalEngine:
         self.domain_map = domain_map if domain_map is not None else DomainKeywordMap()
         self.test_penalty = test_penalty
         self._config = config
+        self.bm25_index = bm25_index
+        self._hybrid_engine = (
+            HybridSearchEngine(vector_index=vector_index, bm25_index=bm25_index)
+            if bm25_index is not None
+            else None
+        )
+        self._content_map: dict[str, str] = content_map or {}
+        self.reranker = reranker
 
         logger.info(
             f"RetrievalEngine initialized with weights: "
@@ -247,6 +262,7 @@ class RetrievalEngine:
     # Public API
     # ------------------------------------------------------------------
 
+    @timed("retrieval_retrieve")
     def retrieve(
         self,
         query: str | None = None,
@@ -287,15 +303,19 @@ class RetrievalEngine:
             f"top_k={top_k}"
         )
 
-        # 1. Semantic scores
+        # 1. Semantic scores (or hybrid vector+BM25 scores when BM25 index present)
         semantic_scores: dict[str, float] = {}
         if query:
             try:
-                semantic_results = self.vector_index.search(query, top_k)
+                if self._hybrid_engine is not None:
+                    semantic_results = self._hybrid_engine.search(query, top_k)
+                    logger.info("Using hybrid (vector+BM25) search")
+                else:
+                    semantic_results = self.vector_index.search(query, top_k)
                 semantic_scores = dict(semantic_results)
-                logger.info(f"Semantic search returned {len(semantic_scores)} results")
+                logger.info(f"Search returned {len(semantic_scores)} results")
             except Exception as e:
-                logger.warning(f"Semantic search failed: {e}, continuing with PageRank only")
+                logger.warning(f"Search failed: {e}, continuing with PageRank only")
 
         # 2. PageRank scores
         pagerank_scores: dict[str, float] = {}
@@ -363,6 +383,20 @@ class RetrievalEngine:
             ranked_list = apply_ai_rule_boost_to_ranked(ranked_list, extra_files=extra_files)
         except Exception:
             ranked_list = sorted(final_scores.items(), key=lambda x: x[1], reverse=True)
+
+        # 8. Optional reranker — rescore top-N with a cross-encoder
+        if query and self.reranker is not None and self._content_map:
+            try:
+                candidates_with_content = [
+                    (path, self._content_map[path])
+                    for path, _ in ranked_list[:top_k]
+                    if path in self._content_map
+                ]
+                if candidates_with_content:
+                    ranked_list = self.reranker.rerank(query, candidates_with_content, top_k=top_k)
+                    logger.info(f"Reranker applied to {len(candidates_with_content)} candidates")
+            except Exception as e:
+                logger.warning(f"Reranker failed: {e} — using pre-rerank order")
 
         logger.info(f"Retrieval complete: {len(ranked_list)} files ranked")
         return ranked_list[:top_k]

@@ -1,0 +1,573 @@
+{
+  "timestamp": "20260327_094436",
+  "workspace": "/Users/trung.ngo/Documents/zaob-dev/zmr-ctx-paker",
+  "server_info": {
+    "name": "ws-ctx-engine",
+    "version": "0.2.0a0"
+  },
+  "summary": {
+    "total_tests": 17,
+    "passed": 15,
+    "failed": 2,
+    "overall_score": 0.9411764705882353,
+    "pass_rate": 0.8823529411764706
+  },
+  "category_scores": {
+    "Protocol Compliance": {
+      "average_score": 1.0,
+      "total_tests": 2,
+      "passed": 2,
+      "failed": 0
+    },
+    "Tool Discovery & Registration": {
+      "average_score": 1.0,
+      "total_tests": 2,
+      "passed": 2,
+      "failed": 0
+    },
+    "Input Validation": {
+      "average_score": 1.0,
+      "total_tests": 3,
+      "passed": 3,
+      "failed": 0
+    },
+    "Error Handling": {
+      "average_score": 1.0,
+      "total_tests": 2,
+      "passed": 2,
+      "failed": 0
+    },
+    "Performance Testing": {
+      "average_score": 0.6666666666666666,
+      "total_tests": 3,
+      "passed": 1,
+      "failed": 2
+    },
+    "Concurrency Testing": {
+      "average_score": 1.0,
+      "total_tests": 2,
+      "passed": 2,
+      "failed": 0
+    },
+    "Security Testing": {
+      "average_score": 1.0,
+      "total_tests": 1,
+      "passed": 1,
+      "failed": 0
+    },
+    "Structured Content": {
+      "average_score": 1.0,
+      "total_tests": 1,
+      "passed": 1,
+      "failed": 0
+    },
+    "Timeout & Limits": {
+      "average_score": 1.0,
+      "total_tests": 1,
+      "passed": 1,
+      "failed": 0
+    }
+  },
+  "results": [
+    {
+      "category": "Protocol Compliance",
+      "test_name": "initialize",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "checks": {
+          "jsonrpc_valid": true,
+          "has_server_info": true,
+          "has_capabilities": true,
+          "has_protocol_version": true,
+          "server_name_present": true,
+          "server_version_present": true
+        },
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1001,
+          "result": {
+            "protocolVersion": "2025-03-26",
+            "capabilities": {
+              "tools": {}
+            },
+            "serverInfo": {
+              "name": "ws-ctx-engine",
+              "version": "0.2.0a0"
+            }
+          }
+        }
+      },
+      "duration_ms": 300.62103271484375,
+      "error_message": ""
+    },
+    {
+      "category": "Tool Discovery & Registration",
+      "test_name": "tools/list",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "checks": {
+          "jsonrpc_valid": true,
+          "has_tools_array": true,
+          "tools_not_empty": true,
+          "each_tool_has_name": true,
+          "each_tool_has_description": true,
+          "each_tool_has_schema": true
+        },
+        "tools_found": 7,
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1002,
+          "result": {
+            "tools": [
+              {
+                "name": "search_codebase",
+                "description": "Search the indexed codebase and return ranked file paths.",
+                "inputSchema": {
+                  "type": "object",
+                  "properties": {
+                    "query": {
+                      "type": "string"
+                    },
+                    "limit": {
+                      "type": "integer",
+                      "default": 10,
+                      "minimum": 1,
+                      "maximum": 50
+                    },
+                    "domain_filter": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "query"
+                  ]
+                }
+              },
+              {
+                "name": "get_file_context",
+                "description": "Return file content with dependency context and secret redaction.",
+                "inputSchema": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "include_dependencies": {
+                      "type": "boolean",
+                      "default": true
+                    },
+                    "include_dependents": {
+                      "type": "boolean",
+                      "default": true
+                    }
+                  },
+                  "required": [
+                    "path"
+                  ]
+                }
+              },
+              {
+                "name": "get_domain_map",
+                "description": "Return inferred architecture domains from the domain map index.",
+                "inputSchema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              },
+              {
+                "name": "get_index_status",
+                "description": "Return index freshness and workspace recommendation.",
+                "inputSchema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              },
+              {
+                "name": "index_status",
+                "description": "Alias for get_index_status. Return index freshness and workspace recommendation.",
+                "inputSchema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              },
+              {
+                "name": "pack_context",
+                "description": "Query the indexed codebase and pack matching files into a context output. Returns the output file path and token statistics.",
+                "inputSchema": {
+                  "type": "object",
+                  "properties": {
+                    "query": {
+                      "type": "string",
+                      "description": "Natural language query"
+                    },
+                    "format": {
+                      "type": "string",
+                      "enum": [
+                        "xml",
+                        "zip",
+                        "json",
+                        "yaml",
+                        "md"
+                      ],
+                      "default": "xml"
+                    },
+                    "token_budget": {
+                      "type": "integer",
+                      "minimum": 1000,
+                      "description": "Token budget override (uses config default if omitted)"
+                    },
+                    "agent_phase": {
+                      "type": "string",
+                      "enum": [
+                        "discovery",
+                        "edit",
+                        "test"
+                      ],
+                      "description": "Agent phase for context weighting"
+                    }
+                  },
+                  "required": [
+                    "query"
+                  ]
+                }
+              },
+              {
+                "name": "session_clear",
+                "description": "Delete session deduplication cache files. Pass session_id to clear a specific session, or omit to clear all sessions.",
+                "inputSchema": {
+                  "type": "object",
+                  "properties": {
+                    "session_id": {
+                      "type": "string",
+                      "description": "Session ID to clear (omit to clear all)"
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "duration_ms": 239.73679542541504,
+      "error_message": ""
+    },
+    {
+      "category": "Protocol Compliance",
+      "test_name": "notifications/no_response",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "has_output": false,
+        "output": ""
+      },
+      "duration_ms": 245.79501152038574,
+      "error_message": ""
+    },
+    {
+      "category": "Tool Discovery & Registration",
+      "test_name": "tool_discovery_comprehensive",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "tools_analysis": [
+          {
+            "name": "search_codebase",
+            "has_description": true,
+            "description_length": 57,
+            "has_schema": true,
+            "schema_type": "object",
+            "has_properties": true,
+            "required_fields_count": 1
+          },
+          {
+            "name": "get_file_context",
+            "has_description": true,
+            "description_length": 65,
+            "has_schema": true,
+            "schema_type": "object",
+            "has_properties": true,
+            "required_fields_count": 1
+          },
+          {
+            "name": "get_domain_map",
+            "has_description": true,
+            "description_length": 63,
+            "has_schema": true,
+            "schema_type": "object",
+            "has_properties": true,
+            "required_fields_count": 0
+          },
+          {
+            "name": "get_index_status",
+            "has_description": true,
+            "description_length": 52,
+            "has_schema": true,
+            "schema_type": "object",
+            "has_properties": true,
+            "required_fields_count": 0
+          },
+          {
+            "name": "index_status",
+            "has_description": true,
+            "description_length": 80,
+            "has_schema": true,
+            "schema_type": "object",
+            "has_properties": true,
+            "required_fields_count": 0
+          },
+          {
+            "name": "pack_context",
+            "has_description": true,
+            "description_length": 124,
+            "has_schema": true,
+            "schema_type": "object",
+            "has_properties": true,
+            "required_fields_count": 1
+          },
+          {
+            "name": "session_clear",
+            "has_description": true,
+            "description_length": 117,
+            "has_schema": true,
+            "schema_type": "object",
+            "has_properties": true,
+            "required_fields_count": 0
+          }
+        ],
+        "checks": {
+          "tools_found": true,
+          "all_have_descriptions": true,
+          "all_have_schemas": true,
+          "schemas_are_valid": true,
+          "descriptions_meaningful": true
+        },
+        "total_tools": 7,
+        "avg_description_length": 79.71428571428571
+      },
+      "duration_ms": 273.45895767211914,
+      "error_message": ""
+    },
+    {
+      "category": "Input Validation",
+      "test_name": "input_validation/missing_required",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "error_detected": true,
+        "error_type": "validation_error",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1774579278038,
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"error\": \"INVALID_ARGUMENT\", \"message\": \"'query' is required and must be a non-empty string.\"}"
+              }
+            ],
+            "structuredContent": {
+              "error": "INVALID_ARGUMENT",
+              "message": "'query' is required and must be a non-empty string."
+            }
+          }
+        }
+      },
+      "duration_ms": 259.22703742980957,
+      "error_message": ""
+    },
+    {
+      "category": "Input Validation",
+      "test_name": "input_validation/invalid_types",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "test_cases": 3,
+        "errors_caught": 3,
+        "results": [
+          {
+            "case": {
+              "name": "search_codebase",
+              "arguments": {
+                "query": 12345
+              }
+            },
+            "error_detected": true
+          },
+          {
+            "case": {
+              "name": "search_codebase",
+              "arguments": {
+                "query": "test",
+                "limit": "ten"
+              }
+            },
+            "error_detected": true
+          },
+          {
+            "case": {
+              "name": "search_codebase",
+              "arguments": {
+                "query": null
+              }
+            },
+            "error_detected": true
+          }
+        ]
+      },
+      "duration_ms": 0,
+      "error_message": ""
+    },
+    {
+      "category": "Input Validation",
+      "test_name": "input_validation/boundary_values",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "test_cases": 3,
+        "handled_count": 3
+      },
+      "duration_ms": 0,
+      "error_message": ""
+    },
+    {
+      "category": "Security Testing",
+      "test_name": "security/injection_attempts",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "test_cases": 5,
+        "safe_count": 5
+      },
+      "duration_ms": 0,
+      "error_message": ""
+    },
+    {
+      "category": "Error Handling",
+      "test_name": "error_handling/unknown_method",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "has_error": true,
+        "error_valid": true,
+        "error_code": -32601,
+        "error_message": "Method not found: unknown_method_xyz"
+      },
+      "duration_ms": 417.1168804168701,
+      "error_message": ""
+    },
+    {
+      "category": "Error Handling",
+      "test_name": "error_handling/unknown_tool",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "has_error": true,
+        "error_in_content": true
+      },
+      "duration_ms": 326.016902923584,
+      "error_message": ""
+    },
+    {
+      "category": "Performance Testing",
+      "test_name": "performance/single_request_latency",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "avg_latency_ms": 327.1376132965088,
+        "min_latency_ms": 287.08410263061523,
+        "max_latency_ms": 384.1729164123535,
+        "std_dev_ms": 38.28653790661951,
+        "samples": 5
+      },
+      "duration_ms": 327.1376132965088,
+      "error_message": ""
+    },
+    {
+      "category": "Performance Testing",
+      "test_name": "performance/search_latency",
+      "passed": false,
+      "score": 1.0,
+      "details": {
+        "mode": "warm-path (persistent process)",
+        "cold_start_ms": 11391.1,
+        "avg_warm_ms": 0.0,
+        "max_warm_ms": 0.0,
+        "p99_warm_ms": 0.0,
+        "samples": 0,
+        "error": ""
+      },
+      "duration_ms": 0.0,
+      "error_message": ""
+    },
+    {
+      "category": "Performance Testing",
+      "test_name": "performance/pack_context_latency",
+      "passed": false,
+      "score": 0.0,
+      "details": {
+        "mode": "warm-path (persistent process)",
+        "cold_start_ms": 12427.8,
+        "avg_warm_ms": 10509.1,
+        "samples": 3,
+        "error": ""
+      },
+      "duration_ms": 10509.113311767578,
+      "error_message": ""
+    },
+    {
+      "category": "Concurrency Testing",
+      "test_name": "concurrency/parallel_requests",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "total_requests": 10,
+        "successful": 10,
+        "errors": 0,
+        "total_duration_ms": 2214.585065841675,
+        "success_rate": 1.0
+      },
+      "duration_ms": 2214.585065841675,
+      "error_message": ""
+    },
+    {
+      "category": "Concurrency Testing",
+      "test_name": "concurrency/mixed_tools",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "total_requests": 6,
+        "successful": 6
+      },
+      "duration_ms": 0,
+      "error_message": ""
+    },
+    {
+      "category": "Timeout & Limits",
+      "test_name": "timeout/handling",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "duration_ms": 261.31391525268555,
+        "timeout_set": 5
+      },
+      "duration_ms": 261.31391525268555,
+      "error_message": ""
+    },
+    {
+      "category": "Structured Content",
+      "test_name": "structured_content/format",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "has_content": true,
+        "has_structured_content": true,
+        "content_is_array": true,
+        "content_items_have_type": true
+      },
+      "duration_ms": 12996.30093574524,
+      "error_message": ""
+    }
+  ]
+}

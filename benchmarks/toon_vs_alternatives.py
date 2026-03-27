@@ -17,6 +17,7 @@ Decision rule applied after results:
 from __future__ import annotations
 
 import sys
+import tempfile
 import textwrap
 from datetime import UTC, datetime
 from pathlib import Path
@@ -38,7 +39,8 @@ from ws_ctx_engine.packer.xml_packer import XMLPacker
 # Payload generation
 # ---------------------------------------------------------------------------
 
-_PYTHON_TEMPLATE = textwrap.dedent("""\
+_PYTHON_TEMPLATE = textwrap.dedent(
+    """\
     \"\"\"Module {idx}: Provides utilities for subsystem {idx}.\"\"\"
     from __future__ import annotations
     import logging
@@ -81,7 +83,8 @@ _PYTHON_TEMPLATE = textwrap.dedent("""\
     def create_manager(config: dict[str, Any] | None = None) -> Manager{idx}:
         \"\"\"Factory: create a Manager{idx} with optional config override.\"\"\"
         return Manager{idx}(config or {{}})
-""")
+"""
+)
 
 
 def _make_metadata(n_files: int) -> dict[str, Any]:
@@ -103,21 +106,24 @@ def _make_metadata(n_files: int) -> dict[str, Any]:
 def _make_files(n: int) -> list[dict[str, Any]]:
     files = []
     for i in range(n):
-        files.append({
-            "path": f"src/subsystem_{i}/manager.py",
-            "content": _PYTHON_TEMPLATE.format(idx=i),
-            "score": round(0.95 - i * 0.01, 4),
-            "domain": f"subsystem_{i % 5}",
-            "dependencies": [f"src/subsystem_{(i+1) % n}/manager.py"],
-            "dependents": [f"src/subsystem_{(i-1) % n}/manager.py"],
-            "secrets_detected": [],
-        })
+        files.append(
+            {
+                "path": f"src/subsystem_{i}/manager.py",
+                "content": _PYTHON_TEMPLATE.format(idx=i),
+                "score": round(0.95 - i * 0.01, 4),
+                "domain": f"subsystem_{i % 5}",
+                "dependencies": [f"src/subsystem_{(i+1) % n}/manager.py"],
+                "dependents": [f"src/subsystem_{(i-1) % n}/manager.py"],
+                "secrets_detected": [],
+            }
+        )
     return files
 
 
 # ---------------------------------------------------------------------------
 # Measurement
 # ---------------------------------------------------------------------------
+
 
 def count_tokens(text: str, enc: tiktoken.Encoding) -> int:
     return len(enc.encode(text))
@@ -129,15 +135,20 @@ def measure_all(n_files: int, enc: tiktoken.Encoding) -> dict[str, int]:
 
     results: dict[str, int] = {}
 
-    # XML (via XMLPacker)
+    # XML (via XMLPacker) — requires real files on disk; write to a temp dir.
     try:
-        packer = XMLPacker()
-        xml_out = packer.pack(
-            repo_name=metadata["repo_name"],
-            files=files,
-            query=metadata["query"],
-            total_tokens=metadata["total_tokens"],
-        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_root = Path(tmpdir)
+            for f in files:
+                file_path = tmp_root / f["path"]
+                file_path.parent.mkdir(parents=True, exist_ok=True)
+                file_path.write_text(f["content"])
+            packer = XMLPacker()
+            xml_out = packer.pack(
+                selected_files=[f["path"] for f in files],
+                repo_path=tmpdir,
+                metadata=metadata,
+            )
         results["xml"] = count_tokens(xml_out, enc)
     except Exception as exc:
         results["xml"] = -1
@@ -163,6 +174,7 @@ def measure_all(n_files: int, enc: tiktoken.Encoding) -> dict[str, int]:
 # ---------------------------------------------------------------------------
 # Reporting
 # ---------------------------------------------------------------------------
+
 
 def _savings_pct(baseline: int, value: int) -> str:
     if baseline <= 0 or value < 0:
@@ -229,6 +241,7 @@ def toon_decision(results_by_size: dict[int, dict[str, int]]) -> str:
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
 
 def main() -> None:
     print("TOON vs Alternative Formats — Token Benchmark")

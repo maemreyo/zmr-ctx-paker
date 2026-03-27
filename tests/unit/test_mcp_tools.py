@@ -238,6 +238,9 @@ def test_search_codebase_returns_search_failed_when_backend_raises(monkeypatch) 
         def _boom(**kwargs):
             raise RuntimeError("boom")
 
+        # Patch _get_indexes so the index-existence check passes, then let
+        # the downstream search_codebase call raise to exercise SEARCH_FAILED.
+        monkeypatch.setattr(service, "_get_indexes", lambda: (object(), object(), object()))
         monkeypatch.setattr("ws_ctx_engine.mcp.tools.search_codebase", _boom)
         payload = service.call_tool("search_codebase", {"query": "auth"})
         assert payload["error"] == "SEARCH_FAILED"

@@ -16,6 +16,8 @@ import psutil  # type: ignore[import-untyped]
 
 from ..logger import get_logger
 from ..models import CodeChunk
+from ..perf import timed
+from .model_registry import DEFAULT_MODEL, ModelRegistry
 
 
 class VectorIndex(ABC):
@@ -101,7 +103,7 @@ class EmbeddingGenerator:
 
     def __init__(
         self,
-        model_name: str = "all-MiniLM-L6-v2",
+        model_name: str = DEFAULT_MODEL,
         device: str = "cpu",
         batch_size: int = 32,
         api_provider: str = "openai",
@@ -140,36 +142,32 @@ class EmbeddingGenerator:
             # If we can't check memory, assume it's available
             return True
 
+    @timed("embedding_model_load")
     def _init_local_model(self) -> bool:
-        """Initialize local sentence-transformers model.
+        """Initialize local sentence-transformers model via ModelRegistry.
+
+        Uses the thread-safe singleton cache to avoid reloading the model on
+        every call. The registry respects WSCTX_ENABLE_ONNX, WSCTX_EMBEDDING_MODEL,
+        and WSCTX_MEMORY_THRESHOLD_MB environment variables.
 
         Returns:
             True if successful, False otherwise
         """
-        try:
-            from sentence_transformers import SentenceTransformer
+        if not self._check_memory():
+            self.logger.warning(
+                f"Low memory detected (<{self._memory_threshold_mb}MB available), "
+                "skipping local model initialization"
+            )
+            return False
 
-            if not self._check_memory():
-                self.logger.warning(
-                    f"Low memory detected (<{self._memory_threshold_mb}MB available), "
-                    "skipping local model initialization"
-                )
-                return False
-
-            self.logger.info(f"Loading sentence-transformers model: {self.model_name}")
-            self._model = SentenceTransformer(self.model_name, device=self.device)
-            self.logger.info("Local embedding model loaded successfully")
+        model = ModelRegistry.get_model(self.model_name, self.device)
+        if model is not None:
+            self._model = model
+            self.logger.info(f"Embedding model ready (via registry): {self.model_name}")
             return True
 
-        except ImportError:
-            self.logger.warning("sentence-transformers not available, will use API fallback")
-            return False
-        except MemoryError:
-            self.logger.warning("Out of memory loading local model, will use API fallback")
-            return False
-        except Exception as e:
-            self.logger.warning(f"Failed to load local model: {e}, will use API fallback")
-            return False
+        self.logger.warning("sentence-transformers not available or model failed to load")
+        return False
 
     def _init_api_client(self) -> bool:
         """Initialize API client for embeddings.
@@ -196,6 +194,7 @@ class EmbeddingGenerator:
             self.logger.error(f"Failed to initialize API client: {e}")
             return False
 
+    @timed("embedding_encode")
     def encode(self, texts: list[str]) -> np.ndarray:
         """Generate embeddings for texts.
 
@@ -975,6 +974,7 @@ def create_vector_index(
     device: str = "cpu",
     batch_size: int = 32,
     index_path: str = "./leann_index",
+    leann_recompute_embeddings: bool = True,
 ) -> VectorIndex:
     """Create vector index with automatic backend selection and fallback.
 
@@ -1007,6 +1007,7 @@ def create_vector_index(
                 backend="hnsw",
                 chunk_size=256,
                 overlap=32,
+                recompute_embeddings=leann_recompute_embeddings,
             )
         except ImportError:
             raise RuntimeError(
@@ -1038,6 +1039,7 @@ def create_vector_index(
                 backend="hnsw",
                 chunk_size=256,
                 overlap=32,
+                recompute_embeddings=leann_recompute_embeddings,
             )
         except ImportError:
             logger.log_fallback(

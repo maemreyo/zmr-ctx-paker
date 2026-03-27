@@ -3,6 +3,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import re
+import threading
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -39,6 +40,13 @@ class MCPToolService:
         self._scanner = SecretScanner(repo_path=str(self.workspace_root), index_dir=index_dir)
         self._rate_limiter = RateLimiter(config.rate_limits)
         self._cache: dict[str, CacheEntry] = {}
+
+        # Index cache — loaded once and reused across requests until stale.
+        # Protected by a lock so concurrent tool calls don't double-load.
+        self._index_cache: tuple | None = None  # (vector_index, graph, metadata)
+        self._bm25_cache: Any | None = None
+        self._domain_map_cache: Any | None = None
+        self._index_lock = threading.Lock()
 
     def tool_schemas(self) -> list[dict[str, Any]]:
         return [
@@ -130,6 +138,62 @@ class MCPToolService:
             },
         ]
 
+    def _get_indexes(self) -> tuple:
+        """Return cached (vector_index, graph, metadata), reloading only when stale.
+
+        Eliminates the per-request disk I/O from ``load_indexes()`` — for a
+        long-lived MCP server process the index typically stays current across
+        many consecutive queries, so we load it once and reuse.
+        """
+        cfg = Config.load(str(self.workspace_root / ".ws-ctx-engine.yaml"))
+
+        # Fast path — check staleness without the lock (reads are safe)
+        if self._index_cache is not None:
+            _, _, metadata = self._index_cache
+            try:
+                if not metadata.is_stale(str(self.workspace_root)):
+                    return self._index_cache
+            except Exception:
+                pass  # treat as stale on error
+
+        with self._index_lock:
+            # Re-check under the lock (another thread may have reloaded already)
+            if self._index_cache is not None:
+                _, _, metadata = self._index_cache
+                try:
+                    if not metadata.is_stale(str(self.workspace_root)):
+                        return self._index_cache
+                except Exception:
+                    pass
+
+            vector_index, graph, metadata = load_indexes(
+                repo_path=str(self.workspace_root),
+                index_dir=self.index_dir,
+                auto_rebuild=False,  # don't auto-rebuild inside MCP server
+                config=cfg,
+            )
+            self._index_cache = (vector_index, graph, metadata)
+
+            # Reload auxiliary indexes alongside the vector/graph indexes
+            from ..retrieval.bm25_index import BM25Index
+
+            bm25_path = Path(self.workspace_root) / self.index_dir / "bm25.pkl"
+            if bm25_path.exists():
+                try:
+                    self._bm25_cache = BM25Index.load(str(bm25_path))
+                except Exception:
+                    self._bm25_cache = None
+
+            domain_map_db_path = Path(self.workspace_root) / self.index_dir / "domain_map.db"
+            try:
+                self._domain_map_cache = DomainMapDB(str(domain_map_db_path))
+            except Exception:
+                from ..domain_map import DomainKeywordMap
+
+                self._domain_map_cache = DomainKeywordMap()
+
+        return self._index_cache
+
     def call_tool(self, name: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
         args = arguments or {}
 
@@ -205,17 +269,46 @@ class MCPToolService:
                 "message": "'domain_filter' must be a string when provided.",
             }
 
-        cfg = Config.load(str(self.workspace_root / ".ws-ctx-engine.yaml"))
         try:
-            results, index_health = search_codebase(
-                repo_path=str(self.workspace_root),
-                query=query,
+            vector_index, graph, metadata = self._get_indexes()
+            cfg = Config.load(str(self.workspace_root / ".ws-ctx-engine.yaml"))
+
+            from ..retrieval import RetrievalEngine
+            from ..retrieval.reranker import CrossEncoderReranker
+            from ..workflow.query import _build_index_health, _build_summary, _infer_domain
+
+            reranker = None
+            if CrossEncoderReranker.is_enabled():
+                reranker = CrossEncoderReranker()
+
+            retrieval_engine = RetrievalEngine(
+                vector_index=vector_index,
+                graph=graph,
+                semantic_weight=cfg.semantic_weight,
+                pagerank_weight=cfg.pagerank_weight,
+                domain_map=self._domain_map_cache,
                 config=cfg,
-                limit=limit,
-                domain_filter=domain_filter,
-                index_dir=self.index_dir,
+                bm25_index=self._bm25_cache,
+                reranker=reranker,
             )
-            return {"results": results, "index_health": index_health}
+
+            ranked_files = retrieval_engine.retrieve(query=query, top_k=max(limit * 5, 50))
+            normalized_filter = domain_filter.lower() if domain_filter else None
+            results: list[dict] = []
+            for file_path, score in ranked_files:
+                inferred = _infer_domain(file_path, self._domain_map_cache)
+                if normalized_filter and inferred != normalized_filter:
+                    continue
+                results.append({
+                    "path": file_path,
+                    "score": round(float(score), 4),
+                    "domain": inferred,
+                    "summary": _build_summary(str(self.workspace_root), file_path),
+                })
+                if len(results) >= limit:
+                    break
+
+            return {"results": results, "index_health": _build_index_health(str(self.workspace_root), metadata)}
         except FileNotFoundError as exc:
             return {"error": "INDEX_NOT_FOUND", "message": str(exc)}
         except Exception as exc:

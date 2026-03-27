@@ -91,6 +91,17 @@ class Config:
         }
     )
 
+    # LEANN-specific tuning
+    leann: dict[str, Any] = field(
+        default_factory=lambda: {
+            # recompute_embeddings=True: prune embeddings from index (saves ~60% storage)
+            # but recomputes ALL doc embeddings on every query (~11s).
+            # Set to false for fast warm-path (~20ms) once LEANN fixes the
+            # passage-ID bug in 0.3.x (tracked in project memory).
+            "recompute_embeddings": True,
+        }
+    )
+
     # Performance tuning
     performance: dict[str, Any] = field(
         default_factory=lambda: {

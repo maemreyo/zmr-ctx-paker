@@ -70,6 +70,7 @@ fast = [
     "faiss-cpu>=1.7.4,<2.0.0",      # Fallback vector index (HNSW)
     "networkx>=3.0,<4.0",           # Fallback graph library (pure Python)
     "scikit-learn>=1.3.0,<2.0.0",  # TF-IDF fallback for embeddings
+    "rank-bm25>=0.2.2",             # BM25 sparse retrieval for hybrid search
 ]
 
 # All tier: Fast + primary backends (LEANN, igraph, sentence-transformers, tree-sitter)
@@ -78,7 +79,7 @@ all = [
     "networkx>=3.0,<4.0",           # Fallback graph library
     "scikit-learn>=1.3.0,<2.0.0",  # TF-IDF fallback
     "python-igraph>=0.11.0,<1.0.0", # Primary graph library (C++ backend)
-    "sentence-transformers>=3.0.0,<4.0.0", # Local embedding model (requires Python 3.11+)
+    "sentence-transformers>=3.2.0,<4.0.0", # Local embedding model (3.2+ for ONNX backend)
     "torch>=2.0.0,<3.0.0",          # PyTorch for sentence-transformers
     "tree-sitter>=0.20.0,<1.0.0",     # Primary AST parser
     "tree-sitter-python>=0.20.0,<1.0.0", # Python grammar for tree-sitter
@@ -86,6 +87,9 @@ all = [
     "tree-sitter-typescript>=0.20.0,<1.0.0", # TypeScript grammar for tree-sitter
     "tree-sitter-rust>=0.20.0,<1.0.0", # Rust grammar for tree-sitter
     "leann>=0.3.0,<1.0.0",          # LEANN vector index (97% storage savings)
+    "rank-bm25>=0.2.2",             # BM25 sparse retrieval for hybrid search
+    "onnxruntime>=1.17.0",          # ONNX backend for 1.4-3x CPU encoding speedup
+    "astchunk>=0.1.0",              # AST-aware chunking (CMU, EMNLP 2025)
 ]
 
 # LEANN tier: LEANN vector index (97% storage savings)
@@ -99,7 +103,7 @@ full = [
     "networkx>=3.0,<4.0",
     "scikit-learn>=1.3.0,<2.0.0",
     "python-igraph>=0.11.0,<1.0.0",
-    "sentence-transformers>=3.0.0,<4.0.0",
+    "sentence-transformers>=3.2.0,<4.0.0",
     "torch>=2.0.0,<3.0.0",
     "tree-sitter>=0.20.0,<1.0.0",
     "tree-sitter-python>=0.20.0,<1.0.0",
@@ -107,12 +111,16 @@ full = [
     "tree-sitter-typescript>=0.20.0,<1.0.0",
     "tree-sitter-rust>=0.20.0,<1.0.0",
     "leann>=0.3.0,<1.0.0",
+    "rank-bm25>=0.2.2",             # BM25 sparse retrieval for hybrid search
+    "onnxruntime>=1.17.0",          # ONNX backend for 1.4-3x CPU encoding speedup
+    "astchunk>=0.1.0",              # AST-aware chunking (CMU, EMNLP 2025)
 ]
 
 # Development dependencies
 dev = [
     "pytest>=7.4.0,<9.0.0",
     "pytest-cov>=4.1.0,<6.0.0",
+    "pytest-xdist>=3.5.0,<4.0.0",
     "pytest-benchmark>=4.0.0,<5.0.0",
     "hypothesis>=6.82.0,<7.0.0",
     "black>=23.0.0,<25.0.0",
@@ -163,10 +171,9 @@ python_functions = ["test_*"]
 addopts = [
     "--strict-markers",
     "--strict-config",
-    "--cov=ws_ctx_engine",
-    "--cov-report=term-missing",
-    "--cov-report=html",
 ]
+# Coverage is opt-in: run `pytest --cov` or `pytest --cov=ws_ctx_engine` explicitly.
+# Keeping it out of addopts avoids ~3-5x slowdown on every dev run.
 markers = [
     "benchmark: marks tests as performance benchmarks",
     "integration: marks tests as integration tests",
@@ -238,5 +245,9 @@ module = [
     "sentence_transformers.*",
     "tree_sitter.*",
     "lxml.*",
+    "rank_bm25.*",
+    "onnxruntime.*",
+    "astchunk.*",
+    "leann.*",
 ]
 ignore_missing_imports = true

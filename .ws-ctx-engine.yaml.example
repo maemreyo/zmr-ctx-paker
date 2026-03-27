@@ -161,6 +161,20 @@ embeddings:
   api_key_env: OPENAI_API_KEY
 
 # ==============================================================================
+# LEANN TUNING
+# ==============================================================================
+
+leann:
+  # recompute_embeddings controls the LEANN storage/speed trade-off:
+  #   true  (default) — prune embeddings from index (~60% smaller) but
+  #                     recompute ALL doc embeddings on every query (~11s).
+  #   false           — store embeddings in index (~20ms warm-path) but
+  #                     larger index file.
+  # NOTE: recompute_embeddings: false has a known passage-ID bug in LEANN
+  # 0.3.x. Keep as true until a fixed version is released.
+  recompute_embeddings: true
+
+# ==============================================================================
 # PERFORMANCE TUNING
 # ==============================================================================
 

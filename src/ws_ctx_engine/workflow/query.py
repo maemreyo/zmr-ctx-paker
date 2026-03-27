@@ -17,6 +17,7 @@ from ..logger import get_logger
 from ..monitoring import PerformanceTracker
 from ..output import JSONFormatter, MarkdownFormatter, TOONFormatter, YAMLFormatter
 from ..packer import XMLPacker, ZIPPacker
+from ..perf import timed
 from ..retrieval import RetrievalEngine
 from ..secret_scanner import SecretScanner
 from .indexer import load_indexes
@@ -155,6 +156,7 @@ def _build_file_payload(
     }
 
 
+@timed("search_codebase")
 def search_codebase(
     repo_path: str,
     query: str,
@@ -191,6 +193,28 @@ def search_codebase(
 
         domain_map = DomainKeywordMap()
 
+    # Load BM25 index if available (built during `wsctx index`)
+    bm25_index = None
+    try:
+        from ..retrieval.bm25_index import BM25Index
+
+        bm25_path = str(Path(repo_path) / index_dir / "bm25.pkl")
+        if Path(bm25_path).exists():
+            bm25_index = BM25Index.load(bm25_path)
+            logger.info(f"BM25 index loaded: {bm25_index.size} documents")
+    except Exception as e:
+        logger.warning(f"BM25 index load failed (continuing without): {e}")
+
+    # Opt-in cross-encoder reranker
+    reranker = None
+    try:
+        from ..retrieval.reranker import CrossEncoderReranker
+
+        if CrossEncoderReranker.is_enabled():
+            reranker = CrossEncoderReranker()
+    except Exception as e:
+        logger.warning(f"Reranker init failed (continuing without): {e}")
+
     retrieval_engine = RetrievalEngine(
         vector_index=vector_index,
         graph=graph,
@@ -198,6 +222,8 @@ def search_codebase(
         pagerank_weight=config.pagerank_weight,
         domain_map=domain_map,
         config=config,
+        bm25_index=bm25_index,
+        reranker=reranker,
     )
 
     ranked_files = retrieval_engine.retrieve(query=query, top_k=max(limit * 5, 50))
@@ -338,6 +364,28 @@ def query_and_pack(
 
             domain_map = DomainKeywordMap()
 
+        # Load BM25 index if available
+        _bm25_index = None
+        try:
+            from ..retrieval.bm25_index import BM25Index
+
+            _bm25_path = str(Path(repo_path) / index_dir / "bm25.pkl")
+            if Path(_bm25_path).exists():
+                _bm25_index = BM25Index.load(_bm25_path)
+                logger.info(f"BM25 index loaded: {_bm25_index.size} documents")
+        except Exception as _bm25_err:
+            logger.warning(f"BM25 index load failed (continuing without): {_bm25_err}")
+
+        # Opt-in cross-encoder reranker
+        _reranker = None
+        try:
+            from ..retrieval.reranker import CrossEncoderReranker
+
+            if CrossEncoderReranker.is_enabled():
+                _reranker = CrossEncoderReranker()
+        except Exception as _rnk_err:
+            logger.warning(f"Reranker init failed (continuing without): {_rnk_err}")
+
         retrieval_engine = RetrievalEngine(
             vector_index=vector_index,
             graph=graph,
@@ -345,6 +393,8 @@ def query_and_pack(
             pagerank_weight=config.pagerank_weight,
             domain_map=domain_map,
             config=config,
+            bm25_index=_bm25_index,
+            reranker=_reranker,
         )
 
         ranked_files = retrieval_engine.retrieve(
@@ -487,6 +537,10 @@ def query_and_pack(
 
         if deduplicated_count:
             logger.info(f"Session dedup: {deduplicated_count} file(s) replaced with markers")
+
+        # Make content_map available to the reranker for the next retrieve call
+        if content_map and retrieval_engine._content_map is not None:
+            retrieval_engine._content_map.update(content_map)
 
         # Prepare metadata (after dedup count is finalized for this phase)
         output_metadata = {

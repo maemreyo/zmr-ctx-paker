@@ -4,11 +4,19 @@ Command-line interface for ws-ctx-engine.
 Provides CLI commands for indexing repositories, querying, and packing context.
 """
 
+# Disable HuggingFace tokenizer parallelism before any heavy imports.
+# On macOS, forking a process that already has PyTorch loaded causes semaphore
+# leaks and segfaults in the child process. Setting this env var before
+# sentence-transformers is imported prevents the issue entirely.
+import os
+
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+
 import importlib.metadata
 import importlib.util
 import json
 import logging
-import os
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -249,6 +257,10 @@ def _doctor_dependency_report() -> dict[str, bool]:
         "faiss-cpu": "faiss",
         "networkx": "networkx",
         "scikit-learn": "sklearn",
+        # Optional performance / quality enhancements
+        "astchunk": "astchunk",
+        "rank-bm25": "rank_bm25",
+        "onnxruntime": "onnxruntime",
     }
     return {name: _is_module_available(module) for name, module in modules.items()}
 

@@ -67,6 +67,7 @@ class BackendSelector:
 
         backend_config = self.config.backends["vector_index"]
 
+        leann_cfg = self.config.leann if hasattr(self.config, "leann") else {}
         try:
             return create_vector_index(
                 backend=backend_config,
@@ -74,6 +75,7 @@ class BackendSelector:
                 device=device,
                 batch_size=batch_size,
                 index_path=index_path,
+                leann_recompute_embeddings=bool(leann_cfg.get("recompute_embeddings", True)),
             )
         except RuntimeError as e:
             self.logger.error(f"All vector index backends failed: {e}")

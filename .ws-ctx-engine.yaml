@@ -1,0 +1,6 @@
+# ws-ctx-engine project config
+# LEANN is_recompute=False has a passage-ID bug in current version (0.3.x).
+# Tracking: see project memory for LEANN roadmap reference.
+# Switch to native-leann once fixed: `backends: {vector_index: native-leann}`
+backends:
+  vector_index: faiss

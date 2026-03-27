@@ -104,7 +104,11 @@ class TestEmbeddingGenerator:
             embeddings = gen.encode(texts)
 
             assert embeddings.shape == (2, 2)
-            mock_model.encode.assert_called_once()
+            # The model registry may issue a warm-up call; assert the real
+            # encode call happened with the expected texts (last call).
+            assert mock_model.encode.call_count >= 1
+            actual_texts = mock_model.encode.call_args_list[-1][0][0]
+            assert actual_texts == texts
 
 
 class TestLEANNIndex:

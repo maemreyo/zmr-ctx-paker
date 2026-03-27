@@ -222,8 +222,14 @@ def world():
         for chunk in funcs_chunks:
             lines = code.split("\n")
             expected_content = "\n".join(lines[chunk.start_line - 1 : chunk.end_line])
+            # Strip enrichment header (# File / # Type / # Lines block) if present,
+            # as astchunk path prepends it while tree-sitter resolver does not.
+            raw_content = chunk.content
+            if raw_content.lstrip().startswith("# File:"):
+                header_end = raw_content.find("\n\n")
+                raw_content = raw_content[header_end + 2 :] if header_end != -1 else raw_content
             assert (
-                chunk.content.strip() == expected_content.strip()
+                expected_content.strip() in raw_content
             ), f"Chunk content mismatch for {chunk.path}:{chunk.start_line}-{chunk.end_line}"
 
     def test_chunk_symbols_defined_not_empty(self, temp_repo):

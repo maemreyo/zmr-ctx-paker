@@ -140,7 +140,9 @@ def index_repository(
     # explicitly disabled it, treat the call as a full rebuild regardless of
     # the function parameter.
     if incremental and not config.performance.get("incremental_index", True):
-        logger.info("Incremental indexing disabled via config (performance.incremental_index=false)")
+        logger.info(
+            "Incremental indexing disabled via config (performance.incremental_index=false)"
+        )
         incremental = False
 
     if incremental:
@@ -279,6 +281,19 @@ def index_repository(
         except Exception as e:
             logger.log_error(e, {"phase": "graph_building", "repo_path": repo_path})
             raise RuntimeError(f"Failed to build graph: {e}") from e
+
+    # Phase 3.5: Build BM25 index (optional — gracefully skipped if rank-bm25 absent)
+    logger.info("Phase 3.5: Building BM25 keyword index")
+    try:
+        from ..retrieval.bm25_index import BM25Index
+
+        bm25_index = BM25Index()
+        bm25_index.build(chunks)
+        bm25_path = str(index_path / "bm25.pkl")
+        bm25_index.save(bm25_path)
+        logger.info(f"BM25 index saved: {len(bm25_index._paths)} documents → {bm25_path}")
+    except Exception as e:
+        logger.warning(f"BM25 index build skipped: {e}")
 
     # Phase 4: Save metadata for staleness detection
     logger.info("Phase 4: Saving metadata for staleness detection")

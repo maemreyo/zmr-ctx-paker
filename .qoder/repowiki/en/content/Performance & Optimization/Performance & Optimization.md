@@ -19,6 +19,14 @@
 - [toon_vs_alternatives.py](file://benchmarks/toon_vs_alternatives.py)
 </cite>
 
+## Update Summary
+**Changes Made**
+- Updated MCP-specific performance documentation references to point to the consolidated MCP Performance Optimization Guide v3
+- Removed detailed MCP-specific optimization sections that have been moved to the dedicated guide
+- Focused the general performance guide on broader optimization topics applicable to all users
+- Maintained all core performance monitoring, benchmarking, and optimization content
+- Preserved Rust extension documentation and performance targets
+
 ## Table of Contents
 1. [Introduction](#introduction)
 2. [Project Structure](#project-structure)
@@ -33,6 +41,8 @@
 
 ## Introduction
 This document provides comprehensive performance and optimization guidance for ws-ctx-engine. It covers the performance monitoring system, benchmarking methodologies, the Rust extension delivering 8–20x speedup for hot-path operations, memory optimization strategies, caching mechanisms for embeddings and indices, backend selection strategies, CPU/GPU utilization, parallel processing, tuning parameters, resource allocation guidelines, scalability considerations, benchmark results, and troubleshooting.
+
+**Important**: MCP-specific performance optimizations have been consolidated into the comprehensive MCP Performance Optimization Guide v3. This general performance guide now focuses on broader optimization topics while MCP-specific optimizations are fully documented in the dedicated guide.
 
 ## Project Structure
 The performance-critical parts of the system are organized around:
@@ -420,8 +430,6 @@ BASE["chunker/base.py"] --> RT["Rust (_rust)"]
 - Parallelization: The Rust walker uses parallel traversal; consider CPU/GPU device settings for embeddings.
 - Output formats: Token counts vary by format; see format benchmarks for guidance.
 
-[No sources needed since this section provides general guidance]
-
 ## Troubleshooting Guide
 - Missing Rust extension: The system falls back to Python implementations automatically; verify installation and availability.
 - Low memory during embeddings: Local model initialization may be skipped or API fallback triggered; adjust device/batch size or use API embeddings.
@@ -438,7 +446,7 @@ BASE["chunker/base.py"] --> RT["Rust (_rust)"]
 ## Conclusion
 ws-ctx-engine delivers strong performance through a combination of Rust hot-path acceleration, incremental indexing with embedding caching, backend selection with graceful fallbacks, and robust monitoring. By tuning configuration flags, selecting appropriate backends, and leveraging caching and incremental rebuilds, teams can achieve efficient indexing and querying at scale.
 
-[No sources needed since this section summarizes without analyzing specific files]
+**MCP-Specific Optimizations**: For MCP-specific performance optimizations, refer to the comprehensive MCP Performance Optimization Guide v3, which consolidates all MCP-related performance enhancements including model loading optimization, hybrid search architecture, and advanced caching strategies.
 
 ## Appendices
 

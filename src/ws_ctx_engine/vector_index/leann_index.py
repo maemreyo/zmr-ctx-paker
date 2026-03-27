@@ -14,6 +14,7 @@ from typing import Any
 
 from ..logger import get_logger
 from ..models import CodeChunk
+from ..perf import timed
 from .vector_index import VectorIndex
 
 
@@ -37,6 +38,7 @@ class NativeLEANNIndex(VectorIndex):
         backend: str = "hnsw",
         chunk_size: int = 256,
         overlap: int = 32,
+        recompute_embeddings: bool = True,
     ):
         """Initialize Native LEANN index.
 
@@ -46,6 +48,12 @@ class NativeLEANNIndex(VectorIndex):
             backend: Backend to use ('hnsw' or 'diskann')
             chunk_size: Token chunk size for text splitting
             overlap: Overlap between chunks
+            recompute_embeddings: If False, embeddings are stored in the index for
+                fast warm-path searches (~20ms). If True (default), embeddings are
+                pruned from the index (saves ~60% storage) but recomputed on every
+                query (~11s). Configure via ``leann.recompute_embeddings`` in
+                ``.ws-ctx-engine.yaml``. NOTE: LEANN 0.3.x has a known passage-ID
+                bug with ``recompute_embeddings=False`` — leave as True until fixed.
 
         Raises:
             ImportError: If leann library is not available
@@ -54,6 +62,7 @@ class NativeLEANNIndex(VectorIndex):
         self.backend = backend
         self.chunk_size = chunk_size
         self.overlap = overlap
+        self.recompute_embeddings = recompute_embeddings
         self.logger = get_logger()
 
         self._builder: Any | None = None
@@ -98,7 +107,10 @@ class NativeLEANNIndex(VectorIndex):
 
         self.logger.info(f"Building Native LEANN index from {len(chunks)} chunks")
 
-        self._builder = LeannBuilder(backend_name=self.backend)
+        self._builder = LeannBuilder(
+            backend_name=self.backend,
+            is_recompute=self.recompute_embeddings,
+        )
 
         self._file_paths = []
         self._file_symbols = {}
@@ -133,6 +145,7 @@ class NativeLEANNIndex(VectorIndex):
             parent_dir = Path(self.index_path).parent
             parent_dir.mkdir(parents=True, exist_ok=True)
             self._builder.build_index(self.index_path)
+            self._searcher = None  # Invalidate cached searcher after re-build
             self.logger.info(
                 f"Native LEANN index built successfully: {len(self._file_paths)} files"
             )
@@ -140,6 +153,23 @@ class NativeLEANNIndex(VectorIndex):
             self.logger.error(f"Failed to build Native LEANN index: {e}")
             raise RuntimeError(f"Native LEANN index build failed: {e}") from e
 
+    def _get_or_create_searcher(self) -> Any:
+        """Return the cached LeannSearcher, creating it on first call.
+
+        Avoids 1-2s per-request overhead from re-initialising the searcher
+        for every ``search()`` call. Invalidated by ``build()``.
+        """
+        if self._searcher is None:
+            from leann import LeannSearcher  # type: ignore[import-untyped]
+
+            self._searcher = LeannSearcher(
+                self.index_path,
+                recompute_embeddings=self.recompute_embeddings,
+            )
+            self.logger.info("LEANN searcher loaded and cached")
+        return self._searcher
+
+    @timed("leann_search")
     def search(self, query: str, top_k: int = 10) -> list[tuple[str, float]]:
         """Search for relevant files using LEANN.
 
@@ -159,11 +189,9 @@ class NativeLEANNIndex(VectorIndex):
         if not query:
             raise ValueError("Query cannot be empty")
 
-        from leann import LeannSearcher
-
         try:
-            self._searcher = LeannSearcher(self.index_path)
-            results = self._searcher.search(query, top_k=top_k * 2)
+            searcher = self._get_or_create_searcher()
+            results = searcher.search(query, top_k=top_k * 2)
 
             file_scores: dict[str, float] = {}
             for result in results:

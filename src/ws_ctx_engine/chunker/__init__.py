@@ -1,6 +1,7 @@
 from typing import Any
 
 from .base import ASTChunker, _match_pattern, _should_include_file
+from .enrichment import enrich_chunk
 from .markdown import MarkdownChunker
 from .regex import RegexChunker
 from .resolvers import (
@@ -39,6 +40,7 @@ def parse_with_fallback(repo_path: str, config: Any = None) -> list:
 
 __all__ = [
     "ASTChunker",
+    "enrich_chunk",
     "MarkdownChunker",
     "TreeSitterChunker",
     "RegexChunker",
