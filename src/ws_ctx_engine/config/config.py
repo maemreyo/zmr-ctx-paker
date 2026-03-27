@@ -45,6 +45,7 @@ class Config:
             "**/*.jsx",
             "**/*.tsx",
             "**/*.java",
+            "**/*.cs",
             "**/*.go",
             "**/*.rs",
             "**/*.c",
@@ -111,6 +112,15 @@ class Config:
         }
     )
 
+    # Graph store settings (Sub-phase 2c)
+    graph_store_enabled: bool = True
+    graph_store_storage: str = "rocksdb"  # "mem" | "rocksdb" | "sqlite"
+    graph_store_path: str = ".ws-ctx-engine/graph.db"
+
+    # Phase 3 — ContextAssembler + Query Routing
+    context_assembler_enabled: bool = True
+    graph_query_weight: float = 0.3
+
     # AI rule persistence — auto-detect and always include AI rule files
     ai_rules: dict[str, Any] = field(
         default_factory=lambda: {
@@ -119,6 +129,13 @@ class Config:
             "boost": 10.0,
         }
     )
+
+    def __post_init__(self) -> None:
+        """Validate fields that require range or consistency checks."""
+        if not 0.0 <= self.graph_query_weight <= 1.0:
+            raise ValueError(
+                f"graph_query_weight must be in [0.0, 1.0], got {self.graph_query_weight}"
+            )
 
     @classmethod
     def load(cls, path: str = ".ws-ctx-engine.yaml") -> "Config":
@@ -158,8 +175,15 @@ class Config:
 
         # Create config with validation
         config = cls()
+        cls._apply_yaml(config, data, logger)
 
-        # Validate and set output settings
+        logger.info(f"Configuration loaded successfully from {path}")
+        return config
+
+    @classmethod
+    def _apply_yaml(cls, config: "Config", data: dict[str, Any], logger: Any) -> None:
+        """Apply YAML data fields onto an existing Config instance with validation."""
+        # Output settings
         if "format" in data:
             config.format = cls._validate_format(data["format"], logger)
 
@@ -169,7 +193,7 @@ class Config:
         if "output_path" in data:
             config.output_path = str(data["output_path"])
 
-        # Validate and set scoring weights
+        # Scoring weights
         if "semantic_weight" in data:
             config.semantic_weight = cls._validate_weight(
                 data["semantic_weight"], "semantic_weight", logger
@@ -180,10 +204,9 @@ class Config:
                 data["pagerank_weight"], "pagerank_weight", logger
             )
 
-        # Validate weight sum
         cls._validate_weight_sum(config.semantic_weight, config.pagerank_weight, logger)
 
-        # Set file filtering
+        # File filtering
         if "include_tests" in data:
             config.include_tests = bool(data["include_tests"])
 
@@ -200,19 +223,49 @@ class Config:
                 data["exclude_patterns"], "exclude_patterns", logger
             )
 
-        # Set backend selection
+        # Backend selection
         if "backends" in data:
             config.backends = cls._validate_backends(data["backends"], logger)
 
-        # Set embeddings config
+        # Embeddings config
         if "embeddings" in data:
             config.embeddings = cls._validate_embeddings(data["embeddings"], logger)
 
-        # Set performance tuning
+        # Performance tuning
         if "performance" in data:
             config.performance = cls._validate_performance(data["performance"], logger)
 
-        # Set ai_rules config
+        # Graph store config
+        if "graph_store_enabled" in data:
+            config.graph_store_enabled = bool(data["graph_store_enabled"])
+
+        if "graph_store_storage" in data:
+            storage_val = data["graph_store_storage"]
+            if isinstance(storage_val, str) and storage_val in {"mem", "rocksdb", "sqlite"}:
+                config.graph_store_storage = storage_val
+            else:
+                logger.error(
+                    f"Invalid graph_store_storage: {storage_val!r}, "
+                    "must be 'mem', 'rocksdb', or 'sqlite'. Using default 'rocksdb'."
+                )
+                config.graph_store_storage = "rocksdb"
+
+        if "graph_store_path" in data:
+            config.graph_store_path = str(data["graph_store_path"])
+
+        if "context_assembler_enabled" in data:
+            config.context_assembler_enabled = bool(data["context_assembler_enabled"])
+
+        if "graph_query_weight" in data:
+            weight = data["graph_query_weight"]
+            if isinstance(weight, (int, float)) and 0.0 <= float(weight) <= 1.0:
+                config.graph_query_weight = float(weight)
+            else:
+                logger.error(
+                    f"Invalid graph_query_weight: {weight!r}, must be in [0.0, 1.0]. Using default 0.3."
+                )
+
+        # AI rules config
         if "ai_rules" in data and isinstance(data["ai_rules"], dict):
             ai_rules = data["ai_rules"]
             if "auto_detect" in ai_rules:
@@ -221,9 +274,6 @@ class Config:
                 config.ai_rules["extra_files"] = [str(f) for f in ai_rules["extra_files"]]
             if "boost" in ai_rules and isinstance(ai_rules["boost"], (int, float)):
                 config.ai_rules["boost"] = float(ai_rules["boost"])
-
-        logger.info(f"Configuration loaded successfully from {path}")
-        return config
 
     @staticmethod
     def _validate_format(value: Any, logger: Any) -> str:

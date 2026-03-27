@@ -14,9 +14,10 @@ from ..domain_map import DomainMapDB
 from ..models import IndexMetadata
 from ..secret_scanner import SecretScanner
 from ..session.dedup_cache import SessionDeduplicationCache, clear_all_sessions
-from ..workflow import search_codebase
+from ..workflow import search_codebase  # noqa: F401  # monkeypatched in tests
 from ..workflow.indexer import load_indexes
 from ..workflow.query import query_and_pack
+from . import graph_tools
 from .config import MCPConfig
 from .security import RADESession, RateLimiter, WorkspacePathGuard
 
@@ -47,6 +48,10 @@ class MCPToolService:
         self._bm25_cache: Any | None = None
         self._domain_map_cache: Any | None = None
         self._index_lock = threading.Lock()
+
+        # Graph store cache — loaded lazily on first graph tool call.
+        self._graph_store_cache: Any | None = None
+        self._graph_store_loaded: bool = False
 
     def tool_schemas(self) -> list[dict[str, Any]]:
         return [
@@ -136,6 +141,99 @@ class MCPToolService:
                     },
                 },
             },
+            {
+                "name": "find_callers",
+                "description": (
+                    "Find all functions and files that call a given function. "
+                    "Use when user asks 'what calls X', 'who uses this function', "
+                    "'find callers of Y', 'what invokes Z'."
+                ),
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "fn_name": {
+                            "type": "string",
+                            "description": "The function name to find callers for (e.g. 'authenticate', 'validate_user').",
+                        }
+                    },
+                    "required": ["fn_name"],
+                },
+            },
+            {
+                "name": "impact_analysis",
+                "description": (
+                    "Return files that would be affected if a given file is modified. "
+                    "Use when user asks 'what breaks if I change X', 'impact of changing Y', "
+                    "'who imports Z', 'what depends on file X'."
+                ),
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "file_path": {
+                            "type": "string",
+                            "description": "Repo-relative file path (e.g. 'src/auth.py', 'models/user.py').",
+                        }
+                    },
+                    "required": ["file_path"],
+                },
+            },
+            {
+                "name": "graph_search",
+                "description": (
+                    "List all symbols (functions, classes, constants) defined in a given file. "
+                    "Use when user asks 'what is defined in file X', 'list symbols in Y', "
+                    "'what functions does Z contain'."
+                ),
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "file_id": {
+                            "type": "string",
+                            "description": "Repo-relative file path (e.g. 'src/auth.py').",
+                        }
+                    },
+                    "required": ["file_id"],
+                },
+            },
+            {
+                "name": "call_chain",
+                "description": (
+                    "Trace the call path between two functions (experimental). "
+                    "Use when user asks 'how does A reach B', 'trace call from X to Y', "
+                    "'what is the path from function X to function Y'."
+                ),
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "from_fn": {"type": "string", "description": "Starting function name."},
+                        "to_fn": {"type": "string", "description": "Target function name."},
+                        "max_depth": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 10,
+                            "default": 5,
+                            "description": "Maximum BFS hops to trace (capped at 10).",
+                        },
+                    },
+                    "required": ["from_fn", "to_fn"],
+                },
+            },
+            {
+                "name": "get_status",
+                "description": (
+                    "Return full readiness status of the ws-ctx-engine server. "
+                    "Shows index state, graph store health, vector backend, node/edge counts, "
+                    "and overall readiness flag. "
+                    "Use this before making queries to verify the server is ready, "
+                    "or when user asks 'is the tool ready?', 'is the index loaded?', "
+                    "'how many files are indexed?'."
+                ),
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {},
+                    "required": [],
+                },
+            },
         ]
 
     def _get_indexes(self) -> tuple:
@@ -194,6 +292,36 @@ class MCPToolService:
 
         return self._index_cache
 
+    def _get_graph_store(self) -> Any | None:
+        """Return a cached GraphStore, loading it lazily on first call.
+
+        Returns None when:
+        - ``config.graph_store_enabled`` is False
+        - pycozo is not installed
+        - The store is unhealthy after initialization
+        """
+        if self._graph_store_loaded:
+            return self._graph_store_cache
+
+        self._graph_store_loaded = True
+        try:
+            cfg = Config.load(str(self.workspace_root / ".ws-ctx-engine.yaml"))
+            if not getattr(cfg, "graph_store_enabled", True):
+                self._graph_store_cache = None
+                return None
+
+            from ..workflow.query import _load_graph_store
+
+            # Pass the index directory (not metadata.json) so _load_graph_store
+            # resolves relative db_path correctly: index_path.parent == workspace_root
+            index_path = self.workspace_root / self.index_dir
+            store = _load_graph_store(cfg, index_path)
+            self._graph_store_cache = store
+        except Exception:
+            self._graph_store_cache = None
+
+        return self._graph_store_cache
+
     def call_tool(self, name: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
         args = arguments or {}
 
@@ -203,8 +331,13 @@ class MCPToolService:
             "get_domain_map",
             "get_index_status",
             "index_status",
+            "get_status",
             "pack_context",
             "session_clear",
+            "find_callers",
+            "impact_analysis",
+            "graph_search",
+            "call_chain",
         }
         if name not in _valid_tools:
             return {"error": "TOOL_NOT_FOUND", "message": f"Unknown tool: {name}"}
@@ -242,6 +375,16 @@ class MCPToolService:
                 self._write_cache("tool:get_index_status", payload)
         elif name == "pack_context":
             payload = self._pack_context(args)
+        elif name == "find_callers":
+            payload = graph_tools.handle_find_callers(self._get_graph_store(), args)
+        elif name == "impact_analysis":
+            payload = graph_tools.handle_impact_analysis(self._get_graph_store(), args)
+        elif name == "graph_search":
+            payload = graph_tools.handle_graph_search(self._get_graph_store(), args)
+        elif name == "call_chain":
+            payload = graph_tools.handle_call_chain(self._get_graph_store(), args)
+        elif name == "get_status":
+            payload = self._get_status_data()
         else:
             payload = self._session_clear(args)
 
@@ -299,16 +442,21 @@ class MCPToolService:
                 inferred = _infer_domain(file_path, self._domain_map_cache)
                 if normalized_filter and inferred != normalized_filter:
                     continue
-                results.append({
-                    "path": file_path,
-                    "score": round(float(score), 4),
-                    "domain": inferred,
-                    "summary": _build_summary(str(self.workspace_root), file_path),
-                })
+                results.append(
+                    {
+                        "path": file_path,
+                        "score": round(float(score), 4),
+                        "domain": inferred,
+                        "summary": _build_summary(str(self.workspace_root), file_path),
+                    }
+                )
                 if len(results) >= limit:
                     break
 
-            return {"results": results, "index_health": _build_index_health(str(self.workspace_root), metadata)}
+            return {
+                "results": results,
+                "index_health": _build_index_health(str(self.workspace_root), metadata),
+            }
         except FileNotFoundError as exc:
             return {"error": "INDEX_NOT_FOUND", "message": str(exc)}
         except Exception as exc:
@@ -490,6 +638,74 @@ class MCPToolService:
             "recommendation": recommendation,
             "workspace": str(self.workspace_root),
         }
+
+    def _get_status_data(self) -> dict[str, Any]:
+        """Return full server readiness status including index and graph store info.
+
+        Always returns a dict — never raises.  The ``ready`` field is True only
+        when the index metadata exists (i.e., the workspace has been indexed).
+        """
+        try:
+            metadata = self._load_metadata()
+            index_exists = metadata is not None
+            vector_backend: str = "unknown"
+            last_indexed_at: str | None = None
+
+            if metadata is not None:
+                vector_backend = metadata.backend or "unknown"
+                ts = metadata.created_at
+                if ts is not None:
+                    if ts.tzinfo is None:
+                        ts = ts.replace(tzinfo=UTC)
+                    last_indexed_at = ts.replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+            # Graph store info
+            graph_store_info: dict[str, Any] = {
+                "available": False,
+                "healthy": False,
+                "node_count": 0,
+                "edge_count": 0,
+                "schema_version": "unknown",
+            }
+            try:
+                store = self._get_graph_store()
+                if store is not None and getattr(store, "is_healthy", False):
+                    stats = store.stats()
+                    graph_store_info = {
+                        "available": True,
+                        "healthy": bool(stats.get("healthy", False)),
+                        "node_count": int(stats.get("node_count", 0)),
+                        "edge_count": int(stats.get("edge_count", 0)),
+                        "schema_version": str(stats.get("schema_version", "unknown")),
+                    }
+            except Exception:
+                pass  # graph store is optional — leave defaults
+
+            # Build required_actions list for unready components
+            required_actions: list[str] = []
+            if not index_exists:
+                required_actions.append("Run 'wsctx index .' to build the vector index.")
+            if not graph_store_info["available"]:
+                required_actions.append(
+                    "Install pycozo and re-index to enable graph tools: "
+                    "pip install 'ws-ctx-engine[graph-store]' && wsctx index ."
+                )
+
+            return {
+                "ready": index_exists,
+                "index_exists": index_exists,
+                "vector_backend": vector_backend,
+                "last_indexed_at": last_indexed_at,
+                "graph_store": graph_store_info,
+                "required_actions": required_actions,
+                "hint": (
+                    "Call get_status first to verify readiness before running queries."
+                    if required_actions
+                    else "Server is ready. All features available."
+                ),
+            }
+        except Exception as exc:
+            return {"ready": False, "error": str(exc)}
 
     def _load_metadata(self) -> IndexMetadata | None:
         metadata_path = self.workspace_root / self.index_dir / "metadata.json"

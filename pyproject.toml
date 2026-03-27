@@ -73,6 +73,11 @@ fast = [
     "rank-bm25>=0.2.2",             # BM25 sparse retrieval for hybrid search
 ]
 
+# Graph store tier: CozoDB embedded backend
+graph-store = [
+    "pycozo[embedded]>=0.7.5,<0.8.0",  # CozoDB embedded graph store
+]
+
 # All tier: Fast + primary backends (LEANN, igraph, sentence-transformers, tree-sitter)
 all = [
     "faiss-cpu>=1.7.4,<2.0.0",      # Fallback vector index
@@ -90,6 +95,7 @@ all = [
     "rank-bm25>=0.2.2",             # BM25 sparse retrieval for hybrid search
     "onnxruntime>=1.17.0",          # ONNX backend for 1.4-3x CPU encoding speedup
     "astchunk>=0.1.0",              # AST-aware chunking (CMU, EMNLP 2025)
+    "pycozo[embedded]>=0.7.5,<0.8.0",  # CozoDB embedded graph store
 ]
 
 # LEANN tier: LEANN vector index (97% storage savings)
@@ -118,6 +124,7 @@ full = [
 
 # Development dependencies
 dev = [
+    "pycozo[embedded]>=0.7.5,<0.8.0",  # CozoDB embedded graph store
     "pytest>=7.4.0,<9.0.0",
     "pytest-cov>=4.1.0,<6.0.0",
     "pytest-xdist>=3.5.0,<4.0.0",
@@ -249,5 +256,7 @@ module = [
     "onnxruntime.*",
     "astchunk.*",
     "leann.*",
+    "pycozo.*",
+    "cozo_embedded.*",
 ]
 ignore_missing_imports = true

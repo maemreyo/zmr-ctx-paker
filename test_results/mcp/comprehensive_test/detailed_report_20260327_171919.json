@@ -1,0 +1,938 @@
+{
+  "timestamp": "20260327_171919",
+  "workspace": "/Users/trung.ngo/Documents/zaob-dev/zmr-ctx-paker",
+  "server_info": {
+    "name": "ws-ctx-engine",
+    "version": "0.2.0a0"
+  },
+  "summary": {
+    "total_tests": 29,
+    "passed": 29,
+    "failed": 0,
+    "overall_score": 1.0,
+    "pass_rate": 1.0
+  },
+  "category_scores": {
+    "Protocol Compliance": {
+      "average_score": 1.0,
+      "total_tests": 2,
+      "passed": 2,
+      "failed": 0
+    },
+    "Tool Discovery & Registration": {
+      "average_score": 1.0,
+      "total_tests": 2,
+      "passed": 2,
+      "failed": 0
+    },
+    "Input Validation": {
+      "average_score": 1.0,
+      "total_tests": 3,
+      "passed": 3,
+      "failed": 0
+    },
+    "Error Handling": {
+      "average_score": 1.0,
+      "total_tests": 2,
+      "passed": 2,
+      "failed": 0
+    },
+    "Performance Testing": {
+      "average_score": 1.0,
+      "total_tests": 3,
+      "passed": 3,
+      "failed": 0
+    },
+    "Concurrency Testing": {
+      "average_score": 1.0,
+      "total_tests": 2,
+      "passed": 2,
+      "failed": 0
+    },
+    "Security Testing": {
+      "average_score": 1.0,
+      "total_tests": 1,
+      "passed": 1,
+      "failed": 0
+    },
+    "Structured Content": {
+      "average_score": 1.0,
+      "total_tests": 1,
+      "passed": 1,
+      "failed": 0
+    },
+    "Timeout & Limits": {
+      "average_score": 1.0,
+      "total_tests": 1,
+      "passed": 1,
+      "failed": 0
+    },
+    "Graph Tools": {
+      "average_score": 1.0,
+      "total_tests": 12,
+      "passed": 12,
+      "failed": 0
+    }
+  },
+  "results": [
+    {
+      "category": "Protocol Compliance",
+      "test_name": "initialize",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "checks": {
+          "jsonrpc_valid": true,
+          "has_server_info": true,
+          "has_capabilities": true,
+          "has_protocol_version": true,
+          "server_name_present": true,
+          "server_version_present": true
+        },
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1001,
+          "result": {
+            "protocolVersion": "2025-03-26",
+            "capabilities": {
+              "tools": {}
+            },
+            "serverInfo": {
+              "name": "ws-ctx-engine",
+              "version": "0.2.0a0"
+            }
+          }
+        }
+      },
+      "duration_ms": 248.85296821594238,
+      "error_message": ""
+    },
+    {
+      "category": "Tool Discovery & Registration",
+      "test_name": "tools/list",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "checks": {
+          "jsonrpc_valid": true,
+          "has_tools_array": true,
+          "tools_not_empty": true,
+          "each_tool_has_name": true,
+          "each_tool_has_description": true,
+          "each_tool_has_schema": true
+        },
+        "tools_found": 12,
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1002,
+          "result": {
+            "tools": [
+              {
+                "name": "search_codebase",
+                "description": "Search the indexed codebase and return ranked file paths.",
+                "inputSchema": {
+                  "type": "object",
+                  "properties": {
+                    "query": {
+                      "type": "string"
+                    },
+                    "limit": {
+                      "type": "integer",
+                      "default": 10,
+                      "minimum": 1,
+                      "maximum": 50
+                    },
+                    "domain_filter": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "query"
+                  ]
+                }
+              },
+              {
+                "name": "get_file_context",
+                "description": "Return file content with dependency context and secret redaction.",
+                "inputSchema": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "include_dependencies": {
+                      "type": "boolean",
+                      "default": true
+                    },
+                    "include_dependents": {
+                      "type": "boolean",
+                      "default": true
+                    }
+                  },
+                  "required": [
+                    "path"
+                  ]
+                }
+              },
+              {
+                "name": "get_domain_map",
+                "description": "Return inferred architecture domains from the domain map index.",
+                "inputSchema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              },
+              {
+                "name": "get_index_status",
+                "description": "Return index freshness and workspace recommendation.",
+                "inputSchema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              },
+              {
+                "name": "index_status",
+                "description": "Alias for get_index_status. Return index freshness and workspace recommendation.",
+                "inputSchema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              },
+              {
+                "name": "pack_context",
+                "description": "Query the indexed codebase and pack matching files into a context output. Returns the output file path and token statistics.",
+                "inputSchema": {
+                  "type": "object",
+                  "properties": {
+                    "query": {
+                      "type": "string",
+                      "description": "Natural language query"
+                    },
+                    "format": {
+                      "type": "string",
+                      "enum": [
+                        "xml",
+                        "zip",
+                        "json",
+                        "yaml",
+                        "md"
+                      ],
+                      "default": "xml"
+                    },
+                    "token_budget": {
+                      "type": "integer",
+                      "minimum": 1000,
+                      "description": "Token budget override (uses config default if omitted)"
+                    },
+                    "agent_phase": {
+                      "type": "string",
+                      "enum": [
+                        "discovery",
+                        "edit",
+                        "test"
+                      ],
+                      "description": "Agent phase for context weighting"
+                    }
+                  },
+                  "required": [
+                    "query"
+                  ]
+                }
+              },
+              {
+                "name": "session_clear",
+                "description": "Delete session deduplication cache files. Pass session_id to clear a specific session, or omit to clear all sessions.",
+                "inputSchema": {
+                  "type": "object",
+                  "properties": {
+                    "session_id": {
+                      "type": "string",
+                      "description": "Session ID to clear (omit to clear all)"
+                    }
+                  }
+                }
+              },
+              {
+                "name": "find_callers",
+                "description": "Find all functions and files that call a given function. Use when user asks 'what calls X', 'who uses this function', 'find callers of Y', 'what invokes Z'.",
+                "inputSchema": {
+                  "type": "object",
+                  "properties": {
+                    "fn_name": {
+                      "type": "string",
+                      "description": "The function name to find callers for (e.g. 'authenticate', 'validate_user')."
+                    }
+                  },
+                  "required": [
+                    "fn_name"
+                  ]
+                }
+              },
+              {
+                "name": "impact_analysis",
+                "description": "Return files that would be affected if a given file is modified. Use when user asks 'what breaks if I change X', 'impact of changing Y', 'who imports Z', 'what depends on file X'.",
+                "inputSchema": {
+                  "type": "object",
+                  "properties": {
+                    "file_path": {
+                      "type": "string",
+                      "description": "Repo-relative file path (e.g. 'src/auth.py', 'models/user.py')."
+                    }
+                  },
+                  "required": [
+                    "file_path"
+                  ]
+                }
+              },
+              {
+                "name": "graph_search",
+                "description": "List all symbols (functions, classes, constants) defined in a given file. Use when user asks 'what is defined in file X', 'list symbols in Y', 'what functions does Z contain'.",
+                "inputSchema": {
+                  "type": "object",
+                  "properties": {
+                    "file_id": {
+                      "type": "string",
+                      "description": "Repo-relative file path (e.g. 'src/auth.py')."
+                    }
+                  },
+                  "required": [
+                    "file_id"
+                  ]
+                }
+              },
+              {
+                "name": "call_chain",
+                "description": "Trace the call path between two functions (experimental). Use when user asks 'how does A reach B', 'trace call from X to Y', 'what is the path from function X to function Y'.",
+                "inputSchema": {
+                  "type": "object",
+                  "properties": {
+                    "from_fn": {
+                      "type": "string",
+                      "description": "Starting function name."
+                    },
+                    "to_fn": {
+                      "type": "string",
+                      "description": "Target function name."
+                    }
+                  },
+                  "required": [
+                    "from_fn",
+                    "to_fn"
+                  ]
+                }
+              },
+              {
+                "name": "get_status",
+                "description": "Return full readiness status of the ws-ctx-engine server. Shows index state, graph store health, vector backend, node/edge counts, and overall readiness flag. Use this before making queries to verify the server is ready, or when user asks 'is the tool ready?', 'is the index loaded?', 'how many files are indexed?'.",
+                "inputSchema": {
+                  "type": "object",
+                  "properties": {},
+                  "required": []
+                }
+              }
+            ]
+          }
+        }
+      },
+      "duration_ms": 289.6592617034912,
+      "error_message": ""
+    },
+    {
+      "category": "Protocol Compliance",
+      "test_name": "notifications/no_response",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "has_output": false,
+        "output": ""
+      },
+      "duration_ms": 318.32313537597656,
+      "error_message": ""
+    },
+    {
+      "category": "Tool Discovery & Registration",
+      "test_name": "tool_discovery_comprehensive",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "tools_analysis": [
+          {
+            "name": "search_codebase",
+            "has_description": true,
+            "description_length": 57,
+            "has_schema": true,
+            "schema_type": "object",
+            "has_properties": true,
+            "required_fields_count": 1
+          },
+          {
+            "name": "get_file_context",
+            "has_description": true,
+            "description_length": 65,
+            "has_schema": true,
+            "schema_type": "object",
+            "has_properties": true,
+            "required_fields_count": 1
+          },
+          {
+            "name": "get_domain_map",
+            "has_description": true,
+            "description_length": 63,
+            "has_schema": true,
+            "schema_type": "object",
+            "has_properties": true,
+            "required_fields_count": 0
+          },
+          {
+            "name": "get_index_status",
+            "has_description": true,
+            "description_length": 52,
+            "has_schema": true,
+            "schema_type": "object",
+            "has_properties": true,
+            "required_fields_count": 0
+          },
+          {
+            "name": "index_status",
+            "has_description": true,
+            "description_length": 80,
+            "has_schema": true,
+            "schema_type": "object",
+            "has_properties": true,
+            "required_fields_count": 0
+          },
+          {
+            "name": "pack_context",
+            "has_description": true,
+            "description_length": 124,
+            "has_schema": true,
+            "schema_type": "object",
+            "has_properties": true,
+            "required_fields_count": 1
+          },
+          {
+            "name": "session_clear",
+            "has_description": true,
+            "description_length": 117,
+            "has_schema": true,
+            "schema_type": "object",
+            "has_properties": true,
+            "required_fields_count": 0
+          },
+          {
+            "name": "find_callers",
+            "has_description": true,
+            "description_length": 156,
+            "has_schema": true,
+            "schema_type": "object",
+            "has_properties": true,
+            "required_fields_count": 1
+          },
+          {
+            "name": "impact_analysis",
+            "has_description": true,
+            "description_length": 179,
+            "has_schema": true,
+            "schema_type": "object",
+            "has_properties": true,
+            "required_fields_count": 1
+          },
+          {
+            "name": "graph_search",
+            "has_description": true,
+            "description_length": 175,
+            "has_schema": true,
+            "schema_type": "object",
+            "has_properties": true,
+            "required_fields_count": 1
+          },
+          {
+            "name": "call_chain",
+            "has_description": true,
+            "description_length": 174,
+            "has_schema": true,
+            "schema_type": "object",
+            "has_properties": true,
+            "required_fields_count": 2
+          },
+          {
+            "name": "get_status",
+            "has_description": true,
+            "description_length": 315,
+            "has_schema": true,
+            "schema_type": "object",
+            "has_properties": true,
+            "required_fields_count": 0
+          }
+        ],
+        "checks": {
+          "tools_found": true,
+          "all_have_descriptions": true,
+          "all_have_schemas": true,
+          "schemas_are_valid": true,
+          "descriptions_meaningful": true
+        },
+        "total_tools": 12,
+        "avg_description_length": 129.75
+      },
+      "duration_ms": 271.3141441345215,
+      "error_message": ""
+    },
+    {
+      "category": "Input Validation",
+      "test_name": "input_validation/missing_required",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "error_detected": true,
+        "error_type": "validation_error",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1774606655970,
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"error\": \"INVALID_ARGUMENT\", \"message\": \"'query' is required and must be a non-empty string.\"}"
+              }
+            ],
+            "structuredContent": {
+              "error": "INVALID_ARGUMENT",
+              "message": "'query' is required and must be a non-empty string."
+            }
+          }
+        }
+      },
+      "duration_ms": 230.6361198425293,
+      "error_message": ""
+    },
+    {
+      "category": "Input Validation",
+      "test_name": "input_validation/invalid_types",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "test_cases": 3,
+        "errors_caught": 3,
+        "results": [
+          {
+            "case": {
+              "name": "search_codebase",
+              "arguments": {
+                "query": 12345
+              }
+            },
+            "error_detected": true
+          },
+          {
+            "case": {
+              "name": "search_codebase",
+              "arguments": {
+                "query": "test",
+                "limit": "ten"
+              }
+            },
+            "error_detected": true
+          },
+          {
+            "case": {
+              "name": "search_codebase",
+              "arguments": {
+                "query": null
+              }
+            },
+            "error_detected": true
+          }
+        ]
+      },
+      "duration_ms": 0,
+      "error_message": ""
+    },
+    {
+      "category": "Input Validation",
+      "test_name": "input_validation/boundary_values",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "test_cases": 3,
+        "handled_count": 3
+      },
+      "duration_ms": 0,
+      "error_message": ""
+    },
+    {
+      "category": "Security Testing",
+      "test_name": "security/injection_attempts",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "test_cases": 5,
+        "safe_count": 5
+      },
+      "duration_ms": 0,
+      "error_message": ""
+    },
+    {
+      "category": "Error Handling",
+      "test_name": "error_handling/unknown_method",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "has_error": true,
+        "error_valid": true,
+        "error_code": -32601,
+        "error_message": "Method not found: unknown_method_xyz"
+      },
+      "duration_ms": 288.16676139831543,
+      "error_message": ""
+    },
+    {
+      "category": "Error Handling",
+      "test_name": "error_handling/unknown_tool",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "has_error": true,
+        "error_in_content": true
+      },
+      "duration_ms": 231.126070022583,
+      "error_message": ""
+    },
+    {
+      "category": "Performance Testing",
+      "test_name": "performance/single_request_latency",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "avg_latency_ms": 300.9552478790283,
+        "min_latency_ms": 270.48397064208984,
+        "max_latency_ms": 335.2019786834717,
+        "std_dev_ms": 24.758300506603973,
+        "samples": 5
+      },
+      "duration_ms": 300.9552478790283,
+      "error_message": ""
+    },
+    {
+      "category": "Performance Testing",
+      "test_name": "performance/search_latency",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "mode": "warm-path (persistent process)",
+        "cold_start_ms": 10157.2,
+        "avg_warm_ms": 19.8,
+        "max_warm_ms": 20.0,
+        "p99_warm_ms": 20.0,
+        "samples": 4,
+        "error": ""
+      },
+      "duration_ms": 19.83356475830078,
+      "error_message": ""
+    },
+    {
+      "category": "Performance Testing",
+      "test_name": "performance/pack_context_latency",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "mode": "warm-path (persistent process)",
+        "cold_start_ms": 9980.3,
+        "avg_warm_ms": 120.9,
+        "samples": 3,
+        "error": ""
+      },
+      "duration_ms": 120.9253470102946,
+      "error_message": ""
+    },
+    {
+      "category": "Concurrency Testing",
+      "test_name": "concurrency/parallel_requests",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "total_requests": 10,
+        "successful": 10,
+        "errors": 0,
+        "total_duration_ms": 1826.6019821166992,
+        "success_rate": 1.0
+      },
+      "duration_ms": 1826.6019821166992,
+      "error_message": ""
+    },
+    {
+      "category": "Concurrency Testing",
+      "test_name": "concurrency/mixed_tools",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "total_requests": 6,
+        "successful": 6
+      },
+      "duration_ms": 0,
+      "error_message": ""
+    },
+    {
+      "category": "Timeout & Limits",
+      "test_name": "timeout/handling",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "duration_ms": 318.5269832611084,
+        "timeout_set": 5
+      },
+      "duration_ms": 318.5269832611084,
+      "error_message": ""
+    },
+    {
+      "category": "Structured Content",
+      "test_name": "structured_content/format",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "has_content": true,
+        "has_structured_content": true,
+        "content_is_array": true,
+        "content_items_have_type": true
+      },
+      "duration_ms": 11074.69892501831,
+      "error_message": ""
+    },
+    {
+      "category": "Graph Tools",
+      "test_name": "graph_tools/registration",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "checks": {
+          "all_tools_present": true,
+          "all_have_description": true,
+          "all_have_use_when": true,
+          "all_have_schema": true
+        },
+        "missing": [],
+        "registered": [
+          "find_callers",
+          "impact_analysis",
+          "graph_search",
+          "call_chain",
+          "get_status"
+        ]
+      },
+      "duration_ms": 297.55306243896484,
+      "error_message": ""
+    },
+    {
+      "category": "Graph Tools",
+      "test_name": "graph_tools/get_status",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "checks": {
+          "server_responded": true,
+          "has_ready_field": true,
+          "has_graph_store": true,
+          "has_vector_backend": true,
+          "graph_store_has_available": true
+        },
+        "payload": {
+          "ready": true,
+          "index_exists": true,
+          "vector_backend": "FAISSIndex+IGraphRepoMap",
+          "last_indexed_at": "2026-03-27T17:14:04Z",
+          "graph_store": {
+            "available": true,
+            "healthy": true,
+            "node_count": 0,
+            "edge_count": 0,
+            "schema_version": "1"
+          }
+        }
+      },
+      "duration_ms": 857.5329780578613,
+      "error_message": ""
+    },
+    {
+      "category": "Graph Tools",
+      "test_name": "graph_tools/find_callers/validation",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "cases": [
+          {
+            "label": "missing fn_name",
+            "got_invalid_argument": true
+          },
+          {
+            "label": "empty fn_name",
+            "got_invalid_argument": true
+          }
+        ]
+      },
+      "duration_ms": 0,
+      "error_message": ""
+    },
+    {
+      "category": "Graph Tools",
+      "test_name": "graph_tools/find_callers/happy_path",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "has_callers": true,
+        "graph_unavailable": false,
+        "payload": {
+          "callers": []
+        }
+      },
+      "duration_ms": 765.7990455627441,
+      "error_message": ""
+    },
+    {
+      "category": "Graph Tools",
+      "test_name": "graph_tools/impact_analysis/validation",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "cases": [
+          {
+            "label": "missing file_path",
+            "got_invalid_argument": true
+          },
+          {
+            "label": "empty file_path",
+            "got_invalid_argument": true
+          }
+        ]
+      },
+      "duration_ms": 0,
+      "error_message": ""
+    },
+    {
+      "category": "Graph Tools",
+      "test_name": "graph_tools/impact_analysis/happy_path",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "has_importers": true,
+        "graph_unavailable": false
+      },
+      "duration_ms": 1058.1481456756592,
+      "error_message": ""
+    },
+    {
+      "category": "Graph Tools",
+      "test_name": "graph_tools/graph_search/validation",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "cases": [
+          {
+            "label": "missing file_id",
+            "got_invalid_argument": true
+          },
+          {
+            "label": "empty file_id",
+            "got_invalid_argument": true
+          }
+        ]
+      },
+      "duration_ms": 0,
+      "error_message": ""
+    },
+    {
+      "category": "Graph Tools",
+      "test_name": "graph_tools/graph_search/happy_path",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "has_symbols": true,
+        "graph_unavailable": false
+      },
+      "duration_ms": 790.7078266143799,
+      "error_message": ""
+    },
+    {
+      "category": "Graph Tools",
+      "test_name": "graph_tools/call_chain/validation",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "cases": [
+          {
+            "label": "missing both",
+            "got_invalid_argument": true
+          },
+          {
+            "label": "missing to_fn",
+            "got_invalid_argument": true
+          },
+          {
+            "label": "missing from_fn",
+            "got_invalid_argument": true
+          }
+        ]
+      },
+      "duration_ms": 0,
+      "error_message": ""
+    },
+    {
+      "category": "Graph Tools",
+      "test_name": "graph_tools/call_chain/happy_path",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "has_path_key": true,
+        "graph_unavailable": false,
+        "not_implemented": false,
+        "path": []
+      },
+      "duration_ms": 780.0161838531494,
+      "error_message": ""
+    },
+    {
+      "category": "Graph Tools",
+      "test_name": "graph_tools/graceful_degradation",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "results": [
+          {
+            "tool": "find_callers",
+            "responded": true
+          },
+          {
+            "tool": "impact_analysis",
+            "responded": true
+          },
+          {
+            "tool": "graph_search",
+            "responded": true
+          },
+          {
+            "tool": "call_chain",
+            "responded": true
+          },
+          {
+            "tool": "get_status",
+            "responded": true
+          }
+        ]
+      },
+      "duration_ms": 0,
+      "error_message": ""
+    },
+    {
+      "category": "Graph Tools",
+      "test_name": "graph_tools/performance",
+      "passed": true,
+      "score": 1.0,
+      "details": {
+        "avg_warm_ms": 0.8,
+        "samples": 5,
+        "error": ""
+      },
+      "duration_ms": 0.7593631744384766,
+      "error_message": ""
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+
+MCP Stress Test Summary
+========================
+Timestamp: 20260327_171414
+Total Tests: 17
+Passed: 17
+Failed: 0
+Duration: 194.80s
+
+Detailed Results:
+-----------------
+✓ initialize
+✓ tools/list
+✓ get_index_status
+✓ get_domain_map
+✓ search_codebase: 7/7 passed
+✓ pack_context: 9/9 passed
+✓ get_file_context: 8/8 passed
+✓ session_clear: 3/3 passed
+✓ invalid_method: 1/1 passed
+✓ invalid_tool: 1/1 passed
+✓ concurrent_requests: 5/5 passed
+✓ graph_tools_in_list: 5/5 passed
+✓ get_status: 1/1 passed
+✓ find_callers: 6/6 passed
+✓ impact_analysis: 5/5 passed
+✓ graph_search: 5/5 passed
+✓ call_chain: 7/7 passed
+
+Output saved to: test_results/mcp/stress_test/stress_test_20260327_171414.json

@@ -257,17 +257,17 @@ def test_invalid_tool():
 def test_concurrent_requests():
     """Test concurrent request handling."""
     import concurrent.futures
-    
+
     def make_request(i):
         return run_mcp_request("tools/call", {
             "name": "get_index_status",
             "arguments": {}
         })
-    
+
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
         futures = [executor.submit(make_request, i) for i in range(5)]
         results = [f.result() for f in concurrent.futures.as_completed(futures)]
-    
+
     passed = sum(1 for r in results if "result" in r)
     return {
         "test": "concurrent_requests",
@@ -276,6 +276,173 @@ def test_concurrent_requests():
         "passed": passed,
         "passed_count": passed
     }
+
+
+# ===========================================================================
+# Graph Tools Tests (Phase 4: find_callers, impact_analysis, graph_search,
+#                              call_chain, get_status)
+# ===========================================================================
+
+def _extract_content_text(result: dict) -> str:
+    """Pull plain text out of a tools/call result envelope."""
+    try:
+        return result.get("result", {}).get("content", [{}])[0].get("text", "")
+    except (IndexError, AttributeError):
+        return ""
+
+
+def test_get_status():
+    """Test get_status tool — readiness envelope and field presence."""
+    cases = [
+        {},  # no args — always valid
+    ]
+    results = []
+    for args in cases:
+        result = run_mcp_request("tools/call", {"name": "get_status", "arguments": args})
+        text = _extract_content_text(result)
+        try:
+            payload = json.loads(text)
+        except json.JSONDecodeError:
+            payload = {}
+        has_ready = "ready" in payload
+        has_graph = "graph_store" in payload
+        results.append({
+            "input": args,
+            "passed": "result" in result and has_ready,
+            "has_ready": has_ready,
+            "has_graph_store": has_graph,
+            "response": result,
+        })
+
+    return {
+        "test": "get_status",
+        "test_cases": len(cases),
+        "passed_count": sum(1 for r in results if r["passed"]),
+        "results": results,
+    }
+
+
+def test_find_callers():
+    """Test find_callers with valid, empty, and edge-case inputs."""
+    cases = [
+        {"fn_name": "_query"},           # known function — happy path
+        {"fn_name": "callers_of"},       # another known function
+        {"fn_name": "nonexistent_xyz"},  # no callers — empty list, not error
+        {"fn_name": ""},                 # empty → INVALID_ARGUMENT
+        {},                              # missing arg → INVALID_ARGUMENT
+        {"fn_name": "a" * 500},         # very long name — should not crash
+    ]
+    results = []
+    for args in cases:
+        result = run_mcp_request("tools/call", {"name": "find_callers", "arguments": args})
+        text = _extract_content_text(result)
+        # Pass if: server responded (result exists) AND not a raw crash
+        passed = "result" in result
+        results.append({"input": args, "passed": passed, "response": result})
+
+    return {
+        "test": "find_callers",
+        "test_cases": len(cases),
+        "passed_count": sum(1 for r in results if r["passed"]),
+        "results": results,
+    }
+
+
+def test_impact_analysis():
+    """Test impact_analysis with valid, empty, and edge-case inputs."""
+    cases = [
+        {"file_path": "src/ws_ctx_engine/graph/cozo_store.py"},  # known file
+        {"file_path": "src/ws_ctx_engine/models/models.py"},     # likely imported
+        {"file_path": "nonexistent_file_xyz.py"},                # no importers
+        {"file_path": ""},                                       # empty → INVALID_ARGUMENT
+        {},                                                      # missing → INVALID_ARGUMENT
+    ]
+    results = []
+    for args in cases:
+        result = run_mcp_request("tools/call", {"name": "impact_analysis", "arguments": args})
+        passed = "result" in result
+        results.append({"input": args, "passed": passed, "response": result})
+
+    return {
+        "test": "impact_analysis",
+        "test_cases": len(cases),
+        "passed_count": sum(1 for r in results if r["passed"]),
+        "results": results,
+    }
+
+
+def test_graph_search():
+    """Test graph_search (list symbols in a file) with various inputs."""
+    cases = [
+        {"file_id": "src/ws_ctx_engine/graph/cozo_store.py"},   # known file
+        {"file_id": "src/ws_ctx_engine/mcp/tools.py"},          # another file
+        {"file_id": "nonexistent_file_xyz.py"},                 # no symbols
+        {"file_id": ""},                                        # empty → INVALID_ARGUMENT
+        {},                                                     # missing → INVALID_ARGUMENT
+    ]
+    results = []
+    for args in cases:
+        result = run_mcp_request("tools/call", {"name": "graph_search", "arguments": args})
+        passed = "result" in result
+        results.append({"input": args, "passed": passed, "response": result})
+
+    return {
+        "test": "graph_search",
+        "test_cases": len(cases),
+        "passed_count": sum(1 for r in results if r["passed"]),
+        "results": results,
+    }
+
+
+def test_call_chain():
+    """Test call_chain BFS traversal with various inputs."""
+    cases = [
+        {"from_fn": "callers_of", "to_fn": "_query"},        # same file, likely 1-hop
+        {"from_fn": "bulk_upsert", "to_fn": "_query"},       # short chain
+        {"from_fn": "nonexistent_a", "to_fn": "nonexistent_b"},  # no path → empty
+        {"from_fn": "callers_of"},                            # missing to_fn → INVALID_ARGUMENT
+        {},                                                   # missing both → INVALID_ARGUMENT
+        {"from_fn": "callers_of", "to_fn": "_query", "max_depth": 2},  # with depth
+        {"from_fn": "callers_of", "to_fn": "_query", "max_depth": 15}, # capped at 10
+    ]
+    results = []
+    for args in cases:
+        result = run_mcp_request("tools/call", {"name": "call_chain", "arguments": args})
+        text = _extract_content_text(result)
+        # Must not return NOT_IMPLEMENTED
+        not_implemented = "NOT_IMPLEMENTED" in text
+        passed = "result" in result and not not_implemented
+        results.append({
+            "input": args,
+            "passed": passed,
+            "not_implemented": not_implemented,
+            "response": result,
+        })
+
+    return {
+        "test": "call_chain",
+        "test_cases": len(cases),
+        "passed_count": sum(1 for r in results if r["passed"]),
+        "results": results,
+    }
+
+
+def test_graph_tools_in_list():
+    """Verify all 5 new graph tools appear in tools/list."""
+    result = run_mcp_request("tools/list")
+    tools = result.get("result", {}).get("tools", [])
+    tool_names = {t["name"] for t in tools if isinstance(t, dict)}
+    expected = {"find_callers", "impact_analysis", "graph_search", "call_chain", "get_status"}
+    missing = expected - tool_names
+    return {
+        "test": "graph_tools_in_list",
+        "test_cases": len(expected),
+        "passed_count": len(expected) - len(missing),
+        "passed": len(missing) == 0,
+        "missing_tools": list(missing),
+        "response": result,
+    }
+
 
 def run_all_tests():
     """Run all stress tests."""
@@ -302,6 +469,13 @@ def run_all_tests():
         ("Invalid Method", test_invalid_method),
         ("Invalid Tool", test_invalid_tool),
         ("Concurrent Requests", test_concurrent_requests),
+        # Graph tools (Phase 4)
+        ("Graph Tools In List", test_graph_tools_in_list),
+        ("Get Status", test_get_status),
+        ("Find Callers", test_find_callers),
+        ("Impact Analysis", test_impact_analysis),
+        ("Graph Search", test_graph_search),
+        ("Call Chain", test_call_chain),
     ]
     
     results = []

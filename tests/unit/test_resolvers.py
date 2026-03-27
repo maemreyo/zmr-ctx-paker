@@ -312,12 +312,12 @@ class TestPythonResolver:
         assert "os" in refs
 
     def test_extract_references_from_call(self, resolver):
+        # Python tree-sitter uses node type "call", not "call_expression".
         mock_node = MagicMock()
-        mock_node.type = "call_expression"
-        mock_node.children = [
-            MagicMock(type="identifier", text=b"foo"),
-            MagicMock(type="arguments"),
-        ]
+        mock_node.type = "call"
+        func_id = MagicMock(type="identifier", text=b"foo")
+        func_id.children = []
+        mock_node.children = [func_id, MagicMock(type="arguments")]
         mock_node.text = b"foo()"
 
         refs = resolver.extract_references(mock_node)
@@ -457,98 +457,99 @@ class TestTypeScriptResolver:
 class TestExtractReferences:
     """Tests for improved extract_references across all resolvers."""
 
-    def test_python_extract_references_member_expression(self):
-        """Test that Python resolver extracts references from attribute access."""
+    def test_python_extract_references_call_expression(self):
+        """Python resolver extracts the function name from a call node."""
+        # Python tree-sitter uses node type "call", not "call_expression".
+        # The resolver also accepts "call_expression" for mock compatibility.
         resolver = PythonResolver()
         mock_node = MagicMock()
-        mock_node.type = "call_expression"
-        mock_node.children = [
-            MagicMock(type="identifier", text=b"obj"),
-            MagicMock(type="attribute"),
-            MagicMock(type="identifier", text=b"method"),
-            MagicMock(type="arguments"),
-        ]
-        mock_node.text = b"obj.method()"
+        mock_node.type = "call"
+        func_id = MagicMock(type="identifier", text=b"helper")
+        mock_node.children = [func_id, MagicMock(type="arguments")]
+        mock_node.text = b"helper()"
 
         refs = resolver.extract_references(mock_node)
-        assert "obj" in refs or "method" in refs
+        assert "helper" in refs
 
-    def test_python_extract_references_from_nested_calls(self):
-        """Test extracting references from nested call expressions."""
+    def test_python_extract_references_attribute_call(self):
+        """Python resolver extracts ALL identifiers from obj.method() calls."""
         resolver = PythonResolver()
+        obj_id = MagicMock(type="identifier", text=b"os")
+        method_id = MagicMock(type="identifier", text=b"path")
+        attr_node = MagicMock(type="attribute", children=[obj_id, method_id], text=b"os.path")
         mock_node = MagicMock()
-        mock_node.type = "call_expression"
-        mock_node.children = [
-            MagicMock(type="identifier", text=b"outer"),
-            MagicMock(type="arguments"),
-        ]
-        mock_node.text = b"outer(inner())"
+        mock_node.type = "call"
+        mock_node.children = [attr_node, MagicMock(type="arguments")]
+        mock_node.text = b"os.path()"
 
         refs = resolver.extract_references(mock_node)
-        assert "outer" in refs
+        assert "os" in refs
+        assert "path" in refs
 
-    def test_javascript_extract_references_new_expression(self):
-        """Test that JavaScript resolver extracts from new expressions."""
+    def test_python_extract_references_self_method_call(self):
+        """Python resolver extracts method name from self._query() style calls."""
+        resolver = PythonResolver()
+        self_id = MagicMock(type="identifier", text=b"self")
+        method_id = MagicMock(type="identifier", text=b"_query")
+        attr_node = MagicMock(type="attribute", children=[self_id, method_id], text=b"self._query")
+        mock_node = MagicMock()
+        mock_node.type = "call"
+        mock_node.children = [attr_node, MagicMock(type="arguments")]
+        mock_node.text = b"self._query(script)"
+
+        refs = resolver.extract_references(mock_node)
+        assert "_query" in refs
+
+    def test_javascript_extract_references_call_expression(self):
+        """JavaScript resolver extracts function name from call_expression."""
         resolver = JavaScriptResolver()
+        func_id = MagicMock(type="identifier", text=b"fetch")
         mock_node = MagicMock()
-        mock_node.type = "class_declaration"
-        mock_node.children = [
-            MagicMock(type="class"),
-            MagicMock(type="identifier", text=b"Foo"),
-        ]
-        mock_node.text = b"class Foo {}"
+        mock_node.type = "call_expression"
+        mock_node.children = [func_id, MagicMock(type="arguments")]
+        mock_node.text = b"fetch(url)"
+
+        refs = resolver.extract_references(mock_node)
+        assert "fetch" in refs
+
+    def test_typescript_extract_references_type_identifier(self):
+        """TypeScript resolver extracts type_identifier references."""
+        resolver = TypeScriptResolver()
+        type_id = MagicMock(type="type_identifier", text=b"Bar")
+        type_id.children = []
+        mock_node = MagicMock()
+        mock_node.type = "type_identifier"
+        mock_node.text = b"Bar"
+        mock_node.children = []
+
+        refs = resolver.extract_references(mock_node)
+        assert "Bar" in refs
+
+    def test_rust_extract_references_path_expression(self):
+        """Rust extracts the function name from a call_expression with identifier."""
+        resolver = RustResolver()
+        func_id = MagicMock(type="identifier", text=b"Foo")
+        func_id.children = []
+        mock_node = MagicMock()
+        mock_node.type = "call_expression"
+        mock_node.children = [func_id, MagicMock(type="arguments")]
+        mock_node.text = b"Foo()"
 
         refs = resolver.extract_references(mock_node)
         assert "Foo" in refs
 
-    def test_typescript_extract_references_type_annotation(self):
-        """Test TypeScript extracts type references."""
-        resolver = TypeScriptResolver()
-        mock_node = MagicMock()
-        mock_node.type = "function_declaration"
-        mock_node.children = [
-            MagicMock(type="function"),
-            MagicMock(type="identifier", text=b"foo"),
-            MagicMock(type="parameters"),
-            MagicMock(type="type_annotation"),
-        ]
-        mock_node.text = b"function foo(x: Bar): void {}"
+    def test_all_resolvers_extract_function_name_from_call(self):
+        """All resolvers must extract function name from a direct call expression."""
+        # Python uses "call"; JS/TS/Rust use "call_expression".
+        call_type = {"python": "call", "javascript": "call_expression",
+                     "typescript": "call_expression", "rust": "call_expression"}
 
-        refs = resolver.extract_references(mock_node)
-        assert "Bar" in refs or "foo" in refs
-
-    def test_rust_extract_references_path_expression(self):
-        """Test Rust extracts path references like Foo::bar()."""
-        resolver = RustResolver()
-        mock_node = MagicMock()
-        mock_node.type = "call_expression"
-        mock_node.children = [
-            MagicMock(type="identifier", text=b"Foo"),
-            MagicMock(type="path"),
-            MagicMock(type="identifier", text=b"bar"),
-            MagicMock(type="arguments"),
-        ]
-        mock_node.text = b"Foo::bar()"
-
-        refs = resolver.extract_references(mock_node)
-        assert "Foo" in refs or "bar" in refs
-
-    def test_all_resolvers_extract_all_identifiers(self):
-        """Test that all resolvers extract all identifier types from expressions."""
-        resolvers = [
-            PythonResolver(),
-            JavaScriptResolver(),
-            TypeScriptResolver(),
-            RustResolver(),
-        ]
-
-        for resolver in resolvers:
+        for resolver in [PythonResolver(), JavaScriptResolver(), TypeScriptResolver(), RustResolver()]:
+            func_id = MagicMock(type="identifier", text=b"func_name")
+            func_id.children = []
             mock_node = MagicMock()
-            mock_node.type = "call_expression"
-            mock_node.children = [
-                MagicMock(type="identifier", text=b"func_name"),
-                MagicMock(type="arguments"),
-            ]
+            mock_node.type = call_type[resolver.language]
+            mock_node.children = [func_id, MagicMock(type="arguments")]
             mock_node.text = b"func_name()"
 
             refs = resolver.extract_references(mock_node)

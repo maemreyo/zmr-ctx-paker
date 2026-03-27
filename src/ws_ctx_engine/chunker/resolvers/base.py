@@ -7,7 +7,7 @@ from ...models import CodeChunk
 class LanguageResolver(ABC):
     """Abstract base for language-specific code resolution.
 
-    Each resolver封装了特定编程语言的:
+    Each resolver encapsulates language-specific:
     - Target AST node types
     - Symbol name extraction
     - References extraction
@@ -41,6 +41,15 @@ class LanguageResolver(ABC):
         """Extract referenced symbols from AST node."""
         pass
 
+    def extract_all_symbols(self, node: Any) -> list[str]:
+        """Return all symbols defined by this node (primary + nested methods/functions).
+
+        Subclasses may override to include method names from class/impl bodies.
+        Default implementation returns just the primary symbol.
+        """
+        sym = self.extract_symbol_name(node)
+        return [sym] if sym else []
+
     def should_extract(self, node_type: str) -> bool:
         """Check if this node type should be extracted."""
         return node_type in self.target_types
@@ -63,7 +72,7 @@ class LanguageResolver(ABC):
             start_line=start_line,
             end_line=end_line,
             content=node_content,
-            symbols_defined=[symbol_name] if symbol_name else [],
+            symbols_defined=self.extract_all_symbols(node),
             symbols_referenced=self.extract_references(node),
             language=self.language,
         )

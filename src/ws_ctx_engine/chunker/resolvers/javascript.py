@@ -72,13 +72,39 @@ class JavaScriptResolver(LanguageResolver):
                     return identifier
         return None
 
+    def extract_all_symbols(self, node: Any) -> list[str]:
+        """Return primary symbol plus method names from class body."""
+        primary = self.extract_symbol_name(node)
+        symbols: list[str] = [primary] if primary else []
+        if node.type == "class_declaration":
+            for child in node.children:
+                if child.type == "class_body":
+                    for item in child.children:
+                        if item.type == "method_definition":
+                            name = self.extract_symbol_name(item)
+                            if name and name not in symbols:
+                                symbols.append(name)
+        return symbols
+
     def extract_references(self, node: Any) -> list[str]:
         references: set[str] = set()
         self._collect_references(node, references)
         return list(references)
 
-    def _collect_references(self, node: Any, references: set[str]) -> None:
-        if node.type == "identifier":
-            references.add(node.text.decode("utf8"))
-        for child in node.children:
-            self._collect_references(child, references)
+    def _collect_references(self, root: Any, references: set[str]) -> None:
+        """Collect only cross-file references: call targets."""
+        stack = [root]
+        while stack:
+            node = stack.pop()
+            if node.type == "call_expression":
+                func = node.children[0] if node.children else None
+                if func is not None:
+                    if func.type == "identifier":
+                        references.add(func.text.decode("utf8"))
+                    elif func.type == "member_expression":
+                        obj = next(
+                            (c for c in func.children if c.type == "identifier"), None
+                        )
+                        if obj:
+                            references.add(obj.text.decode("utf8"))
+            stack.extend(reversed(node.children))

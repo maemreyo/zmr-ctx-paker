@@ -60,6 +60,7 @@ include_patterns:
   - "**/*.tsx"         # TypeScript React files
   - "**/*.jsx"         # JavaScript React files
   - "**/*.java"        # Java files
+  - "**/*.cs"          # C# files
   - "**/*.go"          # Go files
   - "**/*.rs"          # Rust files
   - "**/*.cpp"         # C++ files

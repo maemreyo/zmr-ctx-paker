@@ -1312,6 +1312,38 @@ def status(
                 console.print(f"[bold]Domain directories:[/bold] {stats['directories']}")
                 db.close()
 
+        # --- Graph store section (non-agent mode only) ---
+        if not AGENT_MODE:
+            try:
+                cfg_for_status = Config.load(str(repo_path_obj / ".ws-ctx-engine.yaml"))
+            except Exception:
+                cfg_for_status = Config()
+
+            graph_store = _load_graph_store_for_status(cfg_for_status, repo_path_obj)
+            if graph_store is None:
+                console.print(
+                    "\n[bold]Graph store:[/bold] [yellow]unavailable[/yellow]"
+                    " (run 'wsctx index' to enable)"
+                )
+            else:
+                g_stats = graph_store.stats()
+                console.print("\n[bold]Graph store:[/bold] [green]healthy[/green]")
+                console.print(f"[bold]Graph nodes:[/bold] {g_stats.get('node_count', 0)}")
+                console.print(f"[bold]Graph edges:[/bold] {g_stats.get('edge_count', 0)}")
+                console.print(
+                    f"[bold]Graph schema version:[/bold] {g_stats.get('schema_version', 'unknown')}"
+                )
+
+            # Overall readiness line
+            vector_ready = (index_path / "vector.idx").exists()
+            graph_ready = graph_store is not None
+            if vector_ready and graph_ready:
+                console.print("\n[bold]Ready:[/bold] [green]Yes (vector + graph)[/green]")
+            elif vector_ready:
+                console.print("\n[bold]Ready:[/bold] [yellow]Partial (vector only)[/yellow]")
+            else:
+                console.print("\n[bold]Ready:[/bold] [red]No[/red]")
+
         if AGENT_MODE:
             _emit_ndjson(
                 {
@@ -1609,6 +1641,98 @@ def _load_config(config_path: str | None, repo_path: str | None = None) -> Confi
         return _apply_gitignore_patterns(cfg, repo_path_obj)
 
     return cfg
+
+
+# ---------------------------------------------------------------------------
+# Graph store helpers
+# ---------------------------------------------------------------------------
+
+
+def _load_graph_store_for_status(config: "Any", workspace: Path) -> "Any":
+    """Load GraphStore for status display.
+
+    Returns the store if healthy, None on any failure or when disabled.
+    """
+    try:
+        if not getattr(config, "graph_store_enabled", True):
+            return None
+        from ..graph.cozo_store import GraphStore  # noqa: F401 — imported for test-patching
+
+        db_path = Path(config.graph_store_path)
+        if not db_path.is_absolute():
+            db_path = workspace / db_path
+        storage_str = f"{config.graph_store_storage}:{db_path}"
+        store = GraphStore(storage_str)
+        return store if store.is_healthy else None
+    except Exception:
+        return None
+
+
+# Re-export GraphStore at module level so tests can patch ws_ctx_engine.cli.cli.GraphStore.
+try:
+    from ..graph.cozo_store import GraphStore  # noqa: F401
+except Exception:  # pycozo not installed in all environments
+    GraphStore = None  # type: ignore[assignment,misc]
+
+
+# ---------------------------------------------------------------------------
+# graph sub-app
+# ---------------------------------------------------------------------------
+
+graph_app = typer.Typer(name="graph", help="Graph store management commands.")
+app.add_typer(graph_app)
+
+
+@graph_app.command("backup")
+def graph_backup(
+    dest: str = typer.Argument(..., help="Destination directory for the backup."),
+    workspace: Path | None = typer.Option(
+        None,
+        "--workspace",
+        "-w",
+        help="Workspace path (defaults to current directory).",
+    ),
+) -> None:
+    """Back up the graph store (RocksDB / SQLite) to a destination directory."""
+    import shutil
+
+    ws = workspace or Path.cwd()
+
+    try:
+        config = Config.load(str(ws / ".ws-ctx-engine.yaml"))
+    except Exception:
+        config = Config()
+
+    if config.graph_store_storage == "mem":
+        console.print("[yellow]In-memory graph store has no persistent data to back up.[/yellow]")
+        raise typer.Exit(1)
+
+    src_path = Path(config.graph_store_path)
+    if not src_path.is_absolute():
+        src_path = ws / src_path
+
+    if not src_path.exists():
+        console.print(
+            f"[red]Graph store not found at {src_path}. "
+            "Run 'wsctx index' first to create the store.[/red]"
+        )
+        raise typer.Exit(1)
+
+    dest_path = Path(dest)
+    if dest_path.exists():
+        console.print(f"[red]Destination {dest_path} already exists. Remove it first.[/red]")
+        raise typer.Exit(1)
+
+    console.print(
+        f"Backing up graph store from [cyan]{src_path}[/cyan] " f"to [cyan]{dest_path}[/cyan]..."
+    )
+    try:
+        shutil.copytree(src_path, dest_path)
+        size = sum(f.stat().st_size for f in dest_path.rglob("*") if f.is_file())
+        console.print(f"[green]Backup complete.[/green] {size // 1024} KB copied.")
+    except Exception as exc:
+        console.print(f"[red]Backup failed: {exc}[/red]")
+        raise typer.Exit(1) from exc
 
 
 # ---------------------------------------------------------------------------

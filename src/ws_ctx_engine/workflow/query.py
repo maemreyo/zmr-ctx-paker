@@ -25,6 +25,57 @@ from .indexer import load_indexes
 logger = get_logger()
 
 
+def _load_graph_store(config: "Config", index_path: "Path") -> "Any":
+    """Load GraphStore from config. Returns None if unavailable or unhealthy."""
+    try:
+        from ..graph.cozo_store import GraphStore
+
+        db_path = Path(config.graph_store_path)
+        if not db_path.is_absolute():
+            db_path = index_path.parent / db_path
+        storage_str = f"{config.graph_store_storage}:{db_path}"
+        store = GraphStore(storage_str)
+        return store if store.is_healthy else None
+    except Exception as exc:
+        import logging
+
+        logging.getLogger(__name__).debug("GraphStore unavailable: %s", exc)
+        return None
+
+
+def _apply_graph_augmentation(
+    ranked_files: list[tuple[str, float]],
+    query: str,
+    config: "Config",
+    index_path: "Path",
+) -> list[tuple[str, float]]:
+    """Augment vector-ranked files with graph query results. Returns ranked_files unchanged on any failure."""
+    try:
+        from ..graph.signal_router import classify_graph_intent
+        from ..graph.context_assembler import ContextAssembler
+
+        intent = classify_graph_intent(query)
+        if intent.intent_type != "none":
+            graph_store = _load_graph_store(config, index_path)
+            if graph_store is not None:
+                assembler = ContextAssembler(
+                    graph_store,
+                    graph_query_weight=getattr(config, "graph_query_weight", 0.3),
+                )
+                result = assembler.assemble(ranked_files, intent)
+                if result.graph_augmented:
+                    logger.info(
+                        "Graph augmentation: %d files added (intent=%s, target=%s)",
+                        result.graph_files_added,
+                        intent.intent_type,
+                        intent.target,
+                    )
+                    return result.ranked_files
+    except Exception as exc:
+        logger.warning("Graph augmentation failed (continuing without): %s", exc)
+    return ranked_files
+
+
 def _build_index_health(repo_path: str, metadata: Any) -> dict[str, Any]:
     status = "unknown"
     stale_reason = None
@@ -74,7 +125,7 @@ def _build_summary(repo_path: str, file_path: str) -> str:
     except Exception:
         return ""
 
-    return ""
+    return ""  # all lines were empty/comments
 
 
 def _utc_now() -> str:
@@ -227,6 +278,12 @@ def search_codebase(
     )
 
     ranked_files = retrieval_engine.retrieve(query=query, top_k=max(limit * 5, 50))
+
+    # Phase 2.5: Graph augmentation (search_codebase path)
+    if query and getattr(config, "context_assembler_enabled", True) and getattr(config, "graph_store_enabled", True):
+        ranked_files = _apply_graph_augmentation(
+            ranked_files, query, config, Path(repo_path) / index_dir
+        )
 
     normalized_domain_filter = domain_filter.lower() if domain_filter else None
     results: list[dict[str, Any]] = []
@@ -414,6 +471,12 @@ def query_and_pack(
             except Exception as exc:
                 logger.warning(f"Phase-aware ranking failed (ignored): {exc}")
 
+        # Phase 2.5: Graph augmentation (query_and_pack path)
+        if query and getattr(config, "context_assembler_enabled", True) and getattr(config, "graph_store_enabled", True):
+            ranked_files = _apply_graph_augmentation(
+                ranked_files, query, config, Path(repo_path) / index_dir
+            )
+
         retrieval_duration = time.time() - retrieval_start
         tracker.end_phase("retrieval")
         tracker.track_memory()
@@ -537,10 +600,6 @@ def query_and_pack(
 
         if deduplicated_count:
             logger.info(f"Session dedup: {deduplicated_count} file(s) replaced with markers")
-
-        # Make content_map available to the reranker for the next retrieve call
-        if content_map and retrieval_engine._content_map is not None:
-            retrieval_engine._content_map.update(content_map)
 
         # Prepare metadata (after dedup count is finalized for this phase)
         output_metadata = {

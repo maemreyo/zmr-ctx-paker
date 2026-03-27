@@ -13,14 +13,21 @@ from .resolvers import ALL_RESOLVERS
 
 logger = get_logger()
 
-# Languages where astchunk is used for AST-boundary splitting.
-# astchunk (CMU, MIT License) supports: Python, Java, C#, TypeScript, JavaScript
-# We use it for Python and TypeScript primarily. JavaScript works via TypeScript grammar.
-# Other languages (Rust, Go, Ruby, etc.) fall back to tree-sitter resolver path.
-_ASTCHUNK_LANGUAGES = {"python", "typescript"}
+# Maps our internal language name → astchunk language name.
+# astchunk (CMU, MIT License) supports: Python, Java, C#, TypeScript, JavaScript.
+# Languages absent from this map fall back to the tree-sitter resolver path only.
+# Java and C# use astchunk exclusively (no tree-sitter grammar bundled).
+_ASTCHUNK_LANG_MAP: dict[str, str] = {
+    "python": "python",
+    "typescript": "typescript",
+    "javascript": "javascript",
+    "java": "java",
+    "csharp": "csharp",
+}
 
-# Maximum characters per astchunk fragment.  Kept as a named constant so it
-# can be tuned without hunting for magic numbers in the code.
+# Maximum non-whitespace characters per chunk fragment.
+# Applied by astchunk on the astchunk path, and enforced manually on the
+# tree-sitter resolver path via _split_large_chunk().
 _ASTCHUNK_MAX_CHUNK_SIZE = 1500
 
 # Matches top-level (column-0) definition statements for Python and
@@ -90,6 +97,76 @@ def _extract_top_level_symbol(content: str) -> list[str]:
     return result
 
 
+def _make_subchunk(
+    chunk: "CodeChunk", lines: list[str], start_line: int, is_first: bool
+) -> "CodeChunk":
+    """Build one sub-chunk from *lines* starting at *start_line*.
+
+    Only the first sub-chunk inherits ``symbols_defined``; subsequent ones get
+    an empty list so downstream graph edges point to a single canonical node.
+    """
+    from dataclasses import replace
+
+    return replace(
+        chunk,
+        content="".join(lines),
+        start_line=start_line,
+        end_line=start_line + len(lines) - 1,
+        symbols_defined=chunk.symbols_defined if is_first else [],
+    )
+
+
+def _split_large_chunk(chunk: "CodeChunk") -> list["CodeChunk"]:
+    """Split *chunk* into sub-chunks when non-whitespace content exceeds the limit.
+
+    Splitting is done at line boundaries.  If the chunk is within the limit it
+    is returned unchanged (as a 1-element list).
+    """
+    non_ws = sum(1 for ch in chunk.content if not ch.isspace())
+    if non_ws <= _ASTCHUNK_MAX_CHUNK_SIZE:
+        return [chunk]
+
+    sub_chunks: list[CodeChunk] = []
+    current_lines: list[str] = []
+    current_non_ws = 0
+    current_start = chunk.start_line
+
+    for line in chunk.content.splitlines(keepends=True):
+        line_non_ws = sum(1 for ch in line if not ch.isspace())
+        if current_lines and current_non_ws + line_non_ws > _ASTCHUNK_MAX_CHUNK_SIZE:
+            sub_chunks.append(_make_subchunk(chunk, current_lines, current_start, not sub_chunks))
+            current_start += len(current_lines)
+            current_lines = [line]
+            current_non_ws = line_non_ws
+        else:
+            current_lines.append(line)
+            current_non_ws += line_non_ws
+
+    if current_lines:
+        sub_chunks.append(_make_subchunk(chunk, current_lines, current_start, not sub_chunks))
+
+    return sub_chunks if sub_chunks else [chunk]
+
+
+def _inject_imports(chunks: list["CodeChunk"], file_imports: list[str]) -> list["CodeChunk"]:
+    """Return *chunks* with *file_imports* merged into each chunk's ``symbols_referenced``.
+
+    No-ops when *file_imports* is empty.  Uses ``dict.fromkeys`` to deduplicate
+    while preserving insertion order.
+    """
+    if not file_imports:
+        return chunks
+    from dataclasses import replace
+
+    return [
+        replace(
+            c,
+            symbols_referenced=list(dict.fromkeys(c.symbols_referenced + file_imports)),
+        )
+        for c in chunks
+    ]
+
+
 class TreeSitterChunker(ASTChunker):
     """AST parser using py-tree-sitter with language-specific resolvers."""
 
@@ -128,9 +205,60 @@ class TreeSitterChunker(ASTChunker):
             ".ts": "typescript",
             ".tsx": "typescript",
             ".rs": "rust",
+            # Java and C# use astchunk exclusively; no tree-sitter grammar bundled.
+            ".java": "java",
+            ".cs": "csharp",
         }
         self._resolvers = {lang: resolver() for lang, resolver in ALL_RESOLVERS.items()}
         self._md_chunker = MarkdownChunker()
+
+    def extract_edges(
+        self, code: str, language: str, filepath: str
+    ) -> "list[Edge]":
+        """Return ``CONTAINS`` edges for all top-level symbols in *code*.
+
+        This is a thin wrapper over ``_extract_top_level_symbol()`` that
+        promotes the flat symbol list to typed ``Edge`` tuples for graph
+        ingestion.  Import edges (``CALLS``, ``IMPORTS``) require a deeper
+        AST call-site walk and are out of scope here (roadmap Phase 2).
+
+        Args:
+            code:     Source code text.
+            language: Language identifier (e.g. ``"python"``, ``"rust"``).
+            filepath: Repo-relative file path used as the edge source.
+
+        Returns:
+            List of ``Edge`` objects with ``relation="CONTAINS"``.
+        """
+        from ..graph.builder import Edge
+        from ..graph.node_id import normalize_node_id
+
+        symbols: set[str] = set()
+
+        # For languages with a tree-sitter resolver, use it to extract accurate symbols.
+        if language in self.languages and language in self._resolvers:
+            try:
+                parser = self.Parser(self.languages[language])
+                tree = parser.parse(bytes(code, "utf8"))
+                for chunk in self._extract_definitions(
+                    tree.root_node, code, filepath, language
+                ):
+                    symbols.update(chunk.symbols_defined)
+            except Exception as e:
+                logger.debug(f"extract_edges tree-sitter parse failed for {filepath!r}: {e} — using regex fallback")
+                symbols.update(_extract_top_level_symbol(code))
+        else:
+            # Fallback: regex-based extraction for astchunk-only languages.
+            symbols.update(_extract_top_level_symbol(code))
+
+        if not symbols:
+            return []
+
+        src_id = normalize_node_id(filepath)
+        return [
+            Edge(src=src_id, relation="CONTAINS", dst=normalize_node_id(filepath, sym))
+            for sym in sorted(symbols)
+        ]
 
     def parse(self, repo_path: str, config: Any = None) -> list[CodeChunk]:
         if not os.path.exists(repo_path):
@@ -177,31 +305,49 @@ class TreeSitterChunker(ASTChunker):
             logger.warning(f"Failed to read {file_path}: {e}")
             return []
 
-        parser = self.Parser(self.languages[language])
-        tree = parser.parse(bytes(content, "utf8"))
         relative_path = str(file_path.relative_to(repo_root))
 
+        # Languages without a bundled tree-sitter grammar (Java, C#) use
+        # astchunk exclusively — there is no resolver-path fallback for them.
+        if language not in self.languages:
+            if language in _ASTCHUNK_LANG_MAP:
+                return self._try_astchunk(content, relative_path, language) or []
+            return []
+
+        parser = self.Parser(self.languages[language])
+        tree = parser.parse(bytes(content, "utf8"))
         file_imports = self._extract_file_imports(tree.root_node, language)
 
-        # Use astchunk for Python and TypeScript when available; fall back to
-        # the tree-sitter resolver for other languages or if astchunk is absent.
-        if language in _ASTCHUNK_LANGUAGES:
+        # For astchunk-handled languages, also collect call-site references from
+        # the full file AST via the resolver so CALLS edges can be built downstream.
+        # (astchunk creates chunks with symbols_referenced=[] — it only splits code,
+        # it doesn't extract references.  We backfill here at file granularity.)
+        file_call_refs: list[str] = []
+        if language in _ASTCHUNK_LANG_MAP and language in self._resolvers:
+            resolver = self._resolvers[language]
+            all_refs = resolver.extract_references(tree.root_node)
+            imports_set = set(file_imports)
+            file_call_refs = [r for r in all_refs if r not in imports_set]
+
+        # Try astchunk for every language in _ASTCHUNK_LANG_MAP (Python, TS, JS).
+        if language in _ASTCHUNK_LANG_MAP:
             ast_chunks = self._try_astchunk(content, relative_path, language)
             if ast_chunks is not None:
-                for chunk in ast_chunks:
-                    for imp in file_imports:
-                        if imp not in chunk.symbols_referenced:
-                            chunk.symbols_referenced.append(imp)
-                return ast_chunks
+                return _inject_imports(ast_chunks, file_imports + file_call_refs)
 
+        # tree-sitter resolver path (Rust, and any language astchunk failed on).
+        return _inject_imports(
+            self._parse_with_resolver(tree, content, relative_path, language),
+            file_imports,
+        )
+
+    def _parse_with_resolver(
+        self, tree: Any, content: str, relative_path: str, language: str
+    ) -> list[CodeChunk]:
+        """Run the tree-sitter resolver path: extract → split → enrich."""
         chunks = self._extract_definitions(tree.root_node, content, relative_path, language)
-
-        for chunk in chunks:
-            for imp in file_imports:
-                if imp not in chunk.symbols_referenced:
-                    chunk.symbols_referenced.append(imp)
-
-        return chunks
+        chunks = [sc for c in chunks for sc in _split_large_chunk(c)]
+        return [enrich_chunk(c) for c in chunks]
 
     def _try_astchunk(
         self, content: str, relative_path: str, language: str
@@ -216,9 +362,10 @@ class TreeSitterChunker(ASTChunker):
         except ImportError:
             return None
 
+        astchunk_language = _ASTCHUNK_LANG_MAP.get(language, language)
         try:
             builder = astchunk.ASTChunkBuilder(
-                language=language,
+                language=astchunk_language,
                 max_chunk_size=_ASTCHUNK_MAX_CHUNK_SIZE,
                 metadata_template="default",
             )
@@ -252,11 +399,13 @@ class TreeSitterChunker(ASTChunker):
         self._collect_imports(root_node, import_types, imports)
         return list(imports)
 
-    def _collect_imports(self, node: Any, import_types: set[str], imports: set[str]) -> None:
-        if node.type in import_types:
-            self._extract_import_names_from_node(node, imports)
-        for child in node.children:
-            self._collect_imports(child, import_types, imports)
+    def _collect_imports(self, root: Any, import_types: set[str], imports: set[str]) -> None:
+        stack = [root]
+        while stack:
+            node = stack.pop()
+            if node.type in import_types:
+                self._extract_import_names_from_node(node, imports)
+            stack.extend(reversed(node.children))
 
     def _extract_import_names_from_node(self, node: Any, imports: set[str]) -> None:
         for child in node.children:
@@ -276,17 +425,16 @@ class TreeSitterChunker(ASTChunker):
                         self._extract_import_names_from_node(use_child, imports)
 
     def _extract_definitions(
-        self, node: Any, content: str, file_path: str, language: str
+        self, root_node: Any, content: str, file_path: str, language: str
     ) -> list[CodeChunk]:
-        chunks = []
+        chunks: list[CodeChunk] = []
         resolver = self._resolvers.get(language)
-
-        if resolver and resolver.should_extract(node.type):
-            chunk = resolver.node_to_chunk(node, content, file_path)
-            if chunk:
-                chunks.append(chunk)
-
-        for child in node.children:
-            chunks.extend(self._extract_definitions(child, content, file_path, language))
-
+        stack = [root_node]
+        while stack:
+            node = stack.pop()
+            if resolver and resolver.should_extract(node.type):
+                chunk = resolver.node_to_chunk(node, content, file_path)
+                if chunk:
+                    chunks.append(chunk)
+            stack.extend(reversed(node.children))
         return chunks

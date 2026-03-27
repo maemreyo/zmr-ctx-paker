@@ -6,24 +6,30 @@
 - [performance.md](file://docs/guides/performance.md)
 - [performance.py](file://src/ws_ctx_engine/monitoring/performance.py)
 - [vector_index.py](file://src/ws_ctx_engine/vector_index/vector_index.py)
+- [model_registry.py](file://src/ws_ctx_engine/vector_index/model_registry.py)
 - [leann_index.py](file://src/ws_ctx_engine/vector_index/leann_index.py)
 - [retrieval.py](file://src/ws_ctx_engine/retrieval/retrieval.py)
-- [tools.py](file://src/ws_ctx_engine/mcp/tools.py)
-- [query.py](file://src/ws_ctx_engine/workflow/query.py)
-- [graph.py](file://src/ws_ctx_engine/graph/graph.py)
+- [bm25_index.py](file://src/ws_ctx_engine/retrieval/bm25_index.py)
+- [code_tokenizer.py](file://src/ws_ctx_engine/retrieval/code_tokenizer.py)
+- [hybrid_engine.py](file://src/ws_ctx_engine/retrieval/hybrid_engine.py)
+- [reranker.py](file://src/ws_ctx_engine/retrieval/reranker.py)
 - [tree_sitter.py](file://src/ws_ctx_engine/chunker/tree_sitter.py)
 - [ranker.py](file://src/ws_ctx_engine/ranking/ranker.py)
 - [embedding_cache.py](file://src/ws_ctx_engine/vector_index/embedding_cache.py)
 - [mcp_comprehensive_test.py](file://scripts/mcp/mcp_comprehensive_test.py)
+- [test_ast_chunker_upgrade.py](file://tests/unit/test_ast_chunker_upgrade.py)
+- [test_hybrid_engine.py](file://tests/unit/test_hybrid_engine.py)
+- [test_reranker.py](file://tests/unit/test_reranker.py)
 </cite>
 
 ## Update Summary
 **Changes Made**
-- Completely rewritten the MCP Performance Optimization Guide v3 with comprehensive four-layer optimization strategy
-- Added detailed implementation guidance for infrastructure, chunking, hybrid search, and precision ranking layers
-- Integrated research findings from CMU cAST paper, ONNX backend validation, and jina-reranker-v3 verification
-- Enhanced testing framework with extended golden sets and performance benchmarks
-- Updated architecture diagrams to reflect new hybrid search and precision ranking components
+- Updated to reflect Applied Changes: Complete overhaul of MCP Performance Optimization Guide v3 with four-layer strategy (Infrastructure, Intelligent Chunking, Hybrid Search, Precision Ranking)
+- Added comprehensive ONNX backend integration with ModelRegistry singleton pattern
+- Implemented astchunk AST-aware chunking with fallback to tree-sitter resolver
+- Deployed BM25+dense hybrid search with RRF fusion and code-aware tokenization
+- Integrated cross-encoder reranking capabilities with configurable licensing
+- Enhanced testing framework with phase-specific integration tests
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -32,8 +38,8 @@
 4. [Research Findings](#research-findings)
 5. [Performance Problem Analysis](#performance-problem-analysis)
 6. [Infrastructure Optimization](#infrastructure-optimization)
-7. [Chunking Optimization](#chunking-optimization)
-8. [Hybrid Search Implementation](#hybrid-search-implementation)
+7. [Intelligent Chunking Implementation](#intelligent-chunking-implementation)
+8. [Hybrid Search Architecture](#hybrid-search-architecture)
 9. [Precision Ranking Enhancement](#precision-ranking-enhancement)
 10. [Testing & Validation Framework](#testing--validation-framework)
 11. [Implementation Roadmap](#implementation-roadmap)
@@ -69,9 +75,9 @@ The MCP v3 optimization strategy introduces a comprehensive four-layer architect
 **Solution**: Pre-load embedding models with ONNX backend acceleration
 **Expected Gain**: 10s → 2-3s latency reduction
 
-### Layer 2: Chunking Optimization  
+### Layer 2: Intelligent Chunking
 **Problem**: Fixed-size cuts destroy code semantics and context
-**Solution**: AST-aware chunking using CMU cAST methodology
+**Solution**: AST-aware chunking using CMU cAST methodology with astchunk library
 **Expected Gain**: +4.3 Recall@5 through semantic boundary preservation
 
 ### Layer 3: Hybrid Search Architecture
@@ -81,13 +87,13 @@ The MCP v3 optimization strategy introduces a comprehensive four-layer architect
 
 ### Layer 4: Precision Ranking Enhancement
 **Problem**: No dedicated precision layer for final result ordering
-**Solution**: Cross-encoder reranking with jina-reranker-v3
+**Solution**: Cross-encoder reranking with configurable model selection
 **Expected Gain**: +10-15% MRR through fine-grained semantic matching
 
 ```mermaid
 graph TB
 A["User Query"] --> B["Layer 1: Infrastructure<br/>Pre-loaded Models + ONNX"]
-B --> C["Layer 2: Chunking<br/>AST-aware Semantic Chunks"]
+B --> C["Layer 2: Intelligent Chunking<br/>astchunk AST-aware Chunks"]
 C --> D["Layer 3: Hybrid Search<br/>BM25 + Dense + RRF"]
 D --> E["Layer 4: Precision Ranking<br/>Cross-encoder Reranking"]
 E --> F["Final Results"]
@@ -98,7 +104,6 @@ E -.->|"Fine-grained Ordering"| J["Higher Precision"]
 ```
 
 **Diagram sources**
-- [MCP_PERFORMANCE_OPTIMIZATION.md:47-55](file://docs/performance/MCP_PERFORMANCE_OPTIMIZATION.md#L47-L55)
 - [vector_index.py:96-128](file://src/ws_ctx_engine/vector_index/vector_index.py#L96-L128)
 - [tree_sitter.py:15-160](file://src/ws_ctx_engine/chunker/tree_sitter.py#L15-L160)
 - [retrieval.py:140-368](file://src/ws_ctx_engine/retrieval/retrieval.py#L140-L368)
@@ -110,12 +115,12 @@ E -.->|"Fine-grained Ordering"| J["Higher Precision"]
 - **+4.3 Recall@5** on CrossCodeEval
 - **+5.5 Recall@5** on RepoEval (StarCoder2-7B)
 - **+2.67 Pass@1** on SWE-bench
-- **Methodology**: Tree-sitter based semantic boundary detection
+- **Methodology**: astchunk library provides production-ready CMU cAST implementation
 
 ### ONNX Backend Performance Verification
 **Validation Confirmed**: SentenceTransformers v3.2.0+ ONNX backend provides 2-3x encoding speedup
 - **CPU speedup**: 1.4x-3x faster encoding (typical: 2x)
-- **Implementation**: Single line change (`backend="onnx"`)
+- **Implementation**: Thread-safe ModelRegistry with automatic ONNX detection
 - **Accuracy impact**: Minimal (<1%)
 
 ### jina-reranker-v3 Score Resolution
@@ -181,47 +186,61 @@ L["Memory Inefficiency"] --> M["Model Reload on Each Request"]
 
 ### Pre-loaded Model Architecture
 
-**Implementation Strategy**: Transform on-demand model loading to centralized, thread-safe model management
+**Implementation Strategy**: Transform on-demand model loading to centralized, thread-safe model management using ModelRegistry singleton pattern
 
 ```mermaid
 sequenceDiagram
 participant Client as "Client"
 participant Server as "MCP Server"
-participant Service as "MCPToolService"
+participant Registry as "ModelRegistry"
 participant Model as "Embedding Model"
 Client->>Server : Initialize Request
-Server->>Service : Create Service Instance
-Service->>Model : Pre-load Model (Constructor)
-Model-->>Service : Model Ready
-Service-->>Server : Service Ready
+Server->>Registry : get_model()
+Registry->>Model : Load Model (Singleton Pattern)
+Model-->>Registry : Model Ready
+Registry-->>Server : Cached Model Instance
 Client->>Server : Search Request
-Server->>Service : search_codebase()
-Service->>Model : Use Pre-loaded Model
-Model-->>Service : Search Results
-Service-->>Client : Results Returned
+Server->>Registry : get_model() (Cached)
+Registry-->>Server : Return Cached Instance
+Server->>Model : Use Pre-loaded Model
+Model-->>Server : Search Results
+Server-->>Client : Results Returned
 ```
 
 **Diagram sources**
-- [MCP_PERFORMANCE_OPTIMIZATION.md:734-800](file://docs/performance/MCP_PERFORMANCE_OPTIMIZATION.md#L734-L800)
-- [tools.py:29-42](file://src/ws_ctx_engine/mcp/tools.py#L29-L42)
+- [model_registry.py:84-207](file://src/ws_ctx_engine/vector_index/model_registry.py#L84-L207)
+- [vector_index.py:145-170](file://src/ws_ctx_engine/vector_index/vector_index.py#L145-L170)
 
 ### ONNX Backend Integration
 
-**Critical Implementation**: Switch from facebook/contriever to BAAI/bge-small-en-v1.5 for ONNX compatibility
+**Critical Implementation**: Automatic ONNX backend detection and thread-safe model caching
 
 ```python
-# Before (problematic):
-model = SentenceTransformer("facebook/contriever", device="cpu")
-
-# After (optimized):
-model = SentenceTransformer("BAAI/bge-small-en-v1.5", backend="onnx", device="cpu")
+# ModelRegistry implementation with ONNX support
+class ModelRegistry:
+    @classmethod
+    def get_model(cls, model_name: str, device: str = "cpu", backend: str = "default"):
+        # Auto-detect ONNX availability
+        if backend == "default" and _onnx_available():
+            backend = "onnx"
+        
+        # Thread-safe singleton pattern
+        cache_key = (model_name, device, backend)
+        if cache_key in cls._registry:
+            return cls._registry[cache_key]
+        
+        # Load model with ONNX backend
+        model = SentenceTransformer(model_name, backend=backend, device=device)
+        model.encode(["warm-up"])  # JIT warmup
+        cls._registry[cache_key] = model
+        return model
 ```
 
 **Benefits**:
 - ✅ Eliminates 6-8s cold start penalty
 - ✅ ONNX provides additional 2-3x encoding speedup
 - ✅ Thread-safe for concurrent requests
-- ✅ Minimal code changes required
+- ✅ Automatic backend detection and fallback
 
 **Trade-offs**:
 - ⚠️ Increased server startup time by ~6-8s (one-time cost)
@@ -229,155 +248,147 @@ model = SentenceTransformer("BAAI/bge-small-en-v1.5", backend="onnx", device="cp
 - ⚠️ Model switch required for ONNX compatibility
 
 **Section sources**
-- [MCP_PERFORMANCE_OPTIMIZATION.md:734-800](file://docs/performance/MCP_PERFORMANCE_OPTIMIZATION.md#L734-L800)
-- [vector_index.py:143-173](file://src/ws_ctx_engine/vector_index/vector_index.py#L143-L173)
+- [model_registry.py:84-207](file://src/ws_ctx_engine/vector_index/model_registry.py#L84-L207)
+- [vector_index.py:145-170](file://src/ws_ctx_engine/vector_index/vector_index.py#L145-L170)
 
-## Chunking Optimization
+## Intelligent Chunking Implementation
 
-### AST-Aware Chunking Implementation
+### astchunk AST-aware Chunking
 
 **Problem**: Fixed-size chunking cuts through functions, separating `return` from `def`, losing critical context
 
-**Solution**: Implement CMU cAST methodology using tree-sitter for semantic boundary detection
+**Solution**: Implement CMU cAST methodology using astchunk library for semantic boundary detection with fallback to tree-sitter
 
-```python
-from tree_sitter import Language, Parser
-import tree_sitter_python
-
-def ast_chunk_file(filepath: str, max_tokens: int = 512) -> list[dict]:
-    """
-    Chunk code file by semantic boundaries (functions, classes, methods).
-    Each chunk includes: raw code + contextual metadata.
-    """
-    parser = Parser(Language(tree_sitter_python.language()))
-    
-    with open(filepath) as f:
-        source = f.read()
-    
-    tree = parser.parse(bytes(source, 'utf-8'))
-    chunks = []
-    
-    for node in tree.root_node.children:
-        if node.type in ('function_definition', 'class_definition', 'decorated_definition'):
-            chunk_text = source[node.start_byte:node.end_byte]
-            
-            # Contextual enrichment — critical for embedding quality
-            contextualized = f"""# File: {filepath}
-# Type: {node.type}
-# Lines: {node.start_point[0]+1}–{node.end_point[0]+1}
-{chunk_text}"""
-            
-            chunks.append({
-                'text': chunk_text,
-                'contextualized_text': contextualized,  # ← Embed this, not raw code
-                'filepath': filepath,
-                'node_type': node.type,
-                'line_range': (node.start_point[0]+1, node.end_point[0]+1),
-            })
-    
-    return chunks
+```mermaid
+flowchart TD
+A["Source Code Input"] --> B{"astchunk Available?"}
+B --> |Yes| C["astchunk.ASTChunkBuilder<br/>Language-aware Chunking"]
+B --> |No| D["tree-sitter Parser<br/>Custom Resolver Path"]
+C --> E["Semantic Boundaries<br/>(Functions, Classes, Methods)"]
+D --> E
+E --> F["Contextual Enrichment<br/>File + Type Metadata"]
+F --> G["CodeChunk Objects<br/>With Symbol Metadata"]
 ```
 
-**Key Insight**: Always embed `contextualized_text` (with filepath + type prefix), not raw code. This helps models understand "this is a function in auth module, not random code snippet."
+**Diagram sources**
+- [tree_sitter.py:286-328](file://src/ws_ctx_engine/chunker/tree_sitter.py#L286-L328)
+
+```python
+def _try_astchunk(self, content: str, relative_path: str, language: str):
+    """Attempt to split content using astchunk with fallback to tree-sitter."""
+    try:
+        import astchunk
+        builder = astchunk.ASTChunkBuilder(
+            language=_ASTCHUNK_LANG_MAP.get(language, language),
+            max_chunk_size=_ASTCHUNK_MAX_CHUNK_SIZE,
+            metadata_template="default",
+        )
+        raw_chunks = builder.chunkify(content, filepath=relative_path)
+        
+        chunks = []
+        for item in raw_chunks:
+            meta = item.get("metadata", {})
+            chunk = CodeChunk(
+                path=relative_path,
+                start_line=int(meta.get("start_line_no", 0)) + 1,
+                end_line=int(meta.get("end_line_no", 0)) + 1,
+                content=item["content"],
+                symbols_defined=_extract_top_level_symbol(item["content"]),
+                symbols_referenced=[],
+                language=language,
+            )
+            chunks.append(enrich_chunk(chunk))
+        
+        return chunks
+    except ImportError:
+        return None  # Fallback to tree-sitter
+```
+
+**Key Insight**: Always embed contextualized text with filepath and type prefix for improved semantic understanding.
 
 **Section sources**
-- [MCP_PERFORMANCE_OPTIMIZATION.md:166-219](file://docs/performance/MCP_PERFORMANCE_OPTIMIZATION.md#L166-L219)
-- [tree_sitter.py:15-160](file://src/ws_ctx_engine/chunker/tree_sitter.py#L15-L160)
+- [tree_sitter.py:159-328](file://src/ws_ctx_engine/chunker/tree_sitter.py#L159-L328)
+- [test_ast_chunker_upgrade.py:58-92](file://tests/unit/test_ast_chunker_upgrade.py#L58-L92)
 
-## Hybrid Search Implementation
+## Hybrid Search Architecture
 
-### BM25 + Dense + RRF Fusion Architecture
+### BM25 + Dense + RRF Fusion Implementation
 
 **Problem**: Current dense-only LEANN search misses identifier-heavy queries and long-tail patterns
 
 **Solution**: Implement comprehensive hybrid search combining BM25 sparse retrieval with dense vector search using Reciprocal Rank Fusion (RRF)
 
-```python
-from rank_bm25 import BM25Okapi
-import numpy as np
+```mermaid
+flowchart TD
+A["Query Input"] --> B["Vector Search<br/>Top-K*3 Candidates"]
+A --> C["BM25 Search<br/>Top-K*3 Candidates"]
+B --> D["RRF Fusion<br/>score = Σ 1/(k+rank)"]
+C --> D
+D --> E["Min-Max Normalization<br/>[0,1] Scale"]
+E --> F["Top-K Results<br/>Final Ranking"]
+```
 
+**Diagram sources**
+- [hybrid_engine.py:36-96](file://src/ws_ctx_engine/retrieval/hybrid_engine.py#L36-L96)
+- [bm25_index.py:75-103](file://src/ws_ctx_engine/retrieval/bm25_index.py#L75-L103)
+
+```python
 class HybridSearchEngine:
-    """
-    Combines BM25 and dense vector search with Reciprocal Rank Fusion.
-    
-    RRF score(d) = Σ 1/(k + rank_i(d))
-    k=60 is default best per Cormack et al. SIGIR 2009 (University of Waterloo).
-    Microsoft Azure AI Search also recommends k=60.
-    """
-    
-    def __init__(self, vector_index, embedding_model, k: int = 60):
+    def __init__(self, vector_index, bm25_index, rrf_k: int = 60):
         self.vector_index = vector_index
-        self.model = embedding_model
-        self.k = k
-        
-        # BM25 state
-        self._bm25: BM25Okapi | None = None
-        self._doc_ids: list[str] = []
-        self._tokenized_corpus: list[list[str]] = []
+        self.bm25_index = bm25_index
+        self._rrf_k = rrf_k
     
-    def build_bm25_index(self, documents: list[dict]):
-        """Build BM25 index from corpus. Call during indexing."""
-        self._doc_ids = [d['id'] for d in documents]
+    def search(self, query: str, top_k: int = 10) -> list[tuple[str, float]]:
+        fetch_k = max(top_k * 3, 50)
         
-        # Code tokenization: split by identifiers, not just whitespace
-        self._tokenized_corpus = [
-            self._tokenize_code(d['text']) for d in documents
-        ]
-        self._bm25 = BM25Okapi(self._tokenized_corpus)
+        # Get candidates from both sources
+        vec_results = self.vector_index.search(query, fetch_k)
+        bm25_results = self.bm25_index.search(query, fetch_k)
+        
+        # Apply RRF fusion
+        rrf_scores = {}
+        for rank, (path, _) in enumerate(vec_results, start=1):
+            rrf_scores[path] = rrf_scores.get(path, 0.0) + self.rrf_score(rank, self._rrf_k)
+        
+        for rank, (path, _) in enumerate(bm25_results, start=1):
+            rrf_scores[path] = rrf_scores.get(path, 0.0) + self.rrf_score(rank, self._rrf_k)
+        
+        # Normalize and return top-k
+        min_s = min(rrf_scores.values())
+        max_s = max(rrf_scores.values())
+        if max_s > min_s:
+            normalised = {p: (s - min_s) / (max_s - min_s) for p, s in rrf_scores.items()}
+        else:
+            normalised = {p: 1.0 for p in rrf_scores}
+        
+        ranked = sorted(normalised.items(), key=lambda x: x[1], reverse=True)
+        return ranked[:top_k]
     
-    def _tokenize_code(self, text: str) -> list[str]:
-        """
-        Tokenize code for BM25: split camelCase and snake_case,
-        keep identifiers intact + split version.
-        
-        "getUserById" → ["getUserById", "get", "User", "By", "Id"]
-        """
-        import re
-        tokens = []
-        for word in re.split(r'[\s\(\)\[\]{},;:\.]+', text):
-            if not word:
-                continue
-            tokens.append(word.lower())
-            # Split camelCase
-            parts = re.findall('[A-Z][a-z]*|[a-z]+|[0-9]+', word)
-            tokens.extend(p.lower() for p in parts if p != word)
-        return tokens
-    
-    def search(self, query: str, top_k: int = 20) -> list[dict]:
-        """Hybrid search with RRF fusion."""
-        # 1. Dense search
-        query_embedding = self.model.encode([query])[0]
-        dense_results = self.vector_index.search(query_embedding, top_k=top_k * 3)
-        
-        # 2. BM25 search
-        tokenized_query = self._tokenize_code(query)
-        bm25_scores = self._bm25.get_scores(tokenized_query)
-        bm25_top_indices = np.argsort(bm25_scores)[::-1][:top_k * 3]
-        
-        # 3. RRF Fusion
-        doc_scores: dict[str, float] = {}
-        
-        # Dense rankings
-        for rank, result in enumerate(dense_results):
-            doc_id = result['id']
-            doc_scores[doc_id] = doc_scores.get(doc_id, 0) + 1.0 / (self.k + rank + 1)
-        
-        # BM25 rankings
-        for rank, idx in enumerate(bm25_top_indices):
-            doc_id = self._doc_ids[idx]
-            doc_scores[doc_id] = doc_scores.get(doc_id, 0) + 1.0 / (self.k + rank + 1)
-        
-        # Sort by fused score
-        sorted_docs = sorted(
-            doc_scores.items(), key=lambda x: x[1], reverse=True
-        )
-        return [{'id': doc_id, 'score': score} for doc_id, score in sorted_docs[:top_k]]
+    def rrf_score(rank: int, k: int = 60) -> float:
+        return 1.0 / (k + rank)
+```
+
+**Code-aware Tokenization**: Specialized tokenization for BM25 that splits camelCase and snake_case identifiers while removing stop words.
+
+```python
+def tokenize_query(text: str) -> list[str]:
+    """Tokenize query for BM25 search with stop word removal."""
+    tokens = tokenize_code(text)
+    seen = {}
+    for t in tokens:
+        if t not in _STOP_WORDS:
+            seen[t] = None
+    return list(seen)
 ```
 
 **Research Validation**: This approach consistently improves recall 15-30% over pure dense methods, with production data supporting identifier-heavy query effectiveness.
 
 **Section sources**
-- [MCP_PERFORMANCE_OPTIMIZATION.md:220-327](file://docs/performance/MCP_PERFORMANCE_OPTIMIZATION.md#L220-L327)
+- [hybrid_engine.py:36-96](file://src/ws_ctx_engine/retrieval/hybrid_engine.py#L36-L96)
+- [bm25_index.py:21-103](file://src/ws_ctx_engine/retrieval/bm25_index.py#L21-L103)
+- [code_tokenizer.py:48-90](file://src/ws_ctx_engine/retrieval/code_tokenizer.py#L48-L90)
+- [test_hybrid_engine.py:60-139](file://tests/unit/test_hybrid_engine.py#L60-L139)
 
 ## Precision Ranking Enhancement
 
@@ -385,24 +396,56 @@ class HybridSearchEngine:
 
 **Problem**: Initial retrieval covers broad semantic space but lacks fine-grained precision ordering
 
-**Solution**: Implement three-tier production architecture with cross-encoder reranking
+**Solution**: Implement configurable three-tier production architecture with cross-encoder reranking
+
+```mermaid
+flowchart TD
+A["Hybrid Search Results<br/>Top-100 Candidates"] --> B["Stage 1: BM25 + Dense<br/>Top-100"]
+B --> C["Stage 2: ColBERT Rerank<br/>Top-20"]
+C --> D["Stage 3: Cross-encoder<br/>Top-5 (Optional)"]
+D --> E["Final Results"]
+```
+
+**Diagram sources**
+- [reranker.py:30-138](file://src/ws_ctx_engine/retrieval/reranker.py#L30-L138)
 
 ```python
-from sentence_transformers import CrossEncoder
-
-reranker = CrossEncoder('BAAI/bge-reranker-v2-m3', max_length=512)
-
-def rerank(query: str, candidates: list[dict], top_k: int = 10) -> list[dict]:
-    """Rerank candidates using cross-encoder."""
-    pairs = [(query, c['text']) for c in candidates]
-    scores = reranker.predict(pairs)
+class CrossEncoderReranker:
+    def __init__(self, model_name: str = "BAAI/bge-reranker-v2-m3", device: str = "cpu"):
+        self.model_name = model_name
+        self.device = device
+        self._model = None
+        self._load_attempted = False
     
-    ranked = sorted(
-        zip(candidates, scores),
-        key=lambda x: x[1],
-        reverse=True
-    )
-    return [c for c, _ in ranked[:top_k]]
+    def rerank(self, query: str, candidates: list[tuple[str, str]], top_k: int = 10):
+        """Rerank candidates using cross-encoder with lazy loading."""
+        if not candidates:
+            return []
+        
+        # Lazy load on first use
+        if self._model is None and not self._load_attempted:
+            self._try_load()
+        
+        if self._model is None:
+            # Fallback to uniform scores
+            return [(path, 1.0) for path, _ in candidates[:top_k]]
+        
+        # Generate scores and normalize
+        pairs = [[query, content] for _, content in candidates]
+        raw_scores = self._model.predict(pairs)
+        
+        # Min-max normalization
+        min_s = min(raw_scores)
+        max_s = max(raw_scores)
+        if max_s > min_s:
+            norm = [(s - min_s) / (max_s - min_s) for s in raw_scores]
+        else:
+            norm = [1.0] * len(raw_scores)
+        
+        # Return top-k with normalized scores
+        ranked = sorted(zip([p for p, _ in candidates], norm), 
+                      key=lambda x: x[1], reverse=True)
+        return list(ranked[:top_k])
 ```
 
 **Three-Tier Architecture**:
@@ -424,7 +467,8 @@ Final Results
 - **colbert-ir/colbertv2.0**: 110M parameters, classic well-tested model
 
 **Section sources**
-- [MCP_PERFORMANCE_OPTIMIZATION.md:328-375](file://docs/performance/MCP_PERFORMANCE_OPTIMIZATION.md#L328-L375)
+- [reranker.py:30-138](file://src/ws_ctx_engine/retrieval/reranker.py#L30-L138)
+- [test_reranker.py:50-138](file://tests/unit/test_reranker.py#L50-L138)
 
 ## Testing & Validation Framework
 
@@ -526,22 +570,22 @@ GOLDEN_SET_EXTENDED = [
 **Objective**: Eliminate 6-8s cold start penalty
 
 **Implementation Steps**:
-1. ✅ **Solution 1**: Pre-load embedding models with ONNX backend
+1. ✅ **Solution 1**: Pre-load embedding models with ONNX backend via ModelRegistry
 2. ✅ **Solution 2**: Cache PageRank results to avoid recomputation
 3. ✅ **Optional**: Cache LEANN searcher instances for reduced I/O
 4. ✅ **Model Switch**: Transition from facebook/contriever to BAAI/bge-small-en-v1.5
 
 **Expected Impact**: **10s → 1-2s** latency reduction (80-90% improvement)
 
-### Phase 2: Chunking Optimization (2-3 days)
+### Phase 2: Intelligent Chunking (2-3 days)
 **Priority**: High Impact Semantic Quality
-**Objective**: Implement AST-aware chunking for superior code understanding
+**Objective**: Implement astchunk AST-aware chunking for superior code understanding
 
 **Implementation Steps**:
-1. ✅ Integrate tree-sitter based AST chunking
-2. ✅ Replace current fixed-size chunking logic
+1. ✅ Integrate astchunk library with fallback to tree-sitter resolver
+2. ✅ Replace current fixed-size chunking logic with semantic boundaries
 3. ✅ Implement contextualized embedding pipeline
-4. ✅ Update indexing workflow to support semantic boundaries
+4. ✅ Update indexing workflow to support astchunk language mapping
 
 **Expected Impact**: **+4.3 Recall@5** through improved code semantics
 
@@ -550,10 +594,10 @@ GOLDEN_SET_EXTENDED = [
 **Objective**: Deploy comprehensive hybrid search architecture
 
 **Implementation Steps**:
-1. ✅ Integrate BM25 Okapi ranking system
+1. ✅ Integrate BM25Okapi ranking system with code-aware tokenization
 2. ✅ Implement Reciprocal Rank Fusion (RRF) algorithm
-3. ✅ Develop code-specific tokenization for identifier preservation
-4. ✅ Configure hybrid search pipeline in retrieval engine
+3. ✅ Develop astchunk-compatible chunking for BM25 corpus
+4. ✅ Configure hybrid search pipeline in RetrievalEngine
 
 **Expected Impact**: **+20-30% recall** through dual-modality coverage
 
@@ -562,7 +606,7 @@ GOLDEN_SET_EXTENDED = [
 **Objective**: Add cross-encoder reranking for fine-grained precision
 
 **Implementation Steps**:
-1. ✅ Integrate jina-reranker-v3 or BGE-Reranker-v2-m3
+1. ✅ Integrate CrossEncoderReranker with lazy loading
 2. ✅ Implement three-tier ranking pipeline
 3. ✅ Configure optimal reranking thresholds
 4. ✅ Validate commercial license compliance
@@ -755,7 +799,7 @@ The system includes optional Rust extensions providing significant performance i
 
 ## Conclusion
 
-The MCP v3 performance optimization initiative represents a paradigm shift from reactive troubleshooting to proactive, research-driven optimization. Through the implementation of four comprehensive optimization layers—infrastructure, chunking, hybrid search, and precision ranking—the system achieves transformative performance improvements while maintaining search quality and operational reliability.
+The MCP v3 performance optimization initiative represents a paradigm shift from reactive troubleshooting to proactive, research-driven optimization. Through the implementation of four comprehensive optimization layers—infrastructure, intelligent chunking, hybrid search, and precision ranking—the system achieves transformative performance improvements while maintaining search quality and operational reliability.
 
 **Key Success Factors**:
 

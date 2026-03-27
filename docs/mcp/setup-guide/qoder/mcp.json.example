@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "ws-ctx-engine": {
+      "command": "wsctx",
+      "args": ["mcp", "--workspace", "/Users/trung.ngo/Documents/zaob-dev/zmr-ctx-paker"]
+    }
+  }
+}

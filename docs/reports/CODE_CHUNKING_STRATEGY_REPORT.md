@@ -17,14 +17,6 @@ This report evaluates code chunking strategies for the ws-ctx-engine system. The
 
 ---
 
-## Executive Summary
-
-This report evaluates code chunking strategies for the ws-ctx-engine system. The current implementation uses a **hybrid approach** (astchunk + tree-sitter fallback). We analyze alternatives and provide recommendations for optimal language coverage.
-
-**Key Finding**: Current hybrid strategy is production-ready and cost-effective. Optional enhancement with Chonkie for documentation files recommended.
-
----
-
 ## Table of Contents
 
 1. [Problem Statement](#1-problem-statement)
@@ -99,17 +91,23 @@ The ws-ctx-engine system requires intelligent code chunking to:
 **File**: `src/ws_ctx_engine/chunker/tree_sitter.py`
 
 ```python
-# Languages where astchunk is used for AST-boundary splitting.
-# astchunk (CMU, MIT License) supports: Python, Java, C#, TypeScript, JavaScript
-# We use it for Python and TypeScript primarily. JavaScript works via TypeScript grammar.
-# Other languages (Rust, Go, Ruby, etc.) fall back to tree-sitter resolver path.
-_ASTCHUNK_LANGUAGES = {"python", "typescript"}
+# Maps our internal language name → astchunk language name.
+# astchunk (CMU, MIT License) supports: Python, Java, C#, TypeScript, JavaScript.
+# Languages absent from this map fall back to the tree-sitter resolver path only.
+# Java and C# use astchunk exclusively (no tree-sitter grammar bundled).
+_ASTCHUNK_LANG_MAP: dict[str, str] = {
+    "python": "python",
+    "typescript": "typescript",
+    "javascript": "javascript",
+    "java": "java",
+    "csharp": "csharp",
+}
 ```
 
 **Strategy**:
 
-1. Try astchunk for Python/TypeScript
-2. Fall back to tree-sitter resolvers for other languages
+1. Try astchunk for Python, TypeScript, JavaScript, Java, C#
+2. Fall back to tree-sitter resolvers for Rust (and future Go, Ruby, etc.)
 3. Graceful degradation when libraries unavailable
 
 ### 2.3 Current Language Coverage

@@ -1,7 +1,7 @@
 # Chunking Strategy — Research Verdict
 
-**Date**: March 27, 2026  
-**Scope**: External validation of hybrid astchunk + tree-sitter approach  
+**Date**: March 27, 2026 (updated March 27, 2026)
+**Scope**: External validation of hybrid astchunk + tree-sitter approach
 **Status**: ✅ Confirmed — Strategy aligned with current research consensus
 
 ---
@@ -38,15 +38,23 @@ Tree-sitter là parser được sử dụng bởi Neovim, Helix, Zed editors. Đ
 
 ---
 
-### 3. Non-Whitespace Character Count — Đúng Metric
+### 3. Non-Whitespace Character Count — Đúng Metric (với lưu ý)
 
 Research xác nhận đây là chunk size metric đúng cho code: hai đoạn code cùng số dòng có thể chứa lượng nội dung khác nhau hoàn toàn (import statement vs class body). Line-count hoặc raw character-count đều cho kết quả không nhất quán.
 
+**Implementation note**: `max_chunk_size=1500` (non-ws chars) được apply trên cả **astchunk path** VÀ **tree-sitter resolver path** (qua `_split_large_chunk()`). Cả hai paths đều được kiểm soát.
+
 ---
 
-### 4. Chonkie cho Markdown — Hợp Lý Nhưng Optional
+### 4. Chonkie cho Markdown — Deprioritized
 
-Chonkie benchmarks: **33x faster** token chunking, **2x faster** sentence chunking so với các thư viện RAG khác. Tuy nhiên Chonkie là **text-only** — không có khả năng parse code structure. Việc report đề xuất dùng Chonkie chỉ cho `.md`/`.txt` (P3) là phân tách đúng concern.
+Chonkie benchmarks: **33x faster** token chunking. Tuy nhiên sau khi review kỹ hơn:
+
+- `MarkdownChunker` hiện tại đã split trên ATX heading boundaries — đây là natural boundary cho LLM documentation, tốt hơn sentence/token chunking.
+- Chonkie's sentence chunking sẽ split mid-section, không phù hợp cho structured docs.
+- Adding a new dependency for markdown-only improvement có ROI thấp.
+
+**Verdict**: Chonkie recommendation được **downgrade từ P3 sang không cần thiết**. Heading-based splitting là đúng approach.
 
 ---
 
@@ -62,17 +70,24 @@ Rust, Go không được astchunk support trực tiếp — tree-sitter fallback
 
 ## Verdict
 
-| Aspect                      | Assessment                                       |
-| --------------------------- | ------------------------------------------------ |
-| Core algorithm (cAST)       | ✅ Research-validated, EMNLP 2025                |
-| Primary tool (astchunk)     | ✅ Official implementation của paper             |
-| Fallback (tree-sitter)      | ✅ Industry standard                             |
-| Chunk size metric           | ✅ Non-whitespace char count — confirmed correct |
-| Markdown handling (Chonkie) | ✅ Justified — best-in-class for text            |
-| Language coverage gap       | ⚠️ Rust/Go resolver quality cần benchmark riêng  |
-| Cross-file context          | ⚠️ Monitor nếu scale lên graph-level reasoning   |
+| Aspect                          | Assessment                                                   |
+| ------------------------------- | ------------------------------------------------------------ |
+| Core algorithm (cAST)           | ✅ Research-validated, EMNLP 2025                            |
+| Primary tool (astchunk)         | ✅ Official implementation của paper                         |
+| astchunk language coverage      | ✅ Python, TypeScript, JavaScript, Java, C# — all wired      |
+| Fallback (tree-sitter)          | ✅ Industry standard (Rust implemented; Go/Ruby future)      |
+| Chunk size metric               | ✅ Non-whitespace char count — both paths enforced           |
+| Enrichment header consistency   | ✅ `enrich_chunk()` applied uniformly on all code paths      |
+| Multi-symbol extraction         | ✅ Class/impl/trait chunks expose method names in `symbols_defined` |
+| Reference extraction quality    | ✅ Targeted (calls, types, imports only — no local variables)|
+| Graph bridge (Integration Pt 0) | ✅ `chunks_to_graph()` implemented in `graph/builder.py`    |
+| Graph bridge (Integration Pt 1) | ✅ `extract_edges()` on `TreeSitterChunker`                  |
+| Graph validation                | ✅ `validate_graph()` in `graph/validation.py`               |
+| Markdown handling (Chonkie)     | ❌ Deprioritized — heading-based split is correct for docs   |
+| Rust/Go resolver quality        | ⚠️ Benchmark riêng chưa có — monitor                        |
+| Cross-file context              | ⚠️ Monitor nếu scale lên graph-level reasoning              |
 
-**Recommendation**: Proceed with current hybrid strategy. No architectural changes needed. Add Rust/Go resolver benchmarks vào Phase 2 success criteria.
+**Recommendation**: Hybrid strategy is correct and now fully implemented. Graph bridge is ready for CozoDB integration when Phase 0 (validate CozoDB fit) is complete.
 
 ---
 

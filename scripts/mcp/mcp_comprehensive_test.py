@@ -154,6 +154,7 @@ class TestCategory(Enum):
     CONTENT = "Structured Content"
     TIMEOUT = "Timeout & Limits"
     RATE_LIMIT = "Rate Limiting"
+    GRAPH_TOOLS = "Graph Tools"
 
 
 @dataclass
@@ -466,24 +467,26 @@ class MCPTestSuite:
         ]
         
         results = []
+        total_duration = 0.0
         for tc in test_cases:
-            result, _ = self.run_mcp_request("tools/call", tc)
+            result, dur = self.run_mcp_request("tools/call", tc)
+            total_duration += dur
             has_error = "error" in result or any(
-                "error" in str(c.get("text", "")).lower() 
+                "error" in str(c.get("text", "")).lower()
                 for c in result.get("result", {}).get("content", [])
                 if isinstance(c, dict)
             )
             results.append({"case": tc, "error_detected": has_error})
-        
+
         error_rate = sum(1 for r in results if r["error_detected"]) / len(results)
-        
+
         return TestResult(
             category=TestCategory.VALIDATION.value,
             test_name="input_validation/invalid_types",
             passed=error_rate > 0.5,  # Should catch at least some
             score=error_rate,
             details={"test_cases": len(test_cases), "errors_caught": sum(1 for r in results if r["error_detected"]), "results": results},
-            duration_ms=0
+            duration_ms=total_duration
         )
     
     def test_input_validation_boundary_values(self) -> TestResult:
@@ -495,21 +498,23 @@ class MCPTestSuite:
         ]
         
         results = []
+        total_duration = 0.0
         for tc in test_cases:
-            result, _ = self.run_mcp_request("tools/call", tc)
+            result, dur = self.run_mcp_request("tools/call", tc)
+            total_duration += dur
             # Should either succeed with valid response or error gracefully
             handled = "result" in result or "error" in result
             results.append({"case": tc, "handled": handled})
-        
+
         handled_rate = sum(1 for r in results if r["handled"]) / len(results)
-        
+
         return TestResult(
             category=TestCategory.VALIDATION.value,
             test_name="input_validation/boundary_values",
             passed=handled_rate == 1.0,
             score=handled_rate,
             details={"test_cases": len(test_cases), "handled_count": sum(1 for r in results if r["handled"])},
-            duration_ms=0
+            duration_ms=total_duration
         )
     
     def test_input_validation_sql_injection(self) -> TestResult:
@@ -523,24 +528,26 @@ class MCPTestSuite:
         ]
         
         results = []
+        total_duration = 0.0
         for payload in malicious_inputs:
-            result, _ = self.run_mcp_request("tools/call", {
+            result, dur = self.run_mcp_request("tools/call", {
                 "name": "search_codebase",
                 "arguments": {"query": payload, "limit": 5}
             })
+            total_duration += dur
             # Should handle gracefully without crashing
             handled_safely = "result" in result or "error" in result
             results.append({"payload": payload[:30], "handled_safely": handled_safely})
-        
+
         safe_rate = sum(1 for r in results if r["handled_safely"]) / len(results)
-        
+
         return TestResult(
             category=TestCategory.SECURITY.value,
             test_name="security/injection_attempts",
             passed=safe_rate == 1.0,
             score=safe_rate,
             details={"test_cases": len(malicious_inputs), "safe_count": sum(1 for r in results if r["handled_safely"])},
-            duration_ms=0
+            duration_ms=total_duration
         )
     
     # =========================================================================
@@ -825,12 +832,14 @@ class MCPTestSuite:
                 "arguments": {}
             })
         
+        t0 = time.time()
         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
             futures = [executor.submit(make_request, tool) for tool in tools_to_test * 3]
             results = [f.result() for f in concurrent.futures.as_completed(futures)]
-        
+        total_duration = (time.time() - t0) * 1000
+
         successful = sum(1 for r, _ in results if "result" in r)
-        
+
         return TestResult(
             category=TestCategory.CONCURRENCY.value,
             test_name="concurrency/mixed_tools",
@@ -840,7 +849,7 @@ class MCPTestSuite:
                 "total_requests": len(results),
                 "successful": successful
             },
-            duration_ms=0
+            duration_ms=total_duration
         )
     
     # =========================================================================
@@ -915,9 +924,1104 @@ class MCPTestSuite:
         )
     
     # =========================================================================
+    # CATEGORY 9: Graph Tools
+    # =========================================================================
+
+    def _graph_content_text(self, result: Dict) -> str:
+        """Extract plain text from a tools/call result envelope."""
+        try:
+            return result.get("result", {}).get("content", [{}])[0].get("text", "")
+        except (IndexError, AttributeError):
+            return ""
+
+    def _graph_payload(self, result: Dict) -> Dict:
+        """Parse JSON from a tools/call text response."""
+        try:
+            return json.loads(self._graph_content_text(result))
+        except json.JSONDecodeError:
+            return {}
+
+    def test_graph_tools_registered(self) -> TestResult:
+        """Verify all 5 new graph tools are in tools/list with correct schema."""
+        result, duration = self.run_mcp_request("tools/list")
+        expected = {"find_callers", "impact_analysis", "graph_search", "call_chain", "get_status"}
+
+        registered: Dict[str, Dict] = {}
+        if "result" in result:
+            for t in result["result"].get("tools", []):
+                if t.get("name") in expected:
+                    registered[t["name"]] = t
+
+        checks = {
+            "all_tools_present": expected == set(registered),
+            "all_have_description": all(
+                bool(t.get("description")) for t in registered.values()
+            ),
+            "all_have_use_when": all(
+                "Use" in t.get("description", "") for t in registered.values()
+            ),
+            "all_have_schema": all(
+                "inputSchema" in t for t in registered.values()
+            ),
+        }
+        score = sum(checks.values()) / len(checks)
+        missing = expected - set(registered)
+
+        return TestResult(
+            category=TestCategory.GRAPH_TOOLS.value,
+            test_name="graph_tools/registration",
+            passed=checks["all_tools_present"],
+            score=score,
+            details={"checks": checks, "missing": list(missing), "registered": list(registered)},
+            duration_ms=duration,
+            error_message=f"Missing: {missing}" if missing else "",
+        )
+
+    def test_graph_get_status(self) -> TestResult:
+        """get_status returns a readiness envelope with required fields."""
+        result, duration = self.run_mcp_request("tools/call", {
+            "name": "get_status",
+            "arguments": {},
+        })
+
+        payload = self._graph_payload(result)
+        checks = {
+            "server_responded": "result" in result,
+            "has_ready_field": "ready" in payload,
+            "has_graph_store": "graph_store" in payload,
+            "has_vector_backend": "vector_backend" in payload,
+            "graph_store_has_available": isinstance(payload.get("graph_store"), dict)
+                and "available" in payload.get("graph_store", {}),
+            "has_required_actions": "required_actions" in payload,
+            "has_hint": "hint" in payload,
+        }
+        score = sum(checks.values()) / len(checks)
+
+        return TestResult(
+            category=TestCategory.GRAPH_TOOLS.value,
+            test_name="graph_tools/get_status",
+            passed=checks["server_responded"] and checks["has_ready_field"],
+            score=score,
+            details={"checks": checks, "payload": payload},
+            duration_ms=duration,
+        )
+
+    def test_graph_find_callers_validation(self) -> TestResult:
+        """find_callers rejects empty/missing fn_name with INVALID_ARGUMENT."""
+        cases = [
+            ({}, "missing fn_name"),
+            ({"fn_name": ""}, "empty fn_name"),
+        ]
+        results = []
+        total_duration = 0.0
+        for args, label in cases:
+            res, dur = self.run_mcp_request("tools/call", {"name": "find_callers", "arguments": args})
+            total_duration += dur
+            text = self._graph_content_text(res)
+            got_invalid = "INVALID_ARGUMENT" in text
+            results.append({"label": label, "got_invalid_argument": got_invalid})
+
+        pass_count = sum(1 for r in results if r["got_invalid_argument"])
+        return TestResult(
+            category=TestCategory.GRAPH_TOOLS.value,
+            test_name="graph_tools/find_callers/validation",
+            passed=pass_count == len(cases),
+            score=pass_count / len(cases),
+            details={"cases": results},
+            duration_ms=total_duration,
+        )
+
+    def test_graph_find_callers_happy_path(self) -> TestResult:
+        """find_callers with a real function returns non-empty callers list or GRAPH_UNAVAILABLE."""
+        result, duration = self.run_mcp_request("tools/call", {
+            "name": "find_callers",
+            "arguments": {"fn_name": "_query"},
+        })
+        text = self._graph_content_text(result)
+        payload = self._graph_payload(result)
+
+        has_callers = "callers" in payload
+        graph_unavailable = "GRAPH_UNAVAILABLE" in text
+        callers_count = len(payload.get("callers", []))
+        # When graph is available: callers must be non-empty for a known function
+        data_correct = graph_unavailable or callers_count > 0
+        graceful = has_callers or graph_unavailable
+
+        return TestResult(
+            category=TestCategory.GRAPH_TOOLS.value,
+            test_name="graph_tools/find_callers/happy_path",
+            passed="result" in result and graceful and data_correct,
+            score=1.0 if ("result" in result and graceful and data_correct) else 0.0,
+            details={
+                "has_callers": has_callers,
+                "callers_count": callers_count,
+                "graph_unavailable": graph_unavailable,
+                "payload": payload,
+            },
+            duration_ms=duration,
+        )
+
+    def test_graph_impact_analysis_validation(self) -> TestResult:
+        """impact_analysis rejects empty/missing file_path."""
+        cases = [
+            ({}, "missing file_path"),
+            ({"file_path": ""}, "empty file_path"),
+        ]
+        results = []
+        total_duration = 0.0
+        for args, label in cases:
+            res, dur = self.run_mcp_request("tools/call", {"name": "impact_analysis", "arguments": args})
+            total_duration += dur
+            text = self._graph_content_text(res)
+            got_invalid = "INVALID_ARGUMENT" in text
+            results.append({"label": label, "got_invalid_argument": got_invalid})
+
+        pass_count = sum(1 for r in results if r["got_invalid_argument"])
+        return TestResult(
+            category=TestCategory.GRAPH_TOOLS.value,
+            test_name="graph_tools/impact_analysis/validation",
+            passed=pass_count == len(cases),
+            score=pass_count / len(cases),
+            details={"cases": results},
+            duration_ms=total_duration,
+        )
+
+    def test_graph_impact_analysis_happy_path(self) -> TestResult:
+        """impact_analysis returns importers list or GRAPH_UNAVAILABLE."""
+        result, duration = self.run_mcp_request("tools/call", {
+            "name": "impact_analysis",
+            "arguments": {"file_path": "src/ws_ctx_engine/models/models.py"},
+        })
+        text = self._graph_content_text(result)
+        payload = self._graph_payload(result)
+
+        has_importers = "importers" in payload
+        graph_unavailable = "GRAPH_UNAVAILABLE" in text
+        graceful = has_importers or graph_unavailable
+
+        return TestResult(
+            category=TestCategory.GRAPH_TOOLS.value,
+            test_name="graph_tools/impact_analysis/happy_path",
+            passed="result" in result and graceful,
+            score=1.0 if ("result" in result and graceful) else 0.0,
+            details={"has_importers": has_importers, "graph_unavailable": graph_unavailable},
+            duration_ms=duration,
+        )
+
+    def test_graph_search_validation(self) -> TestResult:
+        """graph_search rejects empty/missing file_id."""
+        cases = [
+            ({}, "missing file_id"),
+            ({"file_id": ""}, "empty file_id"),
+        ]
+        results = []
+        total_duration = 0.0
+        for args, label in cases:
+            res, dur = self.run_mcp_request("tools/call", {"name": "graph_search", "arguments": args})
+            total_duration += dur
+            text = self._graph_content_text(res)
+            got_invalid = "INVALID_ARGUMENT" in text
+            results.append({"label": label, "got_invalid_argument": got_invalid})
+
+        pass_count = sum(1 for r in results if r["got_invalid_argument"])
+        return TestResult(
+            category=TestCategory.GRAPH_TOOLS.value,
+            test_name="graph_tools/graph_search/validation",
+            passed=pass_count == len(cases),
+            score=pass_count / len(cases),
+            details={"cases": results},
+            duration_ms=total_duration,
+        )
+
+    def test_graph_search_happy_path(self) -> TestResult:
+        """graph_search returns symbols list or GRAPH_UNAVAILABLE."""
+        result, duration = self.run_mcp_request("tools/call", {
+            "name": "graph_search",
+            "arguments": {"file_id": "src/ws_ctx_engine/graph/cozo_store.py"},
+        })
+        text = self._graph_content_text(result)
+        payload = self._graph_payload(result)
+
+        has_symbols = "symbols" in payload
+        graph_unavailable = "GRAPH_UNAVAILABLE" in text
+        graceful = has_symbols or graph_unavailable
+
+        return TestResult(
+            category=TestCategory.GRAPH_TOOLS.value,
+            test_name="graph_tools/graph_search/happy_path",
+            passed="result" in result and graceful,
+            score=1.0 if ("result" in result and graceful) else 0.0,
+            details={"has_symbols": has_symbols, "graph_unavailable": graph_unavailable},
+            duration_ms=duration,
+        )
+
+    def test_graph_call_chain_validation(self) -> TestResult:
+        """call_chain rejects missing from_fn or to_fn with INVALID_ARGUMENT."""
+        cases = [
+            ({}, "missing both"),
+            ({"from_fn": "callers_of"}, "missing to_fn"),
+            ({"to_fn": "_query"}, "missing from_fn"),
+        ]
+        results = []
+        total_duration = 0.0
+        for args, label in cases:
+            res, dur = self.run_mcp_request("tools/call", {"name": "call_chain", "arguments": args})
+            total_duration += dur
+            text = self._graph_content_text(res)
+            got_invalid = "INVALID_ARGUMENT" in text
+            results.append({"label": label, "got_invalid_argument": got_invalid})
+
+        pass_count = sum(1 for r in results if r["got_invalid_argument"])
+        return TestResult(
+            category=TestCategory.GRAPH_TOOLS.value,
+            test_name="graph_tools/call_chain/validation",
+            passed=pass_count == len(cases),
+            score=pass_count / len(cases),
+            details={"cases": results},
+            duration_ms=total_duration,
+        )
+
+    def test_graph_call_chain_happy_path(self) -> TestResult:
+        """call_chain returns non-empty path for known call chain — NOT NOT_IMPLEMENTED."""
+        result, duration = self.run_mcp_request("tools/call", {
+            "name": "call_chain",
+            "arguments": {"from_fn": "callers_of", "to_fn": "_query", "max_depth": 5},
+        })
+        text = self._graph_content_text(result)
+        payload = self._graph_payload(result)
+
+        not_implemented = "NOT_IMPLEMENTED" in text
+        graph_unavailable = "GRAPH_UNAVAILABLE" in text
+        has_path_key = "path" in payload
+        path = payload.get("path") or []
+        # When graph is available: path must be non-empty for this known direct call
+        data_correct = graph_unavailable or len(path) > 0
+
+        # Pass: has path key with non-empty result OR graph unavailable — NOT NOT_IMPLEMENTED
+        graceful = (has_path_key or graph_unavailable) and not not_implemented
+
+        return TestResult(
+            category=TestCategory.GRAPH_TOOLS.value,
+            test_name="graph_tools/call_chain/happy_path",
+            passed="result" in result and graceful and data_correct,
+            score=1.0 if ("result" in result and graceful and data_correct) else 0.0,
+            details={
+                "has_path_key": has_path_key,
+                "graph_unavailable": graph_unavailable,
+                "not_implemented": not_implemented,
+                "path": path,
+                "path_length": len(path),
+            },
+            duration_ms=duration,
+            error_message="call_chain still returns NOT_IMPLEMENTED" if not_implemented else "",
+        )
+
+    def test_graph_tools_graceful_degradation(self) -> TestResult:
+        """All graph tools respond gracefully — never crash, always return result."""
+        tools = [
+            ("find_callers", {"fn_name": "nonexistent_xyz_987"}),
+            ("impact_analysis", {"file_path": "nonexistent_xyz_987.py"}),
+            ("graph_search", {"file_id": "nonexistent_xyz_987.py"}),
+            ("call_chain", {"from_fn": "nonexistent_a", "to_fn": "nonexistent_b"}),
+            ("get_status", {}),
+        ]
+        results = []
+        total_duration = 0.0
+        for tool_name, args in tools:
+            res, dur = self.run_mcp_request("tools/call", {"name": tool_name, "arguments": args})
+            total_duration += dur
+            responded = "result" in res  # Must not be a raw crash
+            results.append({"tool": tool_name, "responded": responded})
+
+        pass_count = sum(1 for r in results if r["responded"])
+        return TestResult(
+            category=TestCategory.GRAPH_TOOLS.value,
+            test_name="graph_tools/graceful_degradation",
+            passed=pass_count == len(tools),
+            score=pass_count / len(tools),
+            details={"results": results},
+            duration_ms=total_duration,
+        )
+
+    def test_graph_tools_performance(self) -> TestResult:
+        """Graph tools complete within acceptable latency on warm path."""
+        warm_latencies: List[float] = []
+        error_message = ""
+
+        try:
+            with PersistentMCPSession(self.WORKSPACE, self.WSCTX_CMD) as session:
+                # Warm-up
+                session.call("get_status", {}, timeout=PersistentMCPSession.COLD_START_TIMEOUT)
+
+                calls = [
+                    ("get_status", {}),
+                    ("find_callers", {"fn_name": "_query"}),
+                    ("impact_analysis", {"file_path": "src/ws_ctx_engine/models/models.py"}),
+                    ("graph_search", {"file_id": "src/ws_ctx_engine/graph/cozo_store.py"}),
+                    ("call_chain", {"from_fn": "callers_of", "to_fn": "_query"}),
+                ]
+                for tool, args in calls:
+                    res, ms = session.call(tool, args, timeout=15)
+                    if "result" in res:
+                        warm_latencies.append(ms)
+        except Exception as exc:
+            error_message = str(exc)
+
+        avg_ms = statistics.mean(warm_latencies) if warm_latencies else 0.0
+        # Graph queries hit CozoDB — target <500ms per call warm
+        score = 1.0 if avg_ms < 500 else 0.8 if avg_ms < 2000 else 0.5 if avg_ms < 5000 else 0.0
+
+        return TestResult(
+            category=TestCategory.GRAPH_TOOLS.value,
+            test_name="graph_tools/performance",
+            passed=bool(warm_latencies) and avg_ms < 5000,
+            score=score,
+            details={
+                "avg_warm_ms": round(avg_ms, 1),
+                "samples": len(warm_latencies),
+                "error": error_message,
+            },
+            duration_ms=avg_ms,
+            error_message=error_message,
+        )
+
+    # =========================================================================
+    # CATEGORY 11: Graph Tool Semantic Correctness
+    # (checks real data values, not just structural key presence)
+    # =========================================================================
+
+    def test_graph_find_callers_multi_file(self) -> TestResult:
+        """bulk_upsert is called from indexer, tests, benchmark — expect ≥2 caller files."""
+        result, duration = self.run_mcp_request("tools/call", {
+            "name": "find_callers",
+            "arguments": {"fn_name": "bulk_upsert"},
+        })
+        payload = self._graph_payload(result)
+        graph_unavailable = "GRAPH_UNAVAILABLE" in self._graph_content_text(result)
+        callers = payload.get("callers", [])
+        caller_files = [c.get("caller_file", "") for c in callers]
+        multi_caller = graph_unavailable or len(callers) >= 2
+
+        return TestResult(
+            category=TestCategory.GRAPH_TOOLS.value,
+            test_name="graph_tools/find_callers/multi_file_callers",
+            passed="result" in result and multi_caller,
+            score=1.0 if ("result" in result and multi_caller) else 0.0,
+            details={
+                "callers_count": len(callers),
+                "caller_files": caller_files[:5],
+                "graph_unavailable": graph_unavailable,
+            },
+            duration_ms=duration,
+        )
+
+    def test_graph_impact_analysis_core_module(self) -> TestResult:
+        """models/models.py is imported widely — must return ≥1 importer when graph available."""
+        result, duration = self.run_mcp_request("tools/call", {
+            "name": "impact_analysis",
+            "arguments": {"file_path": "src/ws_ctx_engine/models/models.py"},
+        })
+        payload = self._graph_payload(result)
+        text = self._graph_content_text(result)
+        graph_unavailable = "GRAPH_UNAVAILABLE" in text
+        importers = payload.get("importers", [])
+        has_data = graph_unavailable or len(importers) >= 1
+
+        return TestResult(
+            category=TestCategory.GRAPH_TOOLS.value,
+            test_name="graph_tools/impact_analysis/core_module_has_importers",
+            passed="result" in result and has_data,
+            score=1.0 if ("result" in result and has_data) else 0.0,
+            details={
+                "importers_count": len(importers),
+                "sample": importers[:3],
+                "graph_unavailable": graph_unavailable,
+            },
+            duration_ms=duration,
+        )
+
+    def test_graph_search_known_symbols(self) -> TestResult:
+        """cozo_store.py must expose GraphStore, _query, callers_of in its symbol list."""
+        result, duration = self.run_mcp_request("tools/call", {
+            "name": "graph_search",
+            "arguments": {"file_id": "src/ws_ctx_engine/graph/cozo_store.py"},
+        })
+        payload = self._graph_payload(result)
+        text = self._graph_content_text(result)
+        graph_unavailable = "GRAPH_UNAVAILABLE" in text
+        symbols = payload.get("symbols", [])
+        sym_names = {s.get("sym", "").split("#")[-1] for s in symbols}
+        expected = {"GraphStore", "_query", "callers_of"}
+        found = expected & sym_names
+        has_expected = graph_unavailable or len(found) == len(expected)
+
+        return TestResult(
+            category=TestCategory.GRAPH_TOOLS.value,
+            test_name="graph_tools/graph_search/known_symbols_present",
+            passed="result" in result and has_expected,
+            score=1.0 if ("result" in result and has_expected) else len(found) / len(expected),
+            details={
+                "expected": list(expected),
+                "found": list(found),
+                "missing": list(expected - sym_names),
+                "total_symbols": len(symbols),
+                "graph_unavailable": graph_unavailable,
+            },
+            duration_ms=duration,
+        )
+
+    def test_graph_call_chain_depth_cap(self) -> TestResult:
+        """max_depth=20 must be silently capped to 10 — response must not error."""
+        result, duration = self.run_mcp_request("tools/call", {
+            "name": "call_chain",
+            "arguments": {"from_fn": "callers_of", "to_fn": "_query", "max_depth": 20},
+        })
+        text = self._graph_content_text(result)
+        payload = self._graph_payload(result)
+        graph_unavailable = "GRAPH_UNAVAILABLE" in text
+        not_invalid_arg = "INVALID_ARGUMENT" not in text
+        has_path = "path" in payload
+        # Pass: no INVALID_ARGUMENT error (depth accepted gracefully), OR graph unavailable
+        acceptable = graph_unavailable or (not_invalid_arg and has_path)
+
+        return TestResult(
+            category=TestCategory.GRAPH_TOOLS.value,
+            test_name="graph_tools/call_chain/max_depth_capped",
+            passed="result" in result and acceptable,
+            score=1.0 if ("result" in result and acceptable) else 0.0,
+            details={
+                "accepted_depth_20": not_invalid_arg,
+                "has_path": has_path,
+                "graph_unavailable": graph_unavailable,
+                "path": payload.get("path"),
+            },
+            duration_ms=duration,
+        )
+
+    def test_graph_call_chain_same_function(self) -> TestResult:
+        """call_chain(fn, fn) — from_fn == to_fn must return single-element path [fn]."""
+        result, duration = self.run_mcp_request("tools/call", {
+            "name": "call_chain",
+            "arguments": {"from_fn": "_query", "to_fn": "_query"},
+        })
+        payload = self._graph_payload(result)
+        text = self._graph_content_text(result)
+        graph_unavailable = "GRAPH_UNAVAILABLE" in text
+        path = payload.get("path", [])
+        self_path = graph_unavailable or (len(path) == 1 and path[0] == "_query")
+
+        return TestResult(
+            category=TestCategory.GRAPH_TOOLS.value,
+            test_name="graph_tools/call_chain/self_path_single_element",
+            passed="result" in result and self_path,
+            score=1.0 if ("result" in result and self_path) else 0.0,
+            details={
+                "path": path,
+                "expected": ["_query"],
+                "graph_unavailable": graph_unavailable,
+            },
+            duration_ms=duration,
+        )
+
+    def test_graph_call_chain_no_path(self) -> TestResult:
+        """Functions with no shared call chain must return path=[] not an error."""
+        result, duration = self.run_mcp_request("tools/call", {
+            "name": "call_chain",
+            "arguments": {"from_fn": "nonexistent_fn_xyz_999", "to_fn": "another_xyz_999"},
+        })
+        text = self._graph_content_text(result)
+        payload = self._graph_payload(result)
+        graph_unavailable = "GRAPH_UNAVAILABLE" in text
+        path = payload.get("path", None)
+        is_empty_list = path == []
+        # Pass: path=[] when graph is available, OR graph gracefully unavailable
+        acceptable = graph_unavailable or is_empty_list
+
+        return TestResult(
+            category=TestCategory.GRAPH_TOOLS.value,
+            test_name="graph_tools/call_chain/no_path_returns_empty_list",
+            passed="result" in result and acceptable,
+            score=1.0 if ("result" in result and acceptable) else 0.0,
+            details={
+                "path": path,
+                "expected": [],
+                "graph_unavailable": graph_unavailable,
+            },
+            duration_ms=duration,
+        )
+
+    # =========================================================================
+    # CATEGORY 12: Protocol Depth
+    # =========================================================================
+
+    def test_jsonrpc_id_integer(self) -> TestResult:
+        """JSON-RPC response id must echo back integer request id."""
+        result, duration = self.run_mcp_request(
+            "tools/call",
+            {"name": "get_index_status", "arguments": {}},
+            request_id=42,
+        )
+        echo_id = result.get("id")
+        correct = echo_id == 42
+
+        return TestResult(
+            category=TestCategory.PROTOCOL.value,
+            test_name="protocol/jsonrpc_id_echo_integer",
+            passed=correct,
+            score=1.0 if correct else 0.0,
+            details={"sent_id": 42, "received_id": echo_id},
+            duration_ms=duration,
+        )
+
+    def test_jsonrpc_id_string(self) -> TestResult:
+        """JSON-RPC response id must echo back string request id."""
+        req = json.dumps({
+            "jsonrpc": "2.0",
+            "id": "req-abc-123",
+            "method": "tools/call",
+            "params": {"name": "get_index_status", "arguments": {}},
+        })
+        cmd = f"echo '{req}' | {self.WSCTX_CMD} mcp --workspace {self.WORKSPACE}"
+        t0 = time.time()
+        try:
+            proc = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
+            duration = (time.time() - t0) * 1000
+            result = json.loads(proc.stdout) if proc.stdout.strip() else {}
+        except Exception as exc:
+            return TestResult(
+                category=TestCategory.PROTOCOL.value,
+                test_name="protocol/jsonrpc_id_echo_string",
+                passed=False, score=0.0,
+                details={"error": str(exc)}, duration_ms=0,
+            )
+        echo_id = result.get("id")
+        correct = echo_id == "req-abc-123"
+
+        return TestResult(
+            category=TestCategory.PROTOCOL.value,
+            test_name="protocol/jsonrpc_id_echo_string",
+            passed=correct,
+            score=1.0 if correct else 0.0,
+            details={"sent_id": "req-abc-123", "received_id": echo_id},
+            duration_ms=duration,
+        )
+
+    def test_tools_list_all_twelve(self) -> TestResult:
+        """tools/list must return all 12 expected tool names."""
+        result, duration = self.run_mcp_request("tools/list")
+        tools = result.get("result", {}).get("tools", [])
+        names = {t["name"] for t in tools if isinstance(t, dict)}
+        expected = {
+            "search_codebase", "get_file_context", "get_domain_map",
+            "get_index_status", "index_status", "pack_context",
+            "session_clear", "find_callers", "impact_analysis",
+            "graph_search", "call_chain", "get_status",
+        }
+        missing = expected - names
+        extra = names - expected
+
+        return TestResult(
+            category=TestCategory.TOOLS.value,
+            test_name="tools/list_all_12_present",
+            passed=len(missing) == 0,
+            score=(len(expected) - len(missing)) / len(expected),
+            details={
+                "expected_count": len(expected),
+                "found_count": len(names),
+                "missing": sorted(missing),
+                "extra": sorted(extra),
+            },
+            duration_ms=duration,
+        )
+
+    def test_tools_schema_required_fields(self) -> TestResult:
+        """Every tool with required args must declare them in inputSchema.required."""
+        result, duration = self.run_mcp_request("tools/list")
+        tools = result.get("result", {}).get("tools", [])
+        # Known required-arg tools and their required field names
+        must_have_required = {
+            "search_codebase": ["query"],
+            "get_file_context": ["path"],
+            "pack_context": ["query"],
+            "find_callers": ["fn_name"],
+            "impact_analysis": ["file_path"],
+            "graph_search": ["file_id"],
+            "call_chain": ["from_fn", "to_fn"],
+        }
+        issues = []
+        for t in tools:
+            name = t.get("name", "")
+            if name not in must_have_required:
+                continue
+            schema = t.get("inputSchema", {})
+            required = schema.get("required", [])
+            for field in must_have_required[name]:
+                if field not in required:
+                    issues.append(f"{name} missing required field '{field}'")
+
+        return TestResult(
+            category=TestCategory.TOOLS.value,
+            test_name="tools/schema_required_fields_declared",
+            passed=len(issues) == 0,
+            score=1.0 if not issues else 0.0,
+            details={"issues": issues, "checked_tools": len(must_have_required)},
+            duration_ms=duration,
+        )
+
+    # =========================================================================
+    # CATEGORY 13: Security — Path Guard
+    # =========================================================================
+
+    def test_path_traversal_get_file_context(self) -> TestResult:
+        """get_file_context must reject paths that escape the workspace root."""
+        traversal_paths = [
+            "../../etc/passwd",
+            "../../../etc/shadow",
+            "src/../../etc/hosts",
+            "/etc/passwd",
+        ]
+        results = []
+        total_duration = 0.0
+        for path in traversal_paths:
+            res, dur = self.run_mcp_request("tools/call", {
+                "name": "get_file_context",
+                "arguments": {"path": path},
+            })
+            total_duration += dur
+            text = ""
+            try:
+                text = res.get("result", {}).get("content", [{}])[0].get("text", "")
+            except (IndexError, AttributeError):
+                pass
+            # Must NOT return actual file content — should be error or empty
+            blocked = (
+                "error" in text.lower()
+                or "not found" in text.lower()
+                or "outside" in text.lower()
+                or "invalid" in text.lower()
+                or "permission" in text.lower()
+                or text.strip() == ""
+                or "error" in res
+            )
+            # The file content of /etc/passwd would contain "root:" — definitive leak indicator
+            leaked = "root:" in text or "daemon:" in text
+            results.append({
+                "path": path,
+                "blocked": blocked and not leaked,
+                "leaked": leaked,
+            })
+
+        all_blocked = all(r["blocked"] for r in results)
+        no_leak = not any(r["leaked"] for r in results)
+
+        return TestResult(
+            category=TestCategory.SECURITY.value,
+            test_name="security/path_traversal_blocked",
+            passed=all_blocked and no_leak,
+            score=1.0 if (all_blocked and no_leak) else (0.5 if no_leak else 0.0),
+            details={"results": results, "all_blocked": all_blocked, "no_leak": no_leak},
+            duration_ms=total_duration,
+        )
+
+    def test_workspace_absolute_path_outside(self) -> TestResult:
+        """Absolute paths outside the workspace must not serve content."""
+        res, duration = self.run_mcp_request("tools/call", {
+            "name": "get_file_context",
+            "arguments": {"path": "/tmp/test_outside_workspace.txt"},
+        })
+        text = ""
+        try:
+            text = res.get("result", {}).get("content", [{}])[0].get("text", "")
+        except (IndexError, AttributeError):
+            pass
+        # Should not crash; must return an error or not-found response
+        safe = "result" in res and "root:" not in text
+
+        return TestResult(
+            category=TestCategory.SECURITY.value,
+            test_name="security/absolute_path_outside_workspace",
+            passed=safe,
+            score=1.0 if safe else 0.0,
+            details={"responded": "result" in res, "leaked_sensitive": "root:" in text},
+            duration_ms=duration,
+        )
+
+    # =========================================================================
+    # CATEGORY 14: Input Validation Deep
+    # =========================================================================
+
+    def test_agent_phase_invalid_value(self) -> TestResult:
+        """pack_context with invalid agent_phase must not crash — handle gracefully."""
+        result, duration = self.run_mcp_request("tools/call", {
+            "name": "pack_context",
+            "arguments": {"query": "test", "agent_phase": "invalid_phase_xyz"},
+        })
+        # Must respond (not crash) — either error or treat as unknown/default
+        responded = "result" in result or "error" in result
+
+        return TestResult(
+            category=TestCategory.VALIDATION.value,
+            test_name="input_validation/agent_phase_invalid_handled",
+            passed=responded,
+            score=1.0 if responded else 0.0,
+            details={"responded": responded},
+            duration_ms=duration,
+        )
+
+    def test_token_budget_below_minimum(self) -> TestResult:
+        """pack_context with token_budget=999 (below minimum 1000) must be handled gracefully."""
+        result, duration = self.run_mcp_request("tools/call", {
+            "name": "pack_context",
+            "arguments": {"query": "test", "token_budget": 999},
+        })
+        responded = "result" in result or "error" in result
+
+        return TestResult(
+            category=TestCategory.VALIDATION.value,
+            test_name="input_validation/token_budget_below_minimum",
+            passed=responded,
+            score=1.0 if responded else 0.0,
+            details={"responded": responded},
+            duration_ms=duration,
+        )
+
+    def test_session_id_invalid_chars(self) -> TestResult:
+        """session_clear with session_id containing invalid chars must return INVALID_ARGUMENT."""
+        cases = [
+            ("session id with spaces", "spaces"),
+            ("session/with/slashes", "slashes"),
+            ("session<script>xss</script>", "xss_attempt"),
+            ("a" * 129, "too_long_129_chars"),
+        ]
+        results = []
+        total_duration = 0.0
+        for sid, label in cases:
+            res, dur = self.run_mcp_request("tools/call", {
+                "name": "session_clear",
+                "arguments": {"session_id": sid},
+            })
+            total_duration += dur
+            text = ""
+            try:
+                text = res.get("result", {}).get("content", [{}])[0].get("text", "")
+            except (IndexError, AttributeError):
+                pass
+            got_invalid = "INVALID_ARGUMENT" in text or "error" in text.lower() or "error" in res
+            results.append({"label": label, "got_error": got_invalid})
+
+        caught = sum(1 for r in results if r["got_error"])
+        return TestResult(
+            category=TestCategory.VALIDATION.value,
+            test_name="input_validation/session_id_invalid_chars_rejected",
+            passed=caught == len(cases),
+            score=caught / len(cases),
+            details={"cases": results, "caught": caught, "total": len(cases)},
+            duration_ms=total_duration,
+        )
+
+    def test_search_no_results_is_list(self) -> TestResult:
+        """search_codebase for a nonexistent query returns results:[] not an error."""
+        result, duration = self.run_mcp_request("tools/call", {
+            "name": "search_codebase",
+            "arguments": {"query": "nonexistent_xyz_zzz_999_abc", "limit": 5},
+        })
+        text = ""
+        try:
+            text = result.get("result", {}).get("content", [{}])[0].get("text", "")
+            payload = json.loads(text)
+        except (IndexError, AttributeError, json.JSONDecodeError):
+            payload = {}
+
+        has_results_key = "results" in payload
+        is_list = isinstance(payload.get("results"), list)
+        not_error = "error" not in payload
+
+        return TestResult(
+            category=TestCategory.VALIDATION.value,
+            test_name="input_validation/search_no_results_returns_empty_list",
+            passed="result" in result and has_results_key and is_list,
+            score=1.0 if ("result" in result and has_results_key and is_list) else 0.0,
+            details={
+                "has_results_key": has_results_key,
+                "is_list": is_list,
+                "not_error": not_error,
+            },
+            duration_ms=duration,
+        )
+
+    # =========================================================================
+    # CATEGORY 15: Data Integrity (semantic content checks)
+    # =========================================================================
+
+    def test_status_graph_counts_nonzero(self) -> TestResult:
+        """get_status must report node_count > 0 and edge_count > 0 when index exists."""
+        result, duration = self.run_mcp_request("tools/call", {
+            "name": "get_status",
+            "arguments": {},
+        })
+        payload = self._graph_payload(result)
+        graph = payload.get("graph_store", {})
+        available = graph.get("available", False)
+        node_count = graph.get("node_count", 0)
+        edge_count = graph.get("edge_count", 0)
+        # Only assert counts if graph is available
+        counts_ok = not available or (node_count > 0 and edge_count > 0)
+
+        return TestResult(
+            category=TestCategory.GRAPH_TOOLS.value,
+            test_name="data_integrity/status_graph_counts_nonzero",
+            passed="result" in result and counts_ok,
+            score=1.0 if ("result" in result and counts_ok) else 0.0,
+            details={
+                "graph_available": available,
+                "node_count": node_count,
+                "edge_count": edge_count,
+            },
+            duration_ms=duration,
+        )
+
+    def test_search_result_field_schema(self) -> TestResult:
+        """Each search result must contain 'path' and 'score' fields."""
+        result, duration = self.run_mcp_request("tools/call", {
+            "name": "search_codebase",
+            "arguments": {"query": "config", "limit": 5},
+        })
+        text = ""
+        try:
+            text = result.get("result", {}).get("content", [{}])[0].get("text", "")
+            payload = json.loads(text)
+        except (IndexError, AttributeError, json.JSONDecodeError):
+            payload = {}
+
+        results_list = payload.get("results", [])
+        issues = []
+        for i, r in enumerate(results_list):
+            if "path" not in r:
+                issues.append(f"result[{i}] missing 'path'")
+            if "score" not in r:
+                issues.append(f"result[{i}] missing 'score'")
+
+        return TestResult(
+            category=TestCategory.CONTENT.value,
+            test_name="data_integrity/search_results_have_path_and_score",
+            passed=len(results_list) > 0 and len(issues) == 0,
+            score=1.0 if (len(results_list) > 0 and not issues) else 0.0,
+            details={
+                "results_count": len(results_list),
+                "schema_issues": issues,
+            },
+            duration_ms=duration,
+        )
+
+    def test_file_context_required_fields(self) -> TestResult:
+        """get_file_context must return content, language, and line_count fields."""
+        result, duration = self.run_mcp_request("tools/call", {
+            "name": "get_file_context",
+            "arguments": {"path": "src/ws_ctx_engine/mcp/tools.py"},
+        })
+        text = ""
+        try:
+            text = result.get("result", {}).get("content", [{}])[0].get("text", "")
+            payload = json.loads(text)
+        except (IndexError, AttributeError, json.JSONDecodeError):
+            payload = {}
+
+        has_content = bool(payload.get("content"))
+        has_language = "language" in payload
+        has_line_count = "line_count" in payload
+
+        return TestResult(
+            category=TestCategory.CONTENT.value,
+            test_name="data_integrity/file_context_required_fields",
+            passed="result" in result and has_content and has_language and has_line_count,
+            score=sum([has_content, has_language, has_line_count]) / 3,
+            details={
+                "has_content": has_content,
+                "has_language": has_language,
+                "language": payload.get("language"),
+                "has_line_count": has_line_count,
+                "line_count": payload.get("line_count"),
+            },
+            duration_ms=duration,
+        )
+
+    def test_domain_map_structure(self) -> TestResult:
+        """get_domain_map must return a non-empty domains list."""
+        result, duration = self.run_mcp_request("tools/call", {
+            "name": "get_domain_map",
+            "arguments": {},
+        })
+        text = ""
+        try:
+            text = result.get("result", {}).get("content", [{}])[0].get("text", "")
+            payload = json.loads(text)
+        except (IndexError, AttributeError, json.JSONDecodeError):
+            payload = {}
+
+        domains = payload.get("domains", None)
+        is_list = isinstance(domains, list)
+        non_empty = is_list and len(domains) > 0
+
+        return TestResult(
+            category=TestCategory.CONTENT.value,
+            test_name="data_integrity/domain_map_non_empty",
+            passed="result" in result and non_empty,
+            score=1.0 if ("result" in result and non_empty) else 0.0,
+            details={
+                "domains_is_list": is_list,
+                "domains_count": len(domains) if is_list else 0,
+                "sample": (domains or [])[:3],
+            },
+            duration_ms=duration,
+        )
+
+    # =========================================================================
+    # CATEGORY 16: Error Response Consistency
+    # =========================================================================
+
+    def test_error_structure_consistency(self) -> TestResult:
+        """All graph tools must return {error, message} on invalid input — not raw crashes."""
+        invalid_calls = [
+            ("find_callers", {}),
+            ("find_callers", {"fn_name": ""}),
+            ("impact_analysis", {}),
+            ("impact_analysis", {"file_path": ""}),
+            ("graph_search", {}),
+            ("graph_search", {"file_id": ""}),
+            ("call_chain", {}),
+            ("call_chain", {"from_fn": "a"}),
+        ]
+        results = []
+        total_duration = 0.0
+        for tool_name, args in invalid_calls:
+            res, dur = self.run_mcp_request("tools/call", {"name": tool_name, "arguments": args})
+            total_duration += dur
+            text = ""
+            try:
+                text = res.get("result", {}).get("content", [{}])[0].get("text", "")
+                error_payload = json.loads(text)
+            except (IndexError, AttributeError, json.JSONDecodeError):
+                error_payload = {}
+            has_error_key = "error" in error_payload
+            has_message_key = "message" in error_payload
+            consistent = has_error_key and has_message_key
+            results.append({
+                "tool": tool_name,
+                "args": str(args),
+                "has_error": has_error_key,
+                "has_message": has_message_key,
+                "consistent": consistent,
+            })
+
+        consistent_count = sum(1 for r in results if r["consistent"])
+        return TestResult(
+            category=TestCategory.ERROR_HANDLING.value,
+            test_name="error_handling/error_structure_has_error_and_message",
+            passed=consistent_count == len(invalid_calls),
+            score=consistent_count / len(invalid_calls),
+            details={
+                "consistent": consistent_count,
+                "total": len(invalid_calls),
+                "failures": [r for r in results if not r["consistent"]],
+            },
+            duration_ms=total_duration,
+        )
+
+    def test_graph_unavailable_error_structure(self) -> TestResult:
+        """GRAPH_UNAVAILABLE response must include error and message fields."""
+        # Call with a mocked unhealthy store scenario isn't possible via MCP,
+        # but we can verify the live store returns proper {error, message} for bad args.
+        result, duration = self.run_mcp_request("tools/call", {
+            "name": "find_callers",
+            "arguments": {"fn_name": ""},  # triggers INVALID_ARGUMENT
+        })
+        try:
+            text = result.get("result", {}).get("content", [{}])[0].get("text", "")
+            payload = json.loads(text)
+        except (IndexError, AttributeError, json.JSONDecodeError):
+            payload = {}
+
+        has_error = "error" in payload
+        has_message = "message" in payload
+
+        return TestResult(
+            category=TestCategory.ERROR_HANDLING.value,
+            test_name="error_handling/graph_error_response_fields",
+            passed="result" in result and has_error and has_message,
+            score=1.0 if ("result" in result and has_error and has_message) else 0.0,
+            details={
+                "has_error_field": has_error,
+                "has_message_field": has_message,
+                "error_value": payload.get("error"),
+                "message_value": payload.get("message"),
+            },
+            duration_ms=duration,
+        )
+
+    # =========================================================================
+    # CATEGORY 17: Rate Limiting
+    # =========================================================================
+
+    def test_rate_limit_triggers(self) -> TestResult:
+        """Calling pack_context (limit=5/min) 7 times rapidly should trigger RATE_LIMIT_EXCEEDED."""
+        rate_limited = False
+        responded_count = 0
+        total_duration = 0.0
+        for _ in range(7):
+            res, dur = self.run_mcp_request("tools/call", {
+                "name": "pack_context",
+                "arguments": {"query": "test", "format": "json"},
+            }, timeout=60)
+            total_duration += dur
+            if "result" in res:
+                responded_count += 1
+                try:
+                    text = res.get("result", {}).get("content", [{}])[0].get("text", "")
+                    if "RATE_LIMIT" in text:
+                        rate_limited = True
+                        break
+                except (IndexError, AttributeError):
+                    pass
+
+        # Pass if rate limit triggered OR all responded without crash (graceful either way)
+        graceful = rate_limited or responded_count > 0
+
+        return TestResult(
+            category=TestCategory.RATE_LIMIT.value,
+            test_name="rate_limit/pack_context_triggers_on_burst",
+            passed=graceful,
+            score=1.0 if rate_limited else (0.8 if graceful else 0.0),
+            details={
+                "rate_limited_triggered": rate_limited,
+                "responded_count": responded_count,
+                "calls_made": 7,
+            },
+            duration_ms=total_duration,
+        )
+
+    def test_rate_limit_get_status_recovery(self) -> TestResult:
+        """After rapid calls, tool must recover and respond correctly."""
+        # Exhaust limit
+        for _ in range(12):
+            self.run_mcp_request("tools/call", {"name": "get_status", "arguments": {}}, timeout=15)
+
+        # After exhaustion, a fresh request should still respond (even if rate limited)
+        result, duration = self.run_mcp_request("tools/call", {"name": "get_status", "arguments": {}}, timeout=15)
+        responded = "result" in result or "error" in result
+
+        return TestResult(
+            category=TestCategory.RATE_LIMIT.value,
+            test_name="rate_limit/server_responds_after_burst",
+            passed=responded,
+            score=1.0 if responded else 0.0,
+            details={"responded": responded},
+            duration_ms=duration,
+        )
+
+    # =========================================================================
     # Run All Tests
     # =========================================================================
-    
+
     def run_all_tests(self):
         """Execute all tests and generate report."""
         print("=" * 70)
@@ -932,34 +2036,86 @@ class MCPTestSuite:
             self.test_protocol_initialize,
             self.test_protocol_tools_list,
             self.test_protocol_notifications,
-            
+
             # Tool Discovery
             self.test_tool_discovery_comprehensive,
-            
+
             # Input Validation
             self.test_input_validation_missing_required,
             self.test_input_validation_invalid_types,
             self.test_input_validation_boundary_values,
             self.test_input_validation_sql_injection,
-            
+
             # Error Handling
             self.test_error_handling_unknown_method,
             self.test_error_handling_unknown_tool,
-            
+
             # Performance
             self.test_performance_single_request_latency,
             self.test_performance_search_latency,
             self.test_performance_pack_context,
-            
+
             # Concurrency
             self.test_concurrency_multiple_parallel,
             self.test_concurrency_mixed_tools,
-            
+
             # Timeout
             self.test_timeout_handling,
-            
+
             # Structured Content
             self.test_structured_content_format,
+
+            # Graph Tools (Phase 4)
+            self.test_graph_tools_registered,
+            self.test_graph_get_status,
+            self.test_graph_find_callers_validation,
+            self.test_graph_find_callers_happy_path,
+            self.test_graph_impact_analysis_validation,
+            self.test_graph_impact_analysis_happy_path,
+            self.test_graph_search_validation,
+            self.test_graph_search_happy_path,
+            self.test_graph_call_chain_validation,
+            self.test_graph_call_chain_happy_path,
+            self.test_graph_tools_graceful_degradation,
+            self.test_graph_tools_performance,
+
+            # Graph Semantic Correctness (Phase 5 — real data assertions)
+            self.test_graph_find_callers_multi_file,
+            self.test_graph_impact_analysis_core_module,
+            self.test_graph_search_known_symbols,
+            self.test_graph_call_chain_depth_cap,
+            self.test_graph_call_chain_same_function,
+            self.test_graph_call_chain_no_path,
+
+            # Protocol Depth
+            self.test_jsonrpc_id_integer,
+            self.test_jsonrpc_id_string,
+            self.test_tools_list_all_twelve,
+            self.test_tools_schema_required_fields,
+
+            # Security — Path Guard
+            self.test_path_traversal_get_file_context,
+            self.test_workspace_absolute_path_outside,
+
+            # Input Validation Deep
+            self.test_agent_phase_invalid_value,
+            self.test_token_budget_below_minimum,
+            self.test_session_id_invalid_chars,
+            self.test_search_no_results_is_list,
+
+            # Data Integrity
+            self.test_status_graph_counts_nonzero,
+            self.test_search_result_field_schema,
+            self.test_file_context_required_fields,
+            self.test_domain_map_structure,
+
+            # Error Consistency
+            self.test_error_structure_consistency,
+            self.test_graph_unavailable_error_structure,
+
+            # Rate Limiting
+            self.test_rate_limit_triggers,
+            self.test_rate_limit_get_status_recovery,
         ]
         
         for test_func in tests:

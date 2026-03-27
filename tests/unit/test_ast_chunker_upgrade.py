@@ -202,10 +202,10 @@ class TestASTChunkTypeScript:
 
 
 class TestFallbackLanguages:
-    def test_javascript_uses_extract_definitions_not_astchunk(
+    def test_javascript_uses_astchunk_when_available(
         self, tmp_path: Path
     ) -> None:
-        """Even with astchunk present, JavaScript falls back to tree-sitter resolver."""
+        """With astchunk present, JavaScript is routed through astchunk (not resolver-only)."""
         js_file = tmp_path / "math.js"
         js_file.write_text(JAVASCRIPT_SOURCE)
 
@@ -224,7 +224,7 @@ class TestFallbackLanguages:
             chunker = TreeSitterChunker()
             chunker._parse_file(js_file, tmp_path)
 
-        assert not call_log, "astchunk must NOT be called for JavaScript files"
+        assert call_log, "astchunk MUST be called for JavaScript files when available"
 
     def test_rust_uses_extract_definitions_not_astchunk(self, tmp_path: Path) -> None:
         rs_file = tmp_path / "math.rs"

@@ -282,8 +282,63 @@ def index_repository(
             logger.log_error(e, {"phase": "graph_building", "repo_path": repo_path})
             raise RuntimeError(f"Failed to build graph: {e}") from e
 
-    # Phase 3.5: Build BM25 index (optional — gracefully skipped if rank-bm25 absent)
-    logger.info("Phase 3.5: Building BM25 keyword index")
+    # Phase 3.5: Build GraphStore (CALLS + IMPORTS edges via CozoDB)
+    # This phase is additive — it never raises to the caller.
+    if not domain_only:
+        try:
+            from ..graph.builder import chunks_to_full_graph
+            from ..graph.cozo_store import GraphStore
+            from ..graph.validation import validate_graph
+
+            if config.graph_store_enabled:
+                if config.graph_store_storage == "mem":
+                    storage_str = "mem"
+                else:
+                    # Resolve relative paths against index_path so graph.db
+                    # lands alongside vector.idx / graph.pkl / bm25.pkl.
+                    db_path = Path(config.graph_store_path)
+                    if not db_path.is_absolute():
+                        db_path = index_path.parent / db_path
+                    storage_str = f"{config.graph_store_storage}:{db_path}"
+
+                t_graph_store = time.perf_counter()
+                g_nodes, g_edges = chunks_to_full_graph(chunks)
+                g_result = validate_graph(g_nodes, g_edges)
+                for w in g_result.warnings:
+                    logger.debug(f"Graph validation warning: {w}")
+
+                if g_result.is_valid:
+                    graph_store = GraphStore(storage_str)
+                    if graph_store.is_healthy:
+                        if _incremental_mode_active:
+                            # Incremental: remove stale file data before re-inserting
+                            for stale_path in _changed_paths + _deleted_paths:
+                                stale_id = stale_path.replace("\\", "/")
+                                graph_store.delete_file_scope(stale_id)
+                        else:
+                            # Full rebuild: wipe existing data so renamed/deleted
+                            # symbols don't persist as stale nodes/edges.
+                            graph_store.clear()
+
+                        graph_store.bulk_upsert(g_nodes, g_edges)
+                        calls_count = sum(1 for e in g_edges if e.relation == "CALLS")
+                        imports_count = sum(1 for e in g_edges if e.relation == "IMPORTS")
+                        logger.info(
+                            f"GraphStore: {len(g_nodes)} nodes, {len(g_edges)} edges "
+                            f"(CALLS={calls_count}, IMPORTS={imports_count}) "
+                            f"in {(time.perf_counter()-t_graph_store)*1000:.0f}ms"
+                        )
+                    else:
+                        logger.warning("GraphStore skipped: store is not healthy")
+                else:
+                    logger.warning(
+                        f"GraphStore skipped: graph validation errors: {g_result.errors}"
+                    )
+        except Exception as e:
+            logger.warning(f"GraphStore phase failed (non-fatal): {e}")
+
+    # Phase 3.6: Build BM25 index (optional — gracefully skipped if rank-bm25 absent)
+    logger.info("Phase 3.6: Building BM25 keyword index")
     try:
         from ..retrieval.bm25_index import BM25Index
 

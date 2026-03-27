@@ -205,8 +205,13 @@ def test_tool_registry_exposes_expected_tools() -> None:
             "get_domain_map",
             "get_index_status",
             "index_status",
+            "get_status",
             "pack_context",
             "session_clear",
+            "find_callers",
+            "impact_analysis",
+            "graph_search",
+            "call_chain",
         }
 
 

@@ -98,7 +98,7 @@ class TestLEANNSearcherCache:
 
         constructor_calls: list[str] = []
 
-        def mock_searcher_cls(path: str) -> MagicMock:
+        def mock_searcher_cls(path: str, **kwargs: object) -> MagicMock:
             constructor_calls.append(path)
             return mock_searcher
 
