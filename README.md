@@ -1,6 +1,11 @@
 # ws-ctx-engine
 
-Intelligently package codebases into optimized context for Large Language Models (LLMs). ws-ctx-engine uses hybrid ranking (semantic search + PageRank) to select the most relevant files within your token budget, with comprehensive fallback strategies for production reliability.
+> **⚠️ PROJECT STATUS: Archived (March 29, 2026)**  
+> This project has been archived by the original author but remains available under GPL-3.0 license for community continuation. See [PROJECT_POSTMORTEM.md](PROJECT_POSTMORTEM.md) for lessons learned and [CONTRIBUTOR_GUIDE.md](CONTRIBUTOR_GUIDE.md) for continuation instructions.
+
+---
+
+**ws-ctx-engine** intelligently packages codebases into optimized context for Large Language Models (LLMs). It uses hybrid ranking (semantic search + PageRank) to select the most relevant files within your token budget, with comprehensive fallback strategies for production reliability.
 
 ## Features
 
@@ -442,6 +447,24 @@ Contributions welcome! Please see CONTRIBUTING.md for guidelines.
 
 See [AI_AGENTS.md](AI_AGENTS.md) for guidelines on how AI agents should use this tool.
 
+## Project Archive Notice
+
+**Why was this project archived?**
+
+Despite achieving technical superiority in several areas (hybrid ranking, LEANN storage efficiency, token budget management), ws-ctx-engine could not compete with GitNexus in the market due to:
+
+1. **First-mover disadvantage**: GitNexus captured market attention with viral "AI agent nervous system" narrative
+2. **Incomplete Graph RAG**: Call chain tracing and impact analysis were table stakes for Q2 2026
+3. **Agent experience gap**: Auto-install skills and Claude Code hooks were critical for user retention
+4. **Community momentum**: GitNexus built active Discord community and ecosystem partnerships
+5. **Marketing failure**: Technical positioning ("context packager") lost to emotional narrative
+
+For detailed analysis, see:
+- [PROJECT_POSTMORTEM.md](PROJECT_POSTMORTEM.md) - Comprehensive lessons learned
+- [COMPETITOR_ANALYSIS.md](COMPETITOR_ANALYSIS.md) - GitNexus vs ws-ctx-engine comparison
+- [ARCHITECTURE_SUMMARY.md](ARCHITECTURE_SUMMARY.md) - Technical documentation
+- [CONTRIBUTOR_GUIDE.md](CONTRIBUTOR_GUIDE.md) - Guide for continuing development
+
 ## Citation
 
 If you use ws-ctx-engine in research, please cite:
@@ -451,6 +474,7 @@ If you use ws-ctx-engine in research, please cite:
   title = {ws-ctx-engine: Intelligent Codebase Packaging for LLMs},
   author = {zamery},
   year = {2024},
-  url = {https://github.com/maemreyo/zmr-ctx-paker}
+  url = {https://github.com/maemreyo/zmr-ctx-paker},
+  note = {Archived March 2026; available for community continuation under GPL-3.0 license}
 }
 ```
